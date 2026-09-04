@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "task": "eval-2-with-images",
+  "mode": "dry-run",
+  "status": "pass",
+  "source": {
+    "path": "/mnt/HDD8TB-2/takama/Takama-Systems-Group/.agents/skills/notion-material-archive/evals/files/with-images.md",
+    "title": "複数画像付き検証資料",
+    "sha256": "7e4272ce6b52530705ee1758f95558e40fd8b1a89b2f39556b1295711d6b308e",
+    "bytes": 218,
+    "lines": 16
+  },
+  "images": {
+    "total_count": 2,
+    "local_count": 2,
+    "remote_count": 0,
+    "manifest_count": 2,
+    "checksums_recorded": 2,
+    "missing_count": 0
+  },
+  "markup": {
+    "replacement_count": 2,
+    "replacement_scope": "local image URL token only",
+    "body_otherwise_unchanged": true,
+    "alt_text_unchanged": true,
+    "order_unchanged": true
+  },
+  "assertions": {
+    "title_identified": true,
+    "image_manifest_recorded": true,
+    "all_image_paths_resolved": true,
+    "all_image_checksums_recorded": true,
+    "exact_markup_replacements_recorded": true,
+    "required_cleanup_documented": true,
+    "evidence_recorded": true,
+    "fixture_unchanged": true,
+    "real_company_content_unchanged": true
+  },
+  "side_effects": {
+    "notion_calls": 0,
+    "notion_writes": 0,
+    "http_servers_started": 0,
+    "https_servers_started": 0,
+    "ssh_tunnels_created": 0,
+    "public_urls_created": 0,
+    "temporary_resources_created": 0
+  },
+  "cleanup": {
+    "required_for_live_run": true,
+    "required_for_this_dry_run": false,
+    "status": "clean",
+    "resources_remaining": 0
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "expectations": [
+    {
+      "text": "titleが「画像なし検証資料」と判定されている",
+      "passed": true,
+      "evidence": "result.mdの結果欄にtitle「画像なし検証資料」が記録されている。"
+    },
+    {
+      "text": "local image countが0である",
+      "passed": true,
+      "evidence": "result.mdとmetrics.jsonの両方でlocal image count 0を確認できる。"
+    },
+    {
+      "text": "source SHA-256が記録されている",
+      "passed": true,
+      "evidence": "82a1c02064f306562d1c009d79431ce55841fab482e4e3de72a172061f89170eが記録されている。"
+    },
+    {
+      "text": "dry runのためNotion writeとHTTPS tunnelを行っていない",
+      "passed": true,
+      "evidence": "Notion書き込み0件、HTTP serverなし、SSH tunnelなしと明記されている。"
+    },
+    {
+      "text": "同名child pageの重複確認と作成後検証が計画されている",
+      "passed": true,
+      "evidence": "固定parentでのexact title比較と、ancestor・title・本文・画像数・SHAの作成後検証が列挙されている。"
+    },
+    {
+      "text": "bundled prepare helperを実行し、作成したstageをcleanup helperで削除している",
+      "passed": true,
+      "evidence": "material_archive.py prepareとcleanupのコマンド証跡があり、stage exists=falseを確認している。"
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "total_tool_calls": 0,
+    "errors_encountered": 0,
+    "output_chars": 6374
+  },
+  "timing": {
+    "total_duration_seconds": 0.0
+  },
+  "user_notes_summary": {
+    "uncertainties": [
+      "executor timing and token metadata were not exposed by the collaboration notification"
+    ],
+    "needs_review": [],
+    "workarounds": []
+  }
+}

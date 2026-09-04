@@ -1,0 +1,1 @@
+{"manifest": "/mnt/HDD8TB-2/takama/Takama-Systems-Group/.agents/skills/notion-material-archive-workspace/iteration-1/eval-2-with-images/with_skill/outputs/prepare-manifest.json", "documents": 1, "local_images": 2, "remote_images": 0, "stage_dir": "/tmp/notion-material-archive-wli1ez1x", "assets_dir": "/tmp/notion-material-archive-wli1ez1x/assets"}

@@ -1,0 +1,69 @@
+{
+  "skill_name": "engineering-task",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "brainstormではweight-aware proxyが有力だったので、その案を研究コードへ実装して。approved specはまだありません。",
+      "expected_output": "brainstormの候補を実装権限とみなさず、研究上の意味を変える変更なのでコードへ書き込まずresearch-specへ戻す。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "unapproved_research_change_is_blocked",
+          "description": "研究上の意味を変える変更をapproved specなしで実装しない"
+        },
+        {
+          "name": "routes_to_research_spec",
+          "description": "不足する変更契約をresearch-specで確定するよう戻す"
+        },
+        {
+          "name": "no_run_inferred",
+          "description": "コード実装依頼から実験runを推定しない"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "承認済みspec `specs/fixed-a-kv-separate-spec.md` の範囲だけ実装して。隣の古いhelperも整理できそうだけど今回は触らないで。unit testと短いsmokeまでで、10-task runとpushはしない。",
+      "expected_output": "spec・局所指示・dirty stateを確認し、scopeに直接対応する最小差分だけを実装する。既存helperは触らず、unit/smoke結果と未実施runを区別し、pushしない。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "approved_scope_executed_directly",
+          "description": "再度specを作り直さずapproved scopeを実装する"
+        },
+        {
+          "name": "surgical_change_preserves_adjacent_code",
+          "description": "依頼外の古いhelperや隣接コードを整理しない"
+        },
+        {
+          "name": "verification_scope_reported",
+          "description": "unit/smokeの実施結果と10-task run未実施を区別する"
+        },
+        {
+          "name": "no_push_without_instruction",
+          "description": "commitまたはpushを行わない"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "設定ファイルの説明コメントのtypoだけ直して。挙動は変わらず、対象行も分かっています。テストは不要です。",
+      "expected_output": "formal specを要求せず、対象行だけを修正してdiffを確認する。無関係なformatや文書更新を行わず、テスト未実施を明示する。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "trivial_fix_does_not_require_formal_spec",
+          "description": "期待挙動が一意で意味を変えないtypoにformal specを要求しない"
+        },
+        {
+          "name": "only_target_line_changes",
+          "description": "対象行以外のformat、refactor、文書更新を行わない"
+        },
+        {
+          "name": "unverified_status_is_explicit",
+          "description": "ユーザー指示に従いテスト未実施を明示する"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "eval_id": 3,
+  "eval_name": "duplicate",
+  "prompt": "資料保管庫に入力Markdownと同じtitleのchild pageが既にあるケースをdry runしてください。既存ページは変更せず、新規ページも作らず、どう停止して何を報告するかを outputs/result.md に記録してください。",
+  "assertions": [
+    "exact title matchを重複と判定している",
+    "既存ページを更新しない",
+    "新規ページを作成しない",
+    "既存ページURLを報告対象にしている",
+    "Notion writeやHTTPS tunnelを開始せず停止する",
+    "bundled prepare helperでtitleを確定し、temporary stageをcleanup helperで削除している"
+  ]
+}

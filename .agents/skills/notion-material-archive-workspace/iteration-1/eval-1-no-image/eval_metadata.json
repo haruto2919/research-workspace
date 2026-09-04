@@ -1,0 +1,13 @@
+{
+  "eval_id": 1,
+  "eval_name": "no-image",
+  "prompt": "`.company/` 内に配置された `no-image.md` を資料保管庫へコピーする前提でdry runしてください。Notionへの書き込みは行わず、対象title、画像数、source SHA-256、本文を変更しないこと、実行時に行う重複確認と完了検証を outputs/result.md に記録してください。",
+  "assertions": [
+    "titleが「画像なし検証資料」と判定されている",
+    "local image countが0である",
+    "source SHA-256が記録されている",
+    "dry runのためNotion writeとHTTPS tunnelを行っていない",
+    "同名child pageの重複確認と作成後検証が計画されている",
+    "bundled prepare helperを実行し、作成したstageをcleanup helperで削除している"
+  ]
+}

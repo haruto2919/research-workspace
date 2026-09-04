@@ -3,121 +3,65 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "前回MTGで出たTODO『新しい評価方法を検討する』について壁打ちしたい。プロジェクトは sample-research-project です。",
-      "expected_output": "対象プロジェクトのREADME、対象TODOまたは今日/指定日のTODO、直近議事録を読み、TODOを問い・仮説・実験案・評価指標・次アクション・spec化候補に変換して壁打ちする。一段落したらbrainstorm保存を行い、明示承認なしではspecを作成しない。",
+      "prompt": "前回MTGのTODO『global Ritz vectorをblock分解した後も曲率が保たれるか』について壁打ちしたい。lora-dynamic-separationです。",
+      "expected_output": "README、対象TODO、直近MTG、関連実験を読んでから問い・仮説・検証案へ整理し、候補・棄却・未決を区別する。brainstormは保存できるがspecやコードは変更しない。",
       "files": [],
       "assertions": [
         {
           "name": "context_loaded_before_ideation",
-          "description": "発散に入る前にREADME、TODO、直近議事録を読む"
+          "description": "発散前にREADME、TODO、直近MTG、必要な関連Evidenceを読む"
         },
         {
-          "name": "todo_transformed_to_research_question",
-          "description": "TODOを問い、仮説、実験案、評価指標、次アクションへ変換する"
+          "name": "diverge_and_converge_are_separate",
+          "description": "候補の発散と評価軸による収束を分ける"
         },
         {
-          "name": "brainstorm_saved_after_session",
-          "description": ".research/secretary/notes/brainstorm/YYYY-MM-DD-topic.md に保存し、同日同topicがあれば追記する"
+          "name": "decision_states_are_distinguished",
+          "description": "採用候補、保留、棄却、未決を区別する"
         },
         {
-          "name": "spec_not_created_without_approval",
-          "description": "ユーザーの明示承認なしでは .research/lab/projects/<project>/specs/ に保存しない"
+          "name": "no_spec_or_code_write",
+          "description": "brainstormからspecや研究コードへ書き込まない"
         }
       ]
     },
     {
       "id": 2,
-      "prompt": "まだプロジェクト化するかわからない研究アイデアなんだけど、提案手法の失敗例をどの評価軸で説明できるか壁打ちしたい。",
-      "expected_output": "プロジェクト未確定として必要最小限の確認を行い、Clarify、Diverge、Convergeの順で相談を整理する。秘書室brainstormに保存し、プロジェクト配下にbrainstormフォルダを作らない。",
+      "prompt": "まだプロジェクト化するか分からないけど、LoRA干渉を低次元曲率で説明できるか壁打ちしたい。",
+      "expected_output": "プロジェクト未確定として必要最小限の明確化を行い、発散・収束・構造化する。秘書室brainstorm以外を作らない。",
       "files": [],
       "assertions": [
         {
-          "name": "minimal_clarifying_questions",
-          "description": "プロジェクトが未確定な場合、必要最小限の質問だけを行う"
+          "name": "minimal_clarification",
+          "description": "分かっている情報を聞き直さず、重要な不足だけを確認する"
         },
         {
-          "name": "diverge_and_converge_separated",
-          "description": "アイデア発散と評価・収束を混ぜずに分けて進める"
+          "name": "anti_convergence_checks",
+          "description": "反例、別視点、失敗条件、ユーザー判断点を出す"
         },
         {
           "name": "secretary_brainstorm_only",
-          "description": "brainstormメモは .research/secretary/notes/brainstorm/ に保存し、プロジェクト配下にbrainstormフォルダを作らない"
-        },
-        {
-          "name": "anti_ai_convergence_checks",
-          "description": "反例、別視点、未解決の問い、ユーザー判断が必要な点を提示する"
+          "description": "保存する場合は秘書室brainstormだけを使う"
         }
       ]
     },
     {
       "id": 3,
-      "prompt": "ここまでの議論で、提案手法の評価指標をベンチマークデータで比較する実験案がかなり固まってきた。spec化できるか見て。",
-      "expected_output": "Spec Gateに照らして不足点を確認し、Plan modeに渡すSpec Planning Promptを作る。ファイル作成前に計画提示を行い、明示承認なしではspecを保存しない。",
+      "prompt": "ここまでの議論を、research-specへ渡す引き継ぎ候補として整理して。まだspec readiness判定、保存、実装はしなくていい。",
+      "expected_output": "確定事項と不足を引き継ぎ候補として構造化し、research-specを次段階として示す。brainstorm自身はSpec Gate、spec保存、コード実装を行わない。",
       "files": [],
       "assertions": [
         {
-          "name": "spec_gate_checked",
-          "description": "問い、仮説、手順、評価指標、比較対象、成功/失敗基準、必要データ/成果物が揃っているか確認する"
+          "name": "handoff_candidate_is_structured",
+          "description": "採用方向、scope、対象外、評価、未決事項をhandoff候補へ整理する"
         },
         {
-          "name": "plan_mode_prompt_created",
-          "description": "Plan modeに渡すためのSpec Planning Promptを作成する"
+          "name": "research_spec_is_next_owner",
+          "description": "実装可能性のGateとspec保存をresearch-specへ委譲する"
         },
         {
-          "name": "missing_items_reported",
-          "description": "spec化前に不足している前提や評価指標を提示する"
-        },
-        {
-          "name": "no_spec_without_explicit_approval",
-          "description": "spec化できるかの相談だけではspecファイルを作成しない"
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "prompt": "さっきのbrainstormメモをもとに、この内容でOKなのでspec化して保存して。プロジェクトは sample-research-project、トピックは method-evaluation-benchmark です。",
-      "expected_output": "明示承認ありとして、Spec Gateを満たす内容を .research/lab/projects/sample-research-project/specs/YYYY-MM-DD-method-evaluation-benchmark-spec.md に保存し、関連brainstormへの参照を入れる。",
-      "files": [],
-      "assertions": [
-        {
-          "name": "explicit_approval_recognized",
-          "description": "『この内容でOK』『spec化して保存して』を明示承認として扱う"
-        },
-        {
-          "name": "spec_saved_to_project_specs",
-          "description": ".research/lab/projects/<project>/specs/YYYY-MM-DD-topic-spec.md に保存する"
-        },
-        {
-          "name": "spec_has_required_sections",
-          "description": "目的、背景、検証したい問い、仮説、実験・実装内容、比較対象、評価指標、成功/失敗基準、関連brainstormを含む"
-        },
-        {
-          "name": "brainstorm_reference_included",
-          "description": "元になったbrainstormメモへの参照をspecに含める"
-        }
-      ]
-    },
-    {
-      "id": 5,
-      "prompt": "この研究相談、少し長くなりそうです。途中で今ブレストのどの段階にいるのか分かるようにしながら、評価方針の実験案を壁打ちしたいです。",
-      "expected_output": "長めの壁打ちとして、文脈読込、発散、収束、構造化、保存、spec化検討などの節目で現在位置を日本語で短く表示する。英語フェーズ名だけに頼らず、ユーザーが今どの段階か分かるように進行する。",
-      "files": [],
-      "assertions": [
-        {
-          "name": "phase_status_shown_in_japanese",
-          "description": "『現在位置: 発散』『現在位置: 収束』『現在位置: 構造化』のように、日本語で現在フェーズを示す"
-        },
-        {
-          "name": "phase_transitions_explained",
-          "description": "発散から収束、収束から構造化など、切り替わりの意図を短く説明する"
-        },
-        {
-          "name": "not_every_message_overloaded",
-          "description": "毎回機械的に表示せず、長い壁打ちや節目で現在位置を示す"
-        },
-        {
-          "name": "structure_before_save_or_spec",
-          "description": "保存やspec化検討の前に、問い、仮説、実験案、未決事項へ構造化する"
+          "name": "no_promotion_or_implementation",
+          "description": "保存も実装もしないという依頼を守る"
         }
       ]
     }

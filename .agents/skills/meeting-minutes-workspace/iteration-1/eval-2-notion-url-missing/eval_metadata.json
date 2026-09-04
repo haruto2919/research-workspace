@@ -1,0 +1,43 @@
+{
+  "eval_id": 2,
+  "eval_name": "notion-url-missing",
+  "prompt": "MTG終わった！議事録作って（Notion URLがreferenceに不足しているケース）",
+  "assertions": [
+    {
+      "name": "raw_file_created",
+      "description": "Rawファイルが正しい場所に作成される"
+    },
+    {
+      "name": "notion_url_extracted",
+      "description": "当日メモからNotion URL（xyz789）を正確に抽出"
+    },
+    {
+      "name": "missing_url_detected",
+      "description": "xyz789がreferenceに存在しないことを検出"
+    },
+    {
+      "name": "user_request_before_summary",
+      "description": "要約前にユーザーへNotionエクスポートを要求"
+    },
+    {
+      "name": "wait_for_completion",
+      "description": "ユーザーが「完了」と言うまで待機"
+    },
+    {
+      "name": "recheck_and_proceed",
+      "description": "ファイル配置後、Globで再確認して要約開始"
+    },
+    {
+      "name": "meeting_minutes_created",
+      "description": "統合議事録が正しい場所に作成（meetings/2026-03-28-mtg.md）"
+    },
+    {
+      "name": "structure_preserved",
+      "description": "当日メモの構造が維持される"
+    },
+    {
+      "name": "todo_extraction",
+      "description": "タスクが適切に抽出される"
+    }
+  ]
+}

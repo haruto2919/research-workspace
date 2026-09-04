@@ -1,0 +1,36 @@
+{
+  "task": "eval-1-no-image",
+  "mode": "dry-run",
+  "status": "pass",
+  "source": {
+    "path": "/mnt/HDD8TB-2/takama/Takama-Systems-Group/.agents/skills/notion-material-archive/evals/files/no-image.md",
+    "title": "画像なし検証資料",
+    "sha256": "82a1c02064f306562d1c009d79431ce55841fab482e4e3de72a172061f89170e",
+    "image_count": 0,
+    "bytes": 209,
+    "lines": 19
+  },
+  "assertions": {
+    "title_identified": true,
+    "image_count_identified": true,
+    "source_sha256_recorded": true,
+    "body_must_remain_unchanged": true,
+    "duplicate_check_documented": true,
+    "completion_verification_documented": true,
+    "evidence_recorded": true,
+    "cleanup_status_recorded": true,
+    "fixture_unchanged": true,
+    "real_company_content_unchanged": true
+  },
+  "side_effects": {
+    "notion_calls": 0,
+    "notion_writes": 0,
+    "https_servers_started": 0,
+    "ssh_tunnels_created": 0,
+    "temporary_resources_created": 0
+  },
+  "cleanup": {
+    "required": false,
+    "status": "clean"
+  }
+}

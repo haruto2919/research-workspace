@@ -1,0 +1,74 @@
+{
+  "skill_name": "notion-material-archive",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "`.company/` 内に配置された `no-image.md` を資料保管庫へコピーする前提でdry runしてください。Notionへの書き込みは行わず、対象title、画像数、source SHA-256、本文を変更しないこと、実行時に行う重複確認と完了検証を outputs/result.md に記録してください。",
+      "expected_output": "画像なしMarkdownを改変せず処理するdry-run結果。",
+      "files": [
+        "evals/files/no-image.md"
+      ],
+      "expectations": [
+        "titleが「画像なし検証資料」と判定されている",
+        "local image countが0である",
+        "source SHA-256が記録されている",
+        "dry runのためNotion writeとHTTPS tunnelを行っていない",
+        "同名child pageの重複確認と作成後検証が計画されている",
+        "bundled prepare helperを実行し、作成したstageをcleanup helperで削除している"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "`.company/` 内に配置された `with-images.md` を資料保管庫へコピーする前提でdry runしてください。Notionへの書き込みやHTTPS公開は行わず、参照画像だけを抽出したmanifest、画像のchecksum、原文のどのmarkupだけを置換するか、必須cleanupを outputs/result.md に記録してください。",
+      "expected_output": "複数形式のローカル画像参照を抽出し、限定公開とcleanupを計画したdry-run結果。",
+      "files": [
+        "evals/files/with-images.md",
+        "evals/files/images/first.svg",
+        "evals/files/images/second.svg"
+      ],
+      "expectations": [
+        "local image countが2である",
+        "first.svgとsecond.svgのSHA-256が記録されている",
+        "Markdown imageとHTML imgの両方が抽出されている",
+        "参照画像以外を公開しない方針が明記されている",
+        "server、SSH tunnel、一時directoryのcleanupが明記されている",
+        "最終pageでは一時HTTPS URLではなくNotion attachmentのsuggested_markdownへ置換する計画である",
+        "stagingには参照画像2件だけを置き、staged copyのchecksum一致を確認している"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "資料保管庫に入力Markdownと同じtitleのchild pageが既にあるケースをdry runしてください。既存ページは変更せず、新規ページも作らず、どう停止して何を報告するかを outputs/result.md に記録してください。",
+      "expected_output": "同名ページを上書き・複製せず、安全にskipするdry-run結果。",
+      "files": [
+        "evals/files/no-image.md"
+      ],
+      "expectations": [
+        "exact title matchを重複と判定している",
+        "既存ページを更新しない",
+        "新規ページを作成しない",
+        "既存ページURLを報告対象にしている",
+        "Notion writeやHTTPS tunnelを開始せず停止する",
+        "bundled prepare helperでtitleを確定し、temporary stageをcleanup helperで削除している"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "`.company/` 内に配置された `math-tables.md` を資料保管庫へコピーする前提でdry runしてください。元ファイルは変更せず、Notion用生成物で数式delimiterと表separatorをどう正規化するか、コードとMermaidをどう保護するか、登録後に数式本体・表構造をどう検証するかを outputs/result.md に記録してください。",
+      "expected_output": "数式・右寄せ表・コードが混在するMarkdownをNotion向けに安全にコンパイルし、round-trip検証を計画したdry-run結果。",
+      "files": [
+        "evals/files/math-tables.md"
+      ],
+      "expectations": [
+        "legacy inline math 3件とdisplay math 1件を検出している",
+        "表1件とalignment付きseparator 1件を検出している",
+        "Notion用生成物だけで数式を$...$と$$...$$へ変換する計画である",
+        "表separatorのalignment colonを除去しheader rowとして保持する計画である",
+        "inline codeとMermaid内部の数式・表らしき文字列を変換しない",
+        "登録後に数式件数・数式本体hash・表数・row数・column数・header row・separator leakを検証する",
+        "source SHA-256を再照合し、元Markdownを変更しない",
+        "temporary stageをcleanup helperで削除する"
+      ]
+    }
+  ]
+}

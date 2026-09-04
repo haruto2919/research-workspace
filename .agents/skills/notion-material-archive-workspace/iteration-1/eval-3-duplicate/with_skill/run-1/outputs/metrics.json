@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "task": "duplicate child page dry-run evaluation",
+  "status": "success",
+  "passed": true,
+  "dry_run": true,
+  "documents_prepared": 1,
+  "title": "画像なし検証資料",
+  "source_sha256": "82a1c02064f306562d1c009d79431ce55841fab482e4e3de72a172061f89170e",
+  "source_size_bytes": 209,
+  "local_image_count": 0,
+  "remote_image_count": 0,
+  "warnings": [],
+  "duplicate_check": {
+    "comparison": "exact_title_match",
+    "candidate_title": "画像なし検証資料",
+    "existing_title": "画像なし検証資料",
+    "exact_match": true,
+    "decision": "skip",
+    "stopped_before_create": true,
+    "existing_page_url": "https://app.notion.com/p/existing-eval-page",
+    "existing_url_reported": true
+  },
+  "writes": {
+    "notion_writes": 0,
+    "existing_pages_updated": 0,
+    "new_pages_created": 0,
+    "attachments_uploaded": 0,
+    "render_performed": false
+  },
+  "notion_calls": 0,
+  "http_servers_started": 0,
+  "ssh_tunnels_started": 0,
+  "https_publication_performed": false,
+  "source_unchanged": true,
+  "fixture_modified": false,
+  "real_company_content_modified": false,
+  "cleanup": {
+    "temporary_stage_removed": true,
+    "temporary_stage_exists_after_cleanup": false,
+    "isolated_test_workspace_removed": true,
+    "http_server_stop_status": "not_started",
+    "ssh_tunnel_stop_status": "not_started",
+    "listen_ports_remaining": 0
+  }
+}

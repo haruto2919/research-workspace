@@ -1,0 +1,60 @@
+{
+  "expectations": [
+    {
+      "text": "local image countが2である",
+      "passed": true,
+      "evidence": "manifest、result.md、metrics.jsonでlocal images 2を確認できる。"
+    },
+    {
+      "text": "first.svgとsecond.svgのSHA-256が記録されている",
+      "passed": true,
+      "evidence": "両画像の完全なSHA-256が表に記録されている。"
+    },
+    {
+      "text": "Markdown imageとHTML imgの両方が抽出されている",
+      "passed": true,
+      "evidence": "kind markdown-inlineとhtmlの2件がoffset付きで記録されている。"
+    },
+    {
+      "text": "参照画像以外を公開しない方針が明記されている",
+      "passed": true,
+      "evidence": "staging assets directoryには参照画像2ファイルだけと明記されている。"
+    },
+    {
+      "text": "server、SSH tunnel、一時directoryのcleanupが明記されている",
+      "passed": true,
+      "evidence": "未起動時の扱いを含め、stage cleanupとsession・port確認が記録されている。"
+    },
+    {
+      "text": "最終pageでは一時HTTPS URLではなくNotion attachmentのsuggested_markdownへ置換する計画である",
+      "passed": true,
+      "evidence": "各markupをattachment responseのupload_map assets suggested_markdownで置換すると明記されている。"
+    },
+    {
+      "text": "stagingには参照画像2件だけを置き、staged copyのchecksum一致を確認している",
+      "passed": true,
+      "evidence": "staging assetsは2件のみで、fixture・isolated copy・staged copyの3者SHA一致を確認している。"
+    }
+  ],
+  "summary": {
+    "passed": 7,
+    "failed": 0,
+    "total": 7,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "total_tool_calls": 0,
+    "errors_encountered": 0,
+    "output_chars": 4618
+  },
+  "timing": {
+    "total_duration_seconds": 0.0
+  },
+  "user_notes_summary": {
+    "uncertainties": [
+      "executor timing and token metadata were not exposed by the collaboration notification"
+    ],
+    "needs_review": [],
+    "workarounds": []
+  }
+}

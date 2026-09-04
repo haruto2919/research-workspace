@@ -1,0 +1,55 @@
+{
+  "expectations": [
+    {
+      "text": "exact title matchを重複と判定している",
+      "passed": true,
+      "evidence": "title match exactとして安全停止している。"
+    },
+    {
+      "text": "既存ページを更新しない",
+      "passed": true,
+      "evidence": "existing pages updated 0である。"
+    },
+    {
+      "text": "新規ページを作成しない",
+      "passed": true,
+      "evidence": "new pages created 0である。"
+    },
+    {
+      "text": "既存ページURLを報告対象にしている",
+      "passed": true,
+      "evidence": "simulated existing page URLを利用者向け報告へ含めている。"
+    },
+    {
+      "text": "Notion writeやHTTPS tunnelを開始せず停止する",
+      "passed": true,
+      "evidence": "Notion write、HTTP/HTTPS server、SSH tunnelはいずれも0である。"
+    },
+    {
+      "text": "bundled prepare helperでtitleを確定し、temporary stageをcleanup helperで削除している",
+      "passed": false,
+      "evidence": "bundled helperは使われず、temporary stageも作成していないためcleanup helperの証跡がない。"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 1,
+    "total": 6,
+    "pass_rate": 0.8333
+  },
+  "execution_metrics": {
+    "total_tool_calls": 0,
+    "errors_encountered": 0,
+    "output_chars": 2727
+  },
+  "timing": {
+    "total_duration_seconds": 0.0
+  },
+  "user_notes_summary": {
+    "uncertainties": [
+      "executor timing and token metadata were not exposed by the collaboration notification"
+    ],
+    "needs_review": [],
+    "workarounds": []
+  }
+}

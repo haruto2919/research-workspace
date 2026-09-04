@@ -13,7 +13,7 @@
         },
         {
           "name": "meeting_minutes_created",
-          "description": "議事録が .research/lab/projects/test-project/meetings/2026-07-04-mtg.md に作成される"
+          "description": "議事録が lab/projects/test-project/meetings/2026-07-04-mtg.md に作成される"
         },
         {
           "name": "raw_transcript_removed_after_save",
@@ -21,7 +21,7 @@
         },
         {
           "name": "todo_requires_user_selection",
-          "description": "TODO候補は提示されるが、ユーザーが採用したものだけ .research/secretary/todos/YYYY-MM-DD.md に追加される"
+          "description": "TODO候補は提示されるが、ユーザーが採用したものだけ secretary/todos/YYYY-MM-DD.md に追加される"
         },
         {
           "name": "readme_updated_by_ai",

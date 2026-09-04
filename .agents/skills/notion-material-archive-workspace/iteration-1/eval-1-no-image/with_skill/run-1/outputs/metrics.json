@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task": "no-image.md dry-run archive evaluation",
+  "passed": true,
+  "dry_run": true,
+  "prepared_documents": 1,
+  "title": "画像なし検証資料",
+  "local_image_count": 0,
+  "remote_image_count": 0,
+  "total_image_count": 0,
+  "source_sha256": "82a1c02064f306562d1c009d79431ce55841fab482e4e3de72a172061f89170e",
+  "source_size_bytes": 209,
+  "source_unchanged": true,
+  "warnings": [],
+  "notion_calls": 0,
+  "notion_writes": 0,
+  "http_servers_started": 0,
+  "ssh_tunnels_started": 0,
+  "duplicate_check": {
+    "performed_against_notion": false,
+    "candidate_title": "画像なし検証資料",
+    "live_run_policy_recorded": true
+  },
+  "completion_verification_plan_recorded": true,
+  "cleanup": {
+    "temporary_stage_removed": true,
+    "temporary_stage_exists_after_cleanup": false,
+    "isolated_test_workspace_removed": true
+  }
+}

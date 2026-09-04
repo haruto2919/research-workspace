@@ -1,0 +1,14 @@
+{
+  "eval_id": 2,
+  "eval_name": "with-images",
+  "prompt": "`.company/` 内に配置された `with-images.md` を資料保管庫へコピーする前提でdry runしてください。Notionへの書き込みやHTTPS公開は行わず、参照画像だけを抽出したmanifest、画像のchecksum、原文のどのmarkupだけを置換するか、必須cleanupを outputs/result.md に記録してください。",
+  "assertions": [
+    "local image countが2である",
+    "first.svgとsecond.svgのSHA-256が記録されている",
+    "Markdown imageとHTML imgの両方が抽出されている",
+    "参照画像以外を公開しない方針が明記されている",
+    "server、SSH tunnel、一時directoryのcleanupが明記されている",
+    "最終pageでは一時HTTPS URLではなくNotion attachmentのsuggested_markdownへ置換する計画である",
+    "stagingには参照画像2件だけを置き、staged copyのchecksum一致を確認している"
+  ]
+}

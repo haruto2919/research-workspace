@@ -1,0 +1,6 @@
+726f79d7ca5b0d1741961b8cb4ae16d7beb636250c45e3ae121a72a9d8760066  .agents/skills/notion-material-archive/evals/files/images/first.svg
+726f79d7ca5b0d1741961b8cb4ae16d7beb636250c45e3ae121a72a9d8760066  /mnt/HDD8TB-2/takama/Takama-Systems-Group/.agents/skills/notion-material-archive-workspace/iteration-1/eval-2-with-images/with_skill/outputs/isolated-company-root/.company/images/first.svg
+726f79d7ca5b0d1741961b8cb4ae16d7beb636250c45e3ae121a72a9d8760066  /tmp/notion-material-archive-wli1ez1x/assets/0001-726f79d7ca5b-first.svg
+21c63dd761894ef36dff873cafee86f4f829e557d2e26e513d0541aafe1db30d  .agents/skills/notion-material-archive/evals/files/images/second.svg
+21c63dd761894ef36dff873cafee86f4f829e557d2e26e513d0541aafe1db30d  /mnt/HDD8TB-2/takama/Takama-Systems-Group/.agents/skills/notion-material-archive-workspace/iteration-1/eval-2-with-images/with_skill/outputs/isolated-company-root/.company/images/second.svg
+21c63dd761894ef36dff873cafee86f4f829e557d2e26e513d0541aafe1db30d  /tmp/notion-material-archive-wli1ez1x/assets/0002-21c63dd76189-second.svg

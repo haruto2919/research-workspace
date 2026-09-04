@@ -1,0 +1,45 @@
+{
+  "skill_name": "research-spec",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "global Ritzのblock監査を踏まえ、weight-aware proxyへ変更するspecを作って。brainstormでは有力候補だったが、EEを維持する結果も一部あり、成功基準はまだ決めていない。",
+      "expected_output": "候補と確定事項の衝突、成功基準不足をblockingとして示し、approved specやコードを作らず、必要な判断をresearch-specのGateで確認する。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "blocking_ambiguity_stops_approval",
+          "description": "候補とEvidenceの衝突、成功基準不足をblockingとして扱い、approvedにしない"
+        },
+        {
+          "name": "brainstorm_is_not_authority",
+          "description": "brainstormの有力候補だけを実装可能な決定として扱わない"
+        },
+        {
+          "name": "no_code_or_run",
+          "description": "研究コード変更や実験runを行わない"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "このbrainstormで合意したK/V別fixed-Aの方針を、既存baselineを壊さず実装できるspecにして保存して。目的、数式、対象repository、比較baseline、seed、成功条件はbrainstormに確定済み。コード実装と10-task runはまだしない。",
+      "expected_output": "関連文脈と現行コードをread-onlyで確認し、scope、対象外、互換性、再現性、成功条件を監査したdraftまたはapproved specを保存する。コードとrunには進まない。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "read_only_impact_inspection",
+          "description": "spec作成前のコード調査をread-onlyに限定する"
+        },
+        {
+          "name": "compatibility_and_reproducibility_captured",
+          "description": "baseline保全、repository、比較条件、seed、成功条件をspecへ含める"
+        },
+        {
+          "name": "implementation_and_run_separated",
+          "description": "spec保存後もコード実装と10-task runを開始しない"
+        }
+      ]
+    }
+  ]
+}

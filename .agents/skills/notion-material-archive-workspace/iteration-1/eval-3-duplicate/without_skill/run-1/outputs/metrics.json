@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "task": "eval-3-duplicate",
+  "mode": "dry-run",
+  "status": "pass",
+  "decision": {
+    "action": "stop",
+    "reason": "duplicate_child_page_title",
+    "title": "画像なし検証資料",
+    "title_match": "exact",
+    "stop_before_existing_page_mutation": true,
+    "stop_before_new_page_creation": true,
+    "existing_body_equivalence_verified": false
+  },
+  "source": {
+    "path": "/mnt/HDD8TB-2/takama/Takama-Systems-Group/.agents/skills/notion-material-archive/evals/files/no-image.md",
+    "title": "画像なし検証資料",
+    "sha256": "82a1c02064f306562d1c009d79431ce55841fab482e4e3de72a172061f89170e",
+    "bytes": 209,
+    "lines": 19
+  },
+  "simulated_existing_page": {
+    "url": "https://app.notion.com/p/existing-eval-page",
+    "source": "evaluation_input",
+    "notion_lookup_performed": false
+  },
+  "assertions": {
+    "duplicate_stop_documented": true,
+    "existing_page_left_unchanged": true,
+    "new_page_not_created": true,
+    "user_report_documented": true,
+    "unverified_body_equivalence_disclosed": true,
+    "cleanup_status_recorded": true,
+    "fixture_unchanged": true,
+    "real_company_content_unchanged": true
+  },
+  "side_effects": {
+    "notion_calls": 0,
+    "notion_writes": 0,
+    "existing_pages_updated": 0,
+    "new_pages_created": 0,
+    "http_servers_started": 0,
+    "https_servers_started": 0,
+    "ssh_tunnels_created": 0,
+    "temporary_urls_created": 0,
+    "temporary_files_created": 0
+  },
+  "reporting": {
+    "includes_title": true,
+    "includes_existing_page_url": true,
+    "includes_stop_reason": true,
+    "includes_no_mutation_statement": true
+  },
+  "cleanup": {
+    "required": false,
+    "status": "clean",
+    "resources_remaining": 0
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "eval_id": 1,
+  "eval_name": "notion-url-present",
+  "prompt": "MTG終わった！議事録作って（Notion URLが全てreferenceに存在するケース）",
+  "assertions": [
+    {
+      "name": "raw_file_created",
+      "description": "Rawファイルが正しい場所に作成される"
+    },
+    {
+      "name": "notion_urls_extracted",
+      "description": "当日メモからNotion URLを正確に抽出（abc123, def456）"
+    },
+    {
+      "name": "reference_check_success",
+      "description": "両URLがreferenceに存在することを確認"
+    },
+    {
+      "name": "immediate_summarization",
+      "description": "不足URLがないため、要求なしで要約開始"
+    },
+    {
+      "name": "meeting_minutes_created",
+      "description": "統合議事録が正しい場所に作成（meetings/2026-03-27-mtg.md）"
+    },
+    {
+      "name": "structure_preserved",
+      "description": "当日メモの構造（やったこと/次やること/話したこと）が維持される"
+    },
+    {
+      "name": "speaker_identification",
+      "description": "教授とユーザーの発言が正確に区別される"
+    },
+    {
+      "name": "notion_context_integrated",
+      "description": "Notion reference内容が議事録に統合される"
+    },
+    {
+      "name": "todo_extraction",
+      "description": "「次やること」から適切にタスクを抽出"
+    }
+  ]
+}

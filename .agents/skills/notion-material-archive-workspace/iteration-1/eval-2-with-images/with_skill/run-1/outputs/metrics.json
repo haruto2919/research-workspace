@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "dry_run": true,
+  "documents_prepared": 1,
+  "title": "複数画像付き検証資料",
+  "source_sha256": "7e4272ce6b52530705ee1758f95558e40fd8b1a89b2f39556b1295711d6b308e",
+  "local_images": 2,
+  "remote_images": 0,
+  "warnings": 0,
+  "image_checksums": {
+    "asset-0001": {
+      "filename": "first.svg",
+      "sha256": "726f79d7ca5b0d1741961b8cb4ae16d7beb636250c45e3ae121a72a9d8760066",
+      "fixture_isolated_staged_match": true
+    },
+    "asset-0002": {
+      "filename": "second.svg",
+      "sha256": "21c63dd761894ef36dff873cafee86f4f829e557d2e26e513d0541aafe1db30d",
+      "fixture_isolated_staged_match": true
+    }
+  },
+  "replacement_markup_count": 2,
+  "replacement_offsets": [
+    {
+      "asset_id": "asset-0001",
+      "start": 50,
+      "end": 80,
+      "original_markup": "![first alt](images/first.svg)"
+    },
+    {
+      "asset_id": "asset-0002",
+      "start": 92,
+      "end": 138,
+      "original_markup": "<img src=\"images/second.svg\" alt=\"second alt\">"
+    }
+  ],
+  "notion_called": false,
+  "notion_write_performed": false,
+  "http_server_started": false,
+  "ssh_tunnel_started": false,
+  "https_publication_performed": false,
+  "render_performed": false,
+  "cleanup": {
+    "stage_dir": "/tmp/notion-material-archive-wli1ez1x",
+    "removed": true,
+    "exists_after_cleanup": false
+  },
+  "fixture_modified": false,
+  "real_company_content_modified": false
+}

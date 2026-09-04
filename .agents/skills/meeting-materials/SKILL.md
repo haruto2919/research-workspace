@@ -30,7 +30,7 @@ description: MTG前の研究相談資料・進捗報告資料・実験レビュ�
 - `Evidence`、`Interpretation`、`Ask` を分ける。
 - 主張レベルを意識し、観測済み、支持される仮説、相談用推測、未確認事項を混ぜない。
 - 資料の長さは固定しない。説明内容に応じて必要十分な長さにする。
-- 図は必要時のみ作成する。ただし説明が分かりやすくなる場合は積極的に提案・作成する。
+- 図は必要時機能。ただし説明が分かりやすくなる場合は積極的に提案・作成する。
 - Notion貼付を想定し、Markdown、数式、表、画像リンクが崩れにくい形にする。
 - ファイル操作前に今日の日付を確認する。
 - 既存ファイルは丸ごと上書きしない。既に同日同topicの資料がある場合は、追記または別topic名を確認する。
@@ -47,26 +47,26 @@ description: MTG前の研究相談資料・進捗報告資料・実験レビュ�
 
 ## 対象パス
 
-Research Workspace運用の正本パスを使う。
+Company運用の正本パスを使う。
 
 ```text
-.research/lab/projects/<project>/README.md
-.research/lab/projects/<project>/meetings/*.md
-.research/lab/projects/<project>/specs/*.md
-.research/lab/projects/<project>/experiments/*.md
-.research/lab/projects/<project>/materials/*.md
-.research/lab/projects/<project>/materials/figures/
-.research/lab/projects/<project>/references/*.md
-.research/secretary/notes/brainstorm/*.md
-.research/secretary/todos/YYYY-MM-DD.md
+.company/lab/projects/<project>/README.md
+.company/lab/projects/<project>/meetings/*.md
+.company/lab/projects/<project>/specs/*.md
+.company/lab/projects/<project>/experiments/*.md
+.company/lab/projects/<project>/materials/*.md
+.company/lab/projects/<project>/materials/figures/
+.company/lab/projects/<project>/references/*.md
+.company/secretary/notes/brainstorm/*.md
+.company/secretary/todos/YYYY-MM-DD.md
 ```
 
 保存先:
 
 ```text
-.research/lab/projects/<project>/materials/YYYY-MM-DD-topic-mtg-materials.md
-.research/lab/projects/<project>/materials/figures/YYYY-MM-DD-topic/
-.research/lab/projects/<project>/experiments/figures/YYYY-MM-DD-experiment-topic/
+.company/lab/projects/<project>/materials/YYYY-MM-DD-topic-mtg-materials.md
+.company/lab/projects/<project>/materials/figures/YYYY-MM-DD-topic/
+.company/lab/projects/<project>/experiments/figures/YYYY-MM-DD-experiment-topic/
 ```
 
 `materials/` と `materials/figures/` は標準保存先として扱う。存在しなければ資料作成時に作成する。
@@ -100,16 +100,16 @@ Research Workspace運用の正本パスを使う。
 
 必読:
 
-- `.research/lab/projects/<project>/README.md`
-- `.research/lab/projects/<project>/meetings/*.md` の直近1件
+- `.company/lab/projects/<project>/README.md`
+- `.company/lab/projects/<project>/meetings/*.md` の直近1件
 
 必要に応じて読む:
 
 - `specs/` の関連または最新ファイル 最大3件
 - `experiments/` の関連または最新ファイル 最大3件
-- `.research/secretary/notes/brainstorm/` の関連メモ 最大3件
+- `.company/secretary/notes/brainstorm/` の関連メモ 最大3件
 - `materials/` の関連または最新ファイル 最大3件
-- `.research/secretary/todos/YYYY-MM-DD.md` は、前回MTGやTODO起点の資料の場合だけ読む
+- `.company/secretary/todos/YYYY-MM-DD.md` は、前回MTGやTODO起点の資料の場合だけ読む
 
 `references/` は原則としてファイル一覧のみ確認する。本文を読むのは以下の場合だけに限定し、最大1〜3件に絞る。
 
@@ -137,7 +137,7 @@ Research Workspace運用の正本パスを使う。
 資料が何から生まれたかを判定し、読むファイルと構成を変える。
 
 ```text
-A. spec -> experiment/test 結果
+A. spec -> implementation -> experiment/test 結果
 B. brainstorm -> 仮説・方針・相談論点
 C. 前回MTG / TODO -> 進捗・未解決点
 D. 複数ソース混合
@@ -145,7 +145,7 @@ D. 複数ソース混合
 
 Aの場合:
 
-- 元specの目的、仮説、実施内容に対して、実験・テスト結果が何を示したかを中心にする。
+- 元specの目的、仮説、実施内容に対して、実装・実験・テスト結果が何を示したかを中心にする。
 - 必要セクション: 元の目的、実施したこと、実験条件、結果、解釈、問題、Ask。
 - 優先構成:
   ```markdown
@@ -330,7 +330,7 @@ MTG用再構成図:
 保存先:
 
 ```text
-.research/lab/projects/<project>/materials/YYYY-MM-DD-topic-mtg-materials.md
+.company/lab/projects/<project>/materials/YYYY-MM-DD-topic-mtg-materials.md
 ```
 
 frontmatter:
@@ -428,7 +428,7 @@ MTG資料を作成しました。
 
 ## エラーハンドリング
 
-- プロジェクト名が曖昧な場合: `.research/lab/projects/*/README.md` を確認して候補を出す。
+- プロジェクト名が曖昧な場合: `.company/lab/projects/*/README.md` を確認して候補を出す。
 - READMEがない場合: 対象プロジェクトの確認を優先し、捏造しない。
 - 直近議事録がない場合: 「直近議事録なし」と前提に含めて進める。
 - 関連spec/experiment/brainstormが見つからない場合: 見つからない前提で資料化し、不足として書く。

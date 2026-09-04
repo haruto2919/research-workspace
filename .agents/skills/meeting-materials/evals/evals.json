@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "sample-research-project の 評価指標の予備実験 のspecと実験結果をもとに、次回MTGで先生に説明する資料を作って。結果の解釈と確認したいことが分かるようにして。",
-      "expected_output": "対象プロジェクトのREADME、直近議事録、関連spec、関連experimentを読み、spec/experiment結果起点として資料化する。結果をEvidence、Interpretation、Askに分け、.research/lab/projects/sample-research-project/materials/YYYY-MM-DD-topic-mtg-materials.md に保存する。README/TODO/meetings/referencesは更新しない。",
+      "prompt": "lora-dynamic-separation の 2026-06-28 triangular alpha sanity のspecと実験結果をもとに、次回MTGで先生に説明する資料を作って。結果の解釈と確認したいことが分かるようにして。",
+      "expected_output": "対象プロジェクトのREADME、直近議事録、関連spec、関連experimentを読み、spec/implementation/experiment結果起点として資料化する。結果をEvidence、Interpretation、Askに分け、.company/lab/projects/lora-dynamic-separation/materials/YYYY-MM-DD-topic-mtg-materials.md に保存する。README/TODO/meetings/referencesは更新しない。",
       "files": [],
       "assertions": [
         {
@@ -17,7 +17,7 @@
         },
         {
           "name": "material_saved_to_materials",
-          "description": ".research/lab/projects/<project>/materials/YYYY-MM-DD-topic-mtg-materials.md に保存する"
+          "description": ".company/lab/projects/<project>/materials/YYYY-MM-DD-topic-mtg-materials.md に保存する"
         },
         {
           "name": "no_project_state_updates",
@@ -27,8 +27,8 @@
     },
     {
       "id": 2,
-      "prompt": "さっきのbrainstormで出した 評価方針の仮説と研究方針を、先生に相談するMTG資料にして。壁打ちログ全部ではなく、相談論点が伝わる形にして。",
-      "expected_output": "関連brainstormメモを読み、brainstorm起点として、仮説、方針候補、比較、不確実な点、Askへ蒸留する。壁打ちログ全文は貼らず、.research/lab/projects/<project>/materials/ に保存する。spec化やTODO追加は行わない。",
+      "prompt": "さっきのbrainstormで出した Hessian方向探索の仮説と研究方針を、先生に相談するMTG資料にして。壁打ちログ全部ではなく、相談論点が伝わる形にして。",
+      "expected_output": "関連brainstormメモを読み、brainstorm起点として、仮説、方針候補、比較、不確実な点、Askへ蒸留する。壁打ちログ全文は貼らず、.company/lab/projects/<project>/materials/ に保存する。spec化やTODO追加は行わない。",
       "files": [],
       "assertions": [
         {
@@ -51,7 +51,7 @@
     },
     {
       "id": 3,
-      "prompt": "ベンチマーク比較結果を先生に見せたい。既存の実験図を使いつつ、必要なら説明用の概念図も作ってMTG資料にして。",
+      "prompt": "ImageNet-RのTaylor 8パターン比較結果を先生に見せたい。既存の実験図を使いつつ、必要なら説明用の概念図も作ってMTG資料にして。",
       "expected_output": "既存実験図の再利用を優先し、必要ならmaterials/figures/YYYY-MM-DD-topic/にMTG用再構成図または概念図を保存する。図の直前に見るべき点を書き、manifest.mdまたは資料末尾に図の出所を残す。",
       "files": [],
       "assertions": [
@@ -65,7 +65,7 @@
         },
         {
           "name": "material_figures_saved_correctly",
-          "description": "MTG用図を .research/lab/projects/<project>/materials/figures/YYYY-MM-DD-topic/ に保存する"
+          "description": "MTG用図を .company/lab/projects/<project>/materials/figures/YYYY-MM-DD-topic/ に保存する"
         },
         {
           "name": "figure_sources_recorded",

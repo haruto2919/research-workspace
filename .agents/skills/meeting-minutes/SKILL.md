@@ -5,14 +5,14 @@ description: MTGの議事録整理・サマリー作成・タスク抽出を自�
 
 # Meeting Minutes（議事録スキル）
 
-Research WorkspaceでMTG後に、当日メモ・文字起こし・Notion export・プロジェクト文脈を統合し、議事録、TODO候補、プロジェクトREADME更新まで行う。
+MTG後に、当日メモ・文字起こし・Notion export・プロジェクト文脈を統合し、議事録、TODO候補、プロジェクトREADME更新まで行う。
 
 ## 原則
 
 - **当日メモがベース**: 議事録は当日メモの構造を尊重し、文字起こし、Notion export、過去文脈で補強する。
 - **Notionは研究室共有の正式記録**: 研究室で共有される議事録・メモとしてNotionを尊重する。
 - **ローカルMDはAI運用の正式記録**: ローカルMarkdownは、AIが継続参照する個人ワークスペース上の正式記録として扱う。
-- **Notion exportは重要文脈**: 当日メモにNotion URLがある場合、対応するMarkdown export/referenceを `.research/lab/projects/<project>/references/` に揃えてから議事録生成を開始する。
+- **Notion exportは重要文脈**: 当日メモにNotion URLがある場合、対応するMarkdown export/referenceを `lab/projects/<project>/references/` に揃えてから議事録生成を開始する。
 - **Notion URLなしなら進める**: 当日メモにNotion URLがない場合は、Notionなしで当日メモ・文字起こし・ローカル文脈から議事録を生成する。
 - **1on1発話者判定**: 文字起こしの話者ラベルが不完全でも、教授との1on1対話を想定して文脈から発話者を推定する。
 - **Raw Transcriptは保存しない**: 文字起こし全文は補助入力としてのみ使い、議事録本文には残さない。議事録ファイルの保存成功後にRawファイルを削除する。
@@ -20,14 +20,14 @@ Research WorkspaceでMTG後に、当日メモ・文字起こし・Notion export�
 
 ## 対象パス
 
-Research Workspaceの既存パスを使う。
+Company運用の既存パスを使う。
 
 ```text
-.research/lab/projects/<project>/README.md
-.research/lab/projects/<project>/meetings/YYYY-MM-DD-mtg.md
-.research/lab/projects/<project>/meetings/YYYY-MM-DD-mtg-raw.md
-.research/lab/projects/<project>/references/*.md
-.research/secretary/todos/YYYY-MM-DD.md
+lab/projects/<project>/README.md
+lab/projects/<project>/meetings/YYYY-MM-DD-mtg.md
+lab/projects/<project>/meetings/YYYY-MM-DD-mtg-raw.md
+lab/projects/<project>/references/*.md
+secretary/todos/YYYY-MM-DD.md
 ```
 
 ## Workflow
@@ -41,7 +41,7 @@ Research Workspaceの既存パスを使う。
 
 まず、今回のMTGについて教えてください。
 
-1. プロジェクト名: どのプロジェクトに関するMTGですか？（例: sample-research-project）
+1. プロジェクト名: どのプロジェクトに関するMTGですか？（例: lora-dynamic-separation）
 2. 日付: いつのMTGですか？（デフォルト: 今日 YYYY-MM-DD）
 3. 参加者: 誰が参加しましたか？（例: 教授, ユーザー）
 ```
@@ -54,14 +54,14 @@ Research Workspaceの既存パスを使う。
 
 必須:
 
-- `.research/lab/projects/<project>/README.md`
+- `lab/projects/<project>/README.md`
 
 存在すれば読む:
 
-- `.research/lab/projects/<project>/meetings/*.md` の最新1件
-- `.research/lab/projects/<project>/specs/*.md` の最新1件
-- `.research/lab/projects/<project>/experiments/*.md` の最新2件
-- `.research/lab/projects/<project>/references/*.md` の一覧
+- `lab/projects/<project>/meetings/*.md` の最新1件
+- `lab/projects/<project>/specs/*.md` の最新1件
+- `lab/projects/<project>/experiments/*.md` の最新2件
+- `lab/projects/<project>/references/*.md` の一覧
 
 読み込んだ情報は、議事録の文脈補完、README更新、TODO候補抽出に使う。
 
@@ -69,14 +69,14 @@ Research Workspaceの既存パスを使う。
 
 文字起こし全文はチャットに貼らせず、Rawファイル経由で受け取る。
 
-1. `.research/lab/projects/<project>/meetings/YYYY-MM-DD-mtg-raw.md` を作成する。
+1. `lab/projects/<project>/meetings/YYYY-MM-DD-mtg-raw.md` を作成する。
 2. ユーザーに以下を伝える。
 
 ```markdown
 コンテキストを読み込みました。
 
 以下のファイルを作成しました。
-[.research/lab/projects/<project>/meetings/YYYY-MM-DD-mtg-raw.md](絶対パス)
+[lab/projects/<project>/meetings/YYYY-MM-DD-mtg-raw.md](絶対パス)
 
 このファイルに文字起こし全文を貼り付けて保存してください。
 
@@ -103,7 +103,7 @@ Research Workspaceの既存パスを使う。
 1. Rawファイルを読み、文字起こしが空でないことを確認する。
 2. 当日メモからNotion URLを抽出する。
 3. Notion URLがなければ、Phase 5へ進む。
-4. Notion URLがある場合、`.research/lab/projects/<project>/references/*.md` と照合する。
+4. Notion URLがある場合、`lab/projects/<project>/references/*.md` と照合する。
 
 Notion URL照合ルール:
 
@@ -119,7 +119,7 @@ Notion URL照合ルール:
 
 以下のページをMarkdownでエクスポートし、次のフォルダに保存してください。
 
-- 保存先: `.research/lab/projects/<project>/references/`
+- 保存先: `lab/projects/<project>/references/`
 - ファイル名: Notionのデフォルト名のままでOKです。ただし、ファイル名にNotionページIDが含まれていることを確認してください。
 
 不足しているURL:
@@ -157,7 +157,7 @@ Notion URL照合ルール:
 議事録の保存先:
 
 ```text
-.research/lab/projects/<project>/meetings/YYYY-MM-DD-mtg.md
+lab/projects/<project>/meetings/YYYY-MM-DD-mtg.md
 ```
 
 議事録フォーマット:
@@ -221,12 +221,12 @@ tags: [meeting, <project-name>]
 議事録ファイルを保存し、内容が空でないことを確認してからRawファイルを削除する。
 
 ```bash
-rm .research/lab/projects/<project>/meetings/YYYY-MM-DD-mtg-raw.md
+rm lab/projects/<project>/meetings/YYYY-MM-DD-mtg-raw.md
 ```
 
 削除前に確認すべきこと:
 
-- `.research/lab/projects/<project>/meetings/YYYY-MM-DD-mtg.md` が存在する。
+- `lab/projects/<project>/meetings/YYYY-MM-DD-mtg.md` が存在する。
 - 議事録に会議情報、やったこと、話したこと、次やることが含まれている。
 - 文字起こし全文が議事録本文に残っていない。
 
@@ -243,7 +243,7 @@ rm .research/lab/projects/<project>/meetings/YYYY-MM-DD-mtg-raw.md
 2. [ ] ...
 3. [ ] ...
 
-本日のTODOリスト（`.research/secretary/todos/YYYY-MM-DD.md`）に反映するものを教えてください。
+本日のTODOリスト（`secretary/todos/YYYY-MM-DD.md`）に反映するものを教えてください。
 
 - 優先度があれば指定してください（高/通常/低）。
 - 期限がある場合のみ指定してください。
@@ -266,7 +266,7 @@ TODO形式:
 
 ### Phase 8: README更新
 
-`.research/lab/projects/<project>/README.md` はAI判断で更新する。ユーザーに逐一確認しなくてよい。
+`lab/projects/<project>/README.md` はAI判断で更新する。ユーザーに逐一確認しなくてよい。
 
 更新対象:
 
@@ -288,9 +288,10 @@ frontmatter例:
 
 ```yaml
 ---
-project: sample-research-project
-status: active
-summary: 次の実験方針と評価方法を検討中
+project: lora-dynamic-separation
+status: in-progress
+department: lab
+summary: Hessian/HVPによるold-task loss上昇方向の解析方針を検討中
 created: YYYY-MM-DD
 last_updated: YYYY-MM-DD
 ---
@@ -306,7 +307,7 @@ last_updated: YYYY-MM-DD
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 議事録を作成しました:
-[.research/lab/projects/<project>/meetings/YYYY-MM-DD-mtg.md](絶対パス)
+[lab/projects/<project>/meetings/YYYY-MM-DD-mtg.md](絶対パス)
 
 TODOに追加したタスク:
 - ...
@@ -321,7 +322,7 @@ Raw文字起こしは削除しました。
 
 ## エラーハンドリング
 
-- プロジェクト名が曖昧な場合: `.research/lab/projects/*/README.md` を確認して候補を出し、ユーザーに確認する。
+- プロジェクト名が曖昧な場合: `lab/projects/*/README.md` を確認して候補を出し、ユーザーに確認する。
 - Rawファイルが空の場合: 議事録生成を止め、文字起こしの貼り付けを依頼する。
 - Notion URLあり・reference不足の場合: 議事録生成を止め、Markdown export保存を依頼する。
 - 議事録保存に失敗した場合: Rawファイルを削除しない。
