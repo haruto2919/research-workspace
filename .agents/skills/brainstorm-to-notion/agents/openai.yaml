@@ -1,0 +1,4 @@
+interface:
+  display_name: "壁打ちをNotionへ"
+  short_description: "壁打ち内容を初心者向けに整理し、図表付きでNotionへ保存"
+  default_prompt: "$brainstorm-to-notion を使って、この壁打ちを初学者向けに整理し、設定済みのNotion保存先へ保存してください。"

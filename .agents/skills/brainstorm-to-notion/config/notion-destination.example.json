@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "enabled": false,
+  "destination_type": "data_source",
+  "workspace_name": "",
+  "data_source_title": "",
+  "data_source_id": "",
+  "property_mapping": {
+    "title": "",
+    "created_date": "",
+    "keywords": ""
+  }
+}
