@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">逐次LoRA研究の3段階</title>
+  <desc id="desc">基盤構築、情報内容の評価、Evidenceに基づく改善を順に進める研究ストーリー</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/>
+    </marker>
+    <style>
+      .base { font-family: 'Noto Sans CJK JP', 'Yu Gothic', sans-serif; fill: #172033; }
+      .phase { font-size: 29px; font-weight: 700; }
+      .title { font-size: 34px; font-weight: 700; }
+      .body { font-size: 23px; }
+      .small { font-size: 20px; fill: #475569; }
+      .label { font-size: 21px; font-weight: 700; }
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#f8fafc"/>
+  <text x="800" y="70" text-anchor="middle" class="base title">逐次LoRA研究：基盤・評価・改善を分ける</text>
+  <text x="800" y="108" text-anchor="middle" class="base small">各段階のGateを満たしてから、次の科学的主張へ進む</text>
+
+  <rect x="70" y="180" rx="24" ry="24" width="420" height="430" fill="#e8f1ff" stroke="#3976c5" stroke-width="4"/>
+  <text x="280" y="235" text-anchor="middle" class="base phase">1. 基盤を成立させる</text>
+  <text x="105" y="295" class="base body">• 50Saladsを時系列順に入力</text>
+  <text x="105" y="343" class="base body">• K400 MeMViTをBaseに使用</text>
+  <text x="105" y="391" class="base body">• q/v LoRA + 51-class head</text>
+  <text x="105" y="439" class="base body">• causal / state / maskを検証</text>
+  <text x="105" y="487" class="base body">• frozen Baseの不変性を確認</text>
+  <rect x="105" y="530" rx="12" ry="12" width="350" height="52" fill="#ffffff" stroke="#3976c5" stroke-width="2"/>
+  <text x="280" y="565" text-anchor="middle" class="base label">Gate: SC-01〜15</text>
+
+  <line x1="500" y1="395" x2="580" y2="395" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <rect x="590" y="180" rx="24" ry="24" width="420" height="430" fill="#e9f8ef" stroke="#31845a" stroke-width="4"/>
+  <text x="800" y="235" text-anchor="middle" class="base phase">2. 情報内容を評価する</text>
+  <text x="625" y="295" class="base body">• Base / 通常LoRAを比較</text>
+  <text x="625" y="343" class="base body">• normal / shuffled / static</text>
+  <text x="625" y="391" class="base body">• dynamic / static probe</text>
+  <text x="625" y="439" class="base body">• Base差分activationを測定</text>
+  <text x="625" y="487" class="base body">• shortcutとOOD交絡を確認</text>
+  <rect x="625" y="530" rx="12" ry="12" width="350" height="52" fill="#ffffff" stroke="#31845a" stroke-width="2"/>
+  <text x="800" y="565" text-anchor="middle" class="base label">Gate: dynamic Evidence</text>
+
+  <line x1="1020" y1="395" x2="1100" y2="395" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <rect x="1110" y="180" rx="24" ry="24" width="420" height="430" fill="#fff3e3" stroke="#c67920" stroke-width="4"/>
+  <text x="1320" y="235" text-anchor="middle" class="base phase">3. 必要なら改善する</text>
+  <text x="1145" y="295" class="base body">• target moduleを限定</text>
+  <text x="1145" y="343" class="base body">• static suppressionを検討</text>
+  <text x="1145" y="391" class="base body">• 成分分離・直交化</text>
+  <text x="1145" y="439" class="base body">• LoRA空間の変換・合成</text>
+  <text x="1145" y="487" class="base body">• 通常LoRAと同条件で比較</text>
+  <rect x="1145" y="530" rx="12" ry="12" width="350" height="52" fill="#ffffff" stroke="#c67920" stroke-width="2"/>
+  <text x="1320" y="565" text-anchor="middle" class="base label">Gate: 改善の再現性</text>
+
+  <rect x="165" y="690" rx="18" ry="18" width="1270" height="115" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+  <text x="800" y="735" text-anchor="middle" class="base label">主張の境界</text>
+  <text x="800" y="775" text-anchor="middle" class="base body">段階1の成功だけでは「LoRAが時間情報を獲得した」とは言わない</text>
+  <text x="800" y="812" text-anchor="middle" class="base small">段階2のcontrolとmetricで代替説明を除外し、段階3は必要性が確認された場合だけ導入する</text>
+
+  <text x="70" y="865" class="base small">Source: 2026-09-03 MTG / 2026-09-09 draft spec / 2026-09-09 brainstorm</text>
+</svg>
+

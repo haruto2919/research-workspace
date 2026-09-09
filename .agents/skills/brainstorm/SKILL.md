@@ -45,13 +45,13 @@ description: 研究相談・壁打ちを、既存研究文脈に基づいて問�
 ## 対象パス
 
 ```text
-.company/secretary/notes/brainstorm/YYYY-MM-DD-topic.md
-.company/secretary/todos/YYYY-MM-DD.md
-.company/lab/projects/<project>/README.md
-.company/lab/projects/<project>/meetings/*.md
-.company/lab/projects/<project>/specs/*.md
-.company/lab/projects/<project>/experiments/*.md
-.company/lab/projects/<project>/references/*.md
+.research/secretary/notes/brainstorm/YYYY-MM-DD-topic.md
+.research/secretary/todos/YYYY-MM-DD.md
+.research/lab/projects/<project>/README.md
+.research/lab/projects/<project>/meetings/*.md
+.research/lab/projects/<project>/specs/*.md
+.research/lab/projects/<project>/experiments/*.md
+.research/lab/projects/<project>/references/*.md
 ```
 
 `specs/` は重複や過去判断の確認のために読み取れるが、このスキルから書き込まない。
@@ -103,7 +103,7 @@ description: 研究相談・壁打ちを、既存研究文脈に基づいて問�
 
 必須:
 
-- `.company/lab/projects/<project>/README.md`
+- `.research/lab/projects/<project>/README.md`
 - 対象TODO、または今日・指定日のTODO
 - `meetings/*.md` の直近1件
 
@@ -205,7 +205,7 @@ TODO
 壁打ちが一段落したら次へ保存する。
 
 ```text
-.company/secretary/notes/brainstorm/YYYY-MM-DD-topic.md
+.research/secretary/notes/brainstorm/YYYY-MM-DD-topic.md
 ```
 
 同日・同topicがあれば、タイムスタンプ付きで追記する。
