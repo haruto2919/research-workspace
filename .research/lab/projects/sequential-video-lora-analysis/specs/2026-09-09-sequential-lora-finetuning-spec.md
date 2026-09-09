@@ -7,7 +7,7 @@ created: 2026-09-09
 last_updated: 2026-09-09
 workspace_repository: haruto2919/research-workspace
 workspace_base_branch: main
-workspace_base_commit: d428aacab4a384d8417a4f6acb5e639d42686d69
+workspace_base_commit: 8f60ff667b7e846620eec9208c078cab2efa0c72
 implementation_repository: tamaki-lab/2026_04_ishikawa_simple-MeMViT
 implementation_base_branch: main
 implementation_base_commit: e0deb093694d367ed9b02065e6d4cd38802093d6
@@ -50,7 +50,7 @@ Evidence A〜OはユーザーがChatGPT上の手順をローカル実行し、�
 
 | 役割 | repository | branch | 基準commit |
 |---|---|---|---|
-| 研究文脈SSOT | `haruto2919/research-workspace` | `main` | `d428aacab4a384d8417a4f6acb5e639d42686d69` |
+| 研究文脈SSOT | `haruto2919/research-workspace` | `main` | `8f60ff667b7e846620eec9208c078cab2efa0c72` |
 | 実装対象 | `tamaki-lab/2026_04_ishikawa_simple-MeMViT` | `main` | `e0deb093694d367ed9b02065e6d4cd38802093d6` |
 | 外部loader | `tamaki-lab/sequential_loader` | default branch `master` | `cef09aa12560127451a5f569d86d5d51671e6986` |
 
@@ -84,6 +84,8 @@ interface・成功条件を変えないことをread-onlyで確認してから�
 | optimizer | AdamW、learning rate `1e-4`、weight decay `0.01` |
 | scheduler | なし |
 | baseline seed | 既存50Salads configの `RNG_SEED = 0` を維持 |
+| confirmed environment | `torch == 2.14.0+cu130`、`torchvision == 0.29.0+cu130`、`lightning == 2.6.5`、`peft == 0.20.0` |
+| numerical precision | Lightning `precision = "32-true"` |
 | distributed | 対象外。strict pathはsingle process / single GPU |
 | resume | epoch境界のみ保証 |
 
@@ -251,7 +253,7 @@ chunk内・chunk間で座標系を変えない。
 
 1. `uint8` から `float32` へ変換
 2. `/ 255`
-3. short sideを256へresize
+3. bilinear interpolation、`antialias = True` でshort sideを256へresize
 4. 224 x 224 center crop
 5. K400 mean/stdでnormalize
    - mean = `[0.45, 0.45, 0.45]`
@@ -260,6 +262,7 @@ chunk内・chunk間で座標系を変えない。
 
 temporal resampling、`UniformTemporalSubsample`、random resize/crop/flipは使用しない。
 `frames_per_clip = 16`、`sampling_rate = 1` とし、loaderのvalid frame順を維持する。
+resizeの数値policyはtrain / valとも `interpolation = bilinear`、`antialias = True` に固定する。
 
 決定的transformが必要な理由は、stateful causal PatchEmbedが前chunkの実frameを引き継ぐためである。
 chunkごとに異なるrandom cropを適用すると、chunk境界の空間対応が崩れる。
@@ -270,6 +273,9 @@ chunkごとに異なるrandom cropを適用すると、chunk境界の空間対�
 
 - modelは現行 `model/memvit/memvit_model.py` のMeMViTを基準にする。
 - checkpoint lineageは `models/Kinetics/MeMViT_16L_16x4_K400.pyth` とする。
+- checkpointのSHA-256は
+  `3c61adbb7e045d8cc2435d6f26b3f8d74460786dfcde97a9579d44922eb4bc0d` とする。
+- load前にSHA-256を検証し、不一致ならfail-fastする。
 - K400 pretrained PatchEmbedを含むbase weightを再初期化しない。
 - temporal relative position parameterは必要な32 tensorだけ既存の検証済み方法でinterpolateする。
 - pretrained classification headの2 tensorはshape不一致としてskipし、新規51-class headを使う。
@@ -339,7 +345,7 @@ model-level public reset経路から両方をclearできるようにする。
 
 ## 8. LoRA契約
 
-PEFT方式を使い、MeMViT全16 blockのattention projectionだけを対象にする。
+`peft == 0.20.0` のPEFT方式を使い、MeMViT全16 blockのattention projectionだけを対象にする。
 
 ```text
 target_modules = ["q", "v"]
@@ -533,6 +539,19 @@ runは本specの実装・短時間検証scope外であり、別途ユーザー�
 
 ## 13. Reproducibility記録
 
+初期baselineで使用する、確認済みの実行環境と数値条件を次に固定する。
+
+```text
+torch == 2.14.0+cu130
+torchvision == 0.29.0+cu130
+lightning == 2.6.5
+peft == 0.20.0
+Lightning precision = "32-true"
+resize interpolation = bilinear
+resize antialias = True
+K400 checkpoint SHA-256 = 3c61adbb7e045d8cc2435d6f26b3f8d74460786dfcde97a9579d44922eb4bc0d
+```
+
 将来の許可済みrunでは、既存logging / output構造に合わせて少なくとも次を保存する。
 
 - 実装repository commit、external loader commit、dirty state
@@ -550,21 +569,19 @@ runは本specの実装・短時間検証scope外であり、別途ユーザー�
 
 ## 14. Ambiguity Gate
 
-### 14.1 Blocking: `approved` 前に確定が必要
+### 14.1 Blocking: なし
 
-1. **PEFT version / dependency pin**
-   - 現行mainにPEFT依存がない。
-   - 実装・checkpoint format・target module wrappingを再現するため、互換確認済みversionまたはcommitを
-     固定する必要がある。
-2. **K400 checkpoint fingerprint**
-   - pathとload結果は確定しているが、同名fileの内容を一意にするSHA-256が未記録である。
-   - `approved` 前に実ファイルのhashを記録する。
-3. **Deterministic resizeの数値policy**
-   - short-side 256は確定しているが、interpolation modeとantialias設定が未記録である。
-   - pixel-level再現性とchunk境界testのため、使用する既存transform primitiveと設定を固定する。
-4. **Baseline numerical precision**
-   - mixed precisionの使用可否が未確定である。
-   - 初期baselineのLightning `precision` を明示して比較条件を固定する。
+2026-09-09のユーザー指示により、従来のblocking項目はすべて次のとおり解消した。
+
+| 従来のblocking項目 | 確定内容 |
+|---|---|
+| PEFT version / dependency pin | `peft == 0.20.0` |
+| K400 checkpoint fingerprint | SHA-256 `3c61adbb7e045d8cc2435d6f26b3f8d74460786dfcde97a9579d44922eb4bc0d` |
+| Deterministic resizeの数値policy | bilinear interpolation、`antialias = True` |
+| Baseline numerical precision | Lightning `precision = "32-true"` |
+
+Gate再評価の結果、`approved` を妨げるblockingな未決事項は0件である。ただし、本更新ではユーザーが
+`status: draft` の維持と実装停止を明示しているため、statusはdraftのままとし、実装権限は発生しない。
 
 ### 14.2 Non-blocking: 既存styleに従ってよい
 
