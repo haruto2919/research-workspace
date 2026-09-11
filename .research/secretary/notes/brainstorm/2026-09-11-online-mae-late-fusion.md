@@ -152,3 +152,29 @@ late fusionは、pretrained image MAEを保護しながらonline video adaptatio
 - ST-Adapter: Parameter-Efficient Image-to-Video Transfer Learning, NeurIPS 2022.
 - VideoMAE: Masked Autoencoders are Data-Efficient Learners for Self-Supervised Video Pre-Training, NeurIPS 2022.
 - Masked Autoencoders As Spatiotemporal Learners, 2022.
+
+## 2026-09-11 13:46 JST 追記: late fusion後のMAE lossの意味
+
+MAEはクラスラベルを教師にしない。maskした入力patchの元pixel値をtargetとして、decoderの再構成値との誤差を自己教師ありlossとして使う。標準MAEでは主にmaskされたpatchについてpixel-spaceのMSEを計算する。
+
+16 frameをencoderに通してlate fusionする場合、fusionそのものではlossは決まらず、「decoderに何を復元させるか」を別途定義する必要がある。
+
+候補は次の通り。
+
+1. 16 frameすべてのmasked patchを復元する。
+   - 各frameの元pixel patchがtarget。
+   - lossは全frameのmasked patch reconstruction errorの平均。
+   - ただし各frame自身のvisible patchだけで復元できると、temporal fusionを使わない可能性がある。
+
+2. current frameだけを復元する。
+   - 過去15 frame + current frameのvisible patchをfusionし、current frameのmasked patchをdecoderで復元する。
+   - targetはcurrent frameの元pixel patch。
+   - strict onlineと相性がよく、今回の有力候補。
+
+3. future frameを予測・復元する。
+   - 過去/currentからfuture frameやfuture featureを予測する。
+   - temporal learningを強く要求できるが、標準MAEからobjectiveが変わり、target到着までupdateが遅延する。
+
+重要なのは、ラベルがなくても元動画frame自体が教師信号になることである。例えばcurrent frameの75%をmaskした場合、encoder側にはその75%を見せないが、loss計算時には元のcurrent frameを保持しておき、decoderが復元したmasked patchと比較する。
+
+また、MAE decoderはpatch token列と位置情報を前提にするため、16 frameを1本のglobal vectorへ単純平均してから標準decoderへ渡す設計は自然ではない。reconstructionを維持するなら、patch tokenのspatial identityを保ったままtemporal fusionする、あるいはcurrent-frame patch tokenをquery、past-frame patch tokenをcontextとしてcross-attentionする設計の方が接続しやすい。
