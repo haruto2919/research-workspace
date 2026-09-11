@@ -203,3 +203,41 @@ CLIPでは、video representationをtext promptと比較することで、LoRA�
 - Yang et al., AIM: Adapting Image Models for Efficient Video Action Recognition, 2023.
 
 このメモは探索記録であり、specまたは実装許可ではない。
+
+## 2026-09-11 15:52 JST 追記: CLIP-LoRA動画学習後の評価フロー
+
+ユーザー案の「CLIPで事前学習 -> 事前学習済みViTへLoRA追加 -> 動画datasetでfine-tuning -> 動画を入力して時間方向の変化についてtextを出力」という流れは大枠では研究意図に近いが、標準CLIPはtext generation modelではないため最後の段階を修正する必要がある。
+
+### CLIP単体で自然にできる評価
+
+```text
+CLIP pretrained image ViT
+ -> Base freeze + LoRA
+ -> temporal modelingを伴うvideo fine-tuning
+ -> video embedding
+
+candidate temporal descriptions
+ -> frozen CLIP text encoder
+ -> text embeddings
+
+video-text cosine similarity / ranking
+```
+
+例えば同一対象の逆向き動作を区別するpromptを用意する。
+
+- "a person picks up a cup"
+- "a person puts down a cup"
+
+動画の正順・逆順・shuffleを入力し、正しい時間変化を表すpromptが高くrankされるかを見ることで、video representationがtemporal semanticsを獲得しているかを評価できる。
+
+### 自由文を生成したい場合
+
+CLIP image/text encoderだけでは自由文を生成できない。video embeddingから文章を生成したい場合は、captioning decoder、LLM/VLM等の別のgenerative text decoderを接続する必要がある。その場合、生成器自体の能力が評価に混ざるため、「LoRAが時間情報を獲得したか」を純粋に評価する最初の実験としては複雑になる。
+
+### 現時点の推奨
+
+最初の評価は自由文生成ではなく、frozen CLIP text encoderを使ったcandidate text ranking / retrievalにする方が研究上の因果を切り分けやすい。
+
+重要な前提として、動画fine-tuning側にはframe orderを利用できるtemporal modelingまたはtemporal objectiveが必要である。CLIP ViTへframeを独立に通して平均するだけでは、"pick up" と "put down" のような順序依存の差を学ぶ保証はない。
+
+また、動画fine-tuning時にtext supervisionを使うか否かで研究主張が変わる。動画だけでself-supervisedにLoRAを学習し、評価時だけCLIP text encoderを使う構成の方が、現在の「動画由来の時間的情報をLoRAへ追加できるか」という問いを保ちやすい。
