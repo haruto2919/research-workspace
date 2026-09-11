@@ -178,3 +178,53 @@ MAEはクラスラベルを教師にしない。maskした入力patchの元pixel
 重要なのは、ラベルがなくても元動画frame自体が教師信号になることである。例えばcurrent frameの75%をmaskした場合、encoder側にはその75%を見せないが、loss計算時には元のcurrent frameを保持しておき、decoderが復元したmasked patchと比較する。
 
 また、MAE decoderはpatch token列と位置情報を前提にするため、16 frameを1本のglobal vectorへ単純平均してから標準decoderへ渡す設計は自然ではない。reconstructionを維持するなら、patch tokenのspatial identityを保ったままtemporal fusionする、あるいはcurrent-frame patch tokenをquery、past-frame patch tokenをcontextとしてcross-attentionする設計の方が接続しやすい。
+
+## 2026-09-11 13:46 JST 追記: Trainer設計
+
+現行実装の `SimpleLightningModel` はCrossEntropy、Top-1/Top-5、frame-wise supervisionなど教師あり分類を前提としているため、MAEへ直接条件分岐を追加するよりMAE専用のLightningModuleを分離する方針を有力候補とする。
+
+設計上は3層を分ける。
+
+1. **Model**
+   - mask生成、MAE encoder、必要ならcausal late fusion、decoder、reconstruction lossを担当する。
+   - `forward` は少なくとも `loss`、reconstruction、mask等を返す。
+   - late fusion方式を変更してもTrainer側の責務を増やさない。
+2. **LightningModule**
+   - batchをModelへ渡す。
+   - `outputs.loss` をtraining lossとして返し、reconstruction lossをlogする。
+   - optimizerを構成する。
+   - online版ではsequence開始時のtemporal cache reset等のlifecycleを扱う。
+3. **pl.Trainer**
+   - GPU、epoch、logging、checkpoint、validation loop等の実行制御を担当する。
+   - MeMViTとMAEで基本的に共通利用できる。
+
+段階的には次を想定する。
+
+### Stage 1: MAE integration / smoke
+
+`MAELightningModel`を新設する。ただし `sequential_loader -> 50Salads -> pretrained MAE` の接続確認だけならoptimizer updateは不要で、単純forwardまたはvalidation/test相当でもよい。動画frameを独立画像batchとしてpretrained MAEへ入力し、有限なreconstruction lossが得られることを確認する。
+
+### Stage 2: MAE + LoRA baseline
+
+同じ `MAELightningModel` を使い、Base MAEをfreeze、LoRAのみ `requires_grad=True` とする。`configure_optimizers` はtrainable parameterだけをoptimizerへ渡す。各batchで1つのreconstruction lossが得られる限り、Lightningのautomatic optimizationで十分であり、最初からmanual optimizationへ移行する必要はない。
+
+### Stage 3: online temporal MAE
+
+statefulな `OnlineMAELightningModel` または同等の責務分離を追加する。sequential loaderは時系列順、shuffleなしを前提とし、sequence開始でcacheをresetする。strict streamingでは過去feature cacheをdetachして保持する候補がある。current-frame reconstructionを各stepで行うならautomatic optimizationを維持できる。
+
+Manual Optimizationが必要になるのは、future target到着までupdateを遅延する、複数chunkを1 updateへ束ねる、特殊なoptimizer step制御を行う等、標準の「1 batch -> 1 loss -> 1 optimizer step」から外れる場合に限定する。
+
+初期の推奨クラス構成は次の通り。
+
+```text
+SimpleLightningModel
+  -> 既存MeMViT / supervised classification
+
+MAELightningModel
+  -> image MAE / frame-independent MAE / MAE+LoRA baseline
+
+OnlineMAELightningModel
+  -> causal temporal state, cache lifecycle, online video MAE
+```
+
+ただしStage 1で `OnlineMAELightningModel` まで先回りして実装せず、まずMAE integrationを独立させる。これにより、MAE本体、LoRA、temporal fusion、online stateの不具合を段階ごとに切り分けられる。
