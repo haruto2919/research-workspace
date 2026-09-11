@@ -102,3 +102,40 @@ tags: [brainstorm, research, mae, clip, lora, video, temporal-modeling]
 - temporal contrastive learning
 
 このメモは探索記録であり、specまたは実装許可ではない。
+
+## 2026-09-11 15:52 JST 追記: MAE方針を採用
+
+ユーザー判断により、研究の主軸はCLIPではなく **ImageNet事前学習済みMAE + LoRA + 動画自己教師あり学習** とする方針を採用した。
+
+### 採用した理由
+
+- 動画学習時にラベルやcaptionを使わず、元動画そのものを教師信号にできる。
+- masked reconstructionという明確なobjectiveがあり、まず学習基盤を成立させやすい。
+- 「画像で事前学習されたBaseを保持し、動画由来の情報をLoRAへ追加する」という研究条件を単純に構成しやすい。
+- temporal modelingの有無やnormal / shuffle / reverse / no-past等のablationにより、時間構造利用を比較しやすい。
+
+### 現在の主フロー
+
+1. Hugging FaceのImageNet事前学習済みMAEを現在の実装基盤へ追加する。
+2. MAE専用LightningModuleを用意し、単一画像で標準MAE forward / reconstruction lossを確認する。
+3. `sequential_loader -> 50Salads -> pretrained MAE` の接続smoke testを行い、実動画frameをMAEへ正常に渡せることを確認する。
+4. MAE encoderへLoRAを追加し、Base MAEをfreezeした状態でLoRAのみ更新できることを1 stepで確認する。
+5. 動画の時間関係を利用するtemporal designを決める。現時点の有力候補は、過去frame + current frameのencoder tokenをcausalにfusionし、current frameのmasked patchを復元する構成。
+6. online / sequential学習へ拡張し、future leakageなし、sequence reset、past cache等の契約を決める。
+7. ActivityNet / EPIC-KITCHENS等で同条件の動画LoRAを学習する。
+8. normal / shuffle / reverse / static-repeat / no-past等で時間構造依存性を評価する。
+9. LoRA parameter / representation / downstream probe等を用いて、動画由来情報がどこまでLoRAへ保持されたか解析する。
+
+### 直近の実装順序
+
+- Step 1: pretrained MAE integration
+- Step 2: MAE用trainer / LightningModule
+- Step 3: sequential_loader + 50Salads smoke test
+- Step 4: LoRA injection + freeze/update確認
+- Step 5: temporal designのspec化
+- Step 6: online video SSL実装
+- Step 7: dataset比較とtemporal evaluation
+
+CLIPは現時点では主軸から外し、必要になれば将来のsemantic evaluation / comparison baseline候補として再検討する。
+
+この追記も探索記録であり、既存draft specを自動的に更新・承認するものではない。
