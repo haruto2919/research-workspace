@@ -179,52 +179,57 @@ MAEはクラスラベルを教師にしない。maskした入力patchの元pixel
 
 また、MAE decoderはpatch token列と位置情報を前提にするため、16 frameを1本のglobal vectorへ単純平均してから標準decoderへ渡す設計は自然ではない。reconstructionを維持するなら、patch tokenのspatial identityを保ったままtemporal fusionする、あるいはcurrent-frame patch tokenをquery、past-frame patch tokenをcontextとしてcross-attentionする設計の方が接続しやすい。
 
-## 2026-09-11 13:46 JST 追記: Trainer設計
+## 2026-09-11 14:49 JST 追記: 全体像とタスク順序の再整理
 
-現行実装の `SimpleLightningModel` はCrossEntropy、Top-1/Top-5、frame-wise supervisionなど教師あり分類を前提としているため、MAEへ直接条件分岐を追加するよりMAE専用のLightningModuleを分離する方針を有力候補とする。
+### 研究目的
 
-設計上は3層を分ける。
+画像で自己教師あり事前学習されたMAEを出発点にし、Base MAEを基本的に固定してLoRAを追加し、動画をオンライン・自己教師ありで学習することで、画像だけでは得にくい動画由来の時間的・動的情報がLoRAへどのように追加されるかを解析する。
 
-1. **Model**
-   - mask生成、MAE encoder、必要ならcausal late fusion、decoder、reconstruction lossを担当する。
-   - `forward` は少なくとも `loss`、reconstruction、mask等を返す。
-   - late fusion方式を変更してもTrainer側の責務を増やさない。
-2. **LightningModule**
-   - batchをModelへ渡す。
-   - `outputs.loss` をtraining lossとして返し、reconstruction lossをlogする。
-   - optimizerを構成する。
-   - online版ではsequence開始時のtemporal cache reset等のlifecycleを扱う。
-3. **pl.Trainer**
-   - GPU、epoch、logging、checkpoint、validation loop等の実行制御を担当する。
-   - MeMViTとMAEで基本的に共通利用できる。
+### 実装・検証の推奨順序
 
-段階的には次を想定する。
+1. **Image MAE baseline**
+   - Hugging FaceのImageNet事前学習済みMAEをmodel factoryからロードできるようにする。
+   - MAE専用LightningModuleを用意し、単一画像でforwardとreconstruction lossが動くことを確認する。
+   - 既存MeMViT分類用`SimpleLightningModel`にはMAE処理を混ぜない。
 
-### Stage 1: MAE integration / smoke
+2. **sequential_loader接続 smoke test**
+   - `sequential_loader -> 50Salads -> preprocess -> pretrained MAE` のデータ経路を確認する。
+   - 50Saladsのlabelはこの段階では使わない。
+   - 1〜数chunkを画像batchとしてMAEへ通し、shape、値域、preprocess、有限なreconstruction lossを確認する。
+   - これはonline temporal learningのEvidenceではなく、接続確認である。
 
-`MAELightningModel`を新設する。ただし `sequential_loader -> 50Salads -> pretrained MAE` の接続確認だけならoptimizer updateは不要で、単純forwardまたはvalidation/test相当でもよい。動画frameを独立画像batchとしてpretrained MAEへ入力し、有限なreconstruction lossが得られることを確認する。
+3. **LoRA baseline**
+   - Base MAEをfreezeし、MAE encoderのattentionへLoRAを追加する。
+   - 1 stepでBaseが変化せずLoRAだけ更新されることを確認する。
+   - まずframe-independent MAE lossで動作を成立させ、temporal knowledgeは主張しない。
 
-### Stage 2: MAE + LoRA baseline
+4. **動画temporal設計の確定**
+   - late fusion / internal temporal attention / その他の設計を比較する。
+   - 現時点の有力候補は、encoderとdecoderの間でpatch tokenのspatial identityを保ったままcausal temporal fusionし、過去frame + current visible patchからcurrent masked patchを復元する方式。
+   - temporal fusion自体のtrainable parameterへ動画情報が逃げる問題があるため、固定operator + LoRAやtemporal pathway側LoRAも比較候補。
 
-同じ `MAELightningModel` を使い、Base MAEをfreeze、LoRAのみ `requires_grad=True` とする。`configure_optimizers` はtrainable parameterだけをoptimizerへ渡す。各batchで1つのreconstruction lossが得られる限り、Lightningのautomatic optimizationで十分であり、最初からmanual optimizationへ移行する必要はない。
+5. **online化**
+   - future frameを入力に使わないcausal処理にする。
+   - past feature cache、sequence開始時reset、detach/stalenessの扱いを定義する。
+   - LightningModuleはsequence reset、loss logging、optimizer更新を担当し、mask/encoder/fusion/decoder/lossはmodel側へ置く。
 
-### Stage 3: online temporal MAE
+6. **動画データセットで自己教師ありLoRA学習**
+   - ActivityNetとEPIC-KITCHENSで同一初期MAE・同一LoRA構成・同等の学習budgetを用いて別々のLoRAを学習する。
+   - `LoRA_ActivityNet` と `LoRA_EPIC` を得る。
 
-statefulな `OnlineMAELightningModel` または同等の責務分離を追加する。sequential loaderは時系列順、shuffleなしを前提とし、sequence開始でcacheをresetする。strict streamingでは過去feature cacheをdetachして保持する候補がある。current-frame reconstructionを各stepで行うならautomatic optimizationを維持できる。
+7. **評価・解析**
+   - 単なるデータセット間性能差だけでなく、normal order / shuffle / reverse / static repeat / no-past等でtemporal structure依存性を評価する。
+   - 必要に応じてcross-dataset評価やLoRA parameter/representation解析を行い、「データセット由来の違い」と「時間構造を使った違い」を分離して議論する。
 
-Manual Optimizationが必要になるのは、future target到着までupdateを遅延する、複数chunkを1 updateへ束ねる、特殊なoptimizer step制御を行う等、標準の「1 batch -> 1 loss -> 1 optimizer step」から外れる場合に限定する。
+### 直近でやるべきこと
 
-初期の推奨クラス構成は次の通り。
+現在はPhase 1〜2の手前であり、Late Fusion実装より先に次を行うのがよい。
 
-```text
-SimpleLightningModel
-  -> 既存MeMViT / supervised classification
+1. Hugging Face pretrained MAEを現在のmodel factoryへ追加する。
+2. MAE専用LightningModuleの最小版を用意する。
+3. 単一画像でMAE forward/lossを確認する。
+4. sequential_loaderの辞書出力契約を確認する。
+5. `sequential_loader -> 50Salads -> pretrained MAE` のsmoke testを行う。
+6. その後にLoRA追加へ進む。
 
-MAELightningModel
-  -> image MAE / frame-independent MAE / MAE+LoRA baseline
-
-OnlineMAELightningModel
-  -> causal temporal state, cache lifecycle, online video MAE
-```
-
-ただしStage 1で `OnlineMAELightningModel` まで先回りして実装せず、まずMAE integrationを独立させる。これにより、MAE本体、LoRA、temporal fusion、online stateの不具合を段階ごとに切り分けられる。
+この順序なら、MAE、loader、LoRA、temporal fusion、online stateを一度に混ぜず、各段階の不具合を切り分けられる。
