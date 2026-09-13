@@ -4,11 +4,12 @@ spec_type: implementation
 status: draft
 title: MAE事前学習モデル統合と単一画像reconstruction loss smoke
 created: 2026-09-11
-last_updated: 2026-09-11
+last_updated: 2026-09-13
 workspace_repository: haruto2919/research-workspace
 workspace_base_branch: main
 workspace_base_commit: 723e4c462f03befc0e3493114c7c500b2b851f2d
-implementation_repository: tamaki-lab/2026_04_ishikawa_simple-MeMViT
+implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
+implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 implementation_base_branch: main
 implementation_base_commit: e0deb093694d367ed9b02065e6d4cd38802093d6
 hf_checkpoint: facebook/vit-mae-large
@@ -71,7 +72,7 @@ brainstormは探索記録であり、それ単独では実装許可ではない�
 | 役割 | repository | branch | 基準commit |
 |---|---|---|---|
 | 研究文脈SSOT | `haruto2919/research-workspace` | `main` | `723e4c462f03befc0e3493114c7c500b2b851f2d` |
-| 実装対象 | `tamaki-lab/2026_04_ishikawa_simple-MeMViT` | `main` | `e0deb093694d367ed9b02065e6d4cd38802093d6` |
+| 実装対象 | `tamaki-lab/2026_09_ishikawa_sequential-video-lora` | `main` | `e0deb093694d367ed9b02065e6d4cd38802093d6` |
 
 実装開始時にはremote `main` の先端を再確認する。基準commitから進んでいる場合は、本specの
 前提・public interface・変更範囲・成功条件へ影響しないことをread-onlyで確認してから実装する。

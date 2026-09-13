@@ -2,9 +2,9 @@
 project: sequential-video-lora-analysis
 status: active
 summary: sequential_loaderからMeMViTへの入力変換と最小LoRA更新を確認し、逐次LoRA本実装の統合・挙動検証を進める段階。
-implementation_root: /mnt/HDD12TB-1/ishikawa/2026_04_ishikawa_simple-MeMViT
+implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-09-10
+last_updated: 2026-09-13
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -15,7 +15,7 @@ last_updated: 2026-09-10
 
 ## 実装環境
 
-- メイン実装フォルダ: [`2026_04_ishikawa_simple-MeMViT`](../../../../../2026_04_ishikawa_simple-MeMViT/)
+- メイン実装フォルダ: [`2026_09_ishikawa_sequential-video-lora`](../../../../../2026_09_ishikawa_sequential-video-lora/)
 - 用途: このプロジェクトのコード編集、動作確認、学習・評価の実行
 - 研究文脈の正本: このREADMEと、同じプロジェクト配下の `specs/`、`experiments/`、`materials/`、`meetings/`
 
@@ -46,3 +46,4 @@ last_updated: 2026-09-10
 | 2026-09-04 | プロジェクト作成 |
 | 2026-09-04 | `2026_04_ishikawa_simple-MeMViT` をメイン実装フォルダに設定 |
 | 2026-09-10 | sequential_loaderからMeMViTへの入力変換と、全16 blockのattention q/vへのLoRA注入・最小更新を確認。本実装統合とloader出力の挙動検証を次段階とした |
+| 2026-09-13 | `2026_09_ishikawa_sequential-video-lora` をメイン実装フォルダに変更 |

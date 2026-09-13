@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: superseded
 title: 50Salads時系列逐次LoRA fine-tuning基盤
 created: 2026-09-09
-last_updated: 2026-09-09
+last_updated: 2026-09-13
 workspace_repository: haruto2919/research-workspace
 workspace_base_branch: main
 workspace_base_commit: 8f60ff667b7e846620eec9208c078cab2efa0c72
@@ -18,10 +18,10 @@ loader_base_commit: cef09aa12560127451a5f569d86d5d51671e6986
 
 # 50Salads時系列逐次LoRA fine-tuning基盤 spec
 
-> **Status: draft**
+> **Status: superseded**
 >
-> 本specは内容確認中であり、研究コードの実装、config変更、test追加、launcher変更、
-> dependency追加、学習・評価runを許可しない。`approved` へ変更されるまで実装に使用しない。
+> 本specはsupersededであり、研究コードの実装、config変更、test追加、launcher変更、
+> dependency追加、学習・評価runの根拠として使用しない。
 
 ## 1. 目的
 
@@ -580,8 +580,8 @@ K400 checkpoint SHA-256 = 3c61adbb7e045d8cc2435d6f26b3f8d74460786dfcde97a9579d44
 | Deterministic resizeの数値policy | bilinear interpolation、`antialias = True` |
 | Baseline numerical precision | Lightning `precision = "32-true"` |
 
-Gate再評価の結果、`approved` を妨げるblockingな未決事項は0件である。ただし、本更新ではユーザーが
-`status: draft` の維持と実装停止を明示しているため、statusはdraftのままとし、実装権限は発生しない。
+Gate再評価の結果、`approved` を妨げるblockingな未決事項は0件であった。その後、本specは
+supersededとなったため、現在の実装・実験の根拠として使用しない。
 
 ### 14.2 Non-blocking: 既存styleに従ってよい
 
@@ -610,9 +610,9 @@ Gate再評価の結果、`approved` を妨げるblockingな未決事項は0件�
 
 ## 16. Implementation Handoff
 
-本節は索引であり、`status: draft` の間はinactiveである。
+本節は索引であり、`status: superseded` のためinactiveである。
 
-- approved spec: なし。このdraftを承認後、frontmatterを `approved` へ変更したrevisionを使用する。
+- approved spec: なし。本specはsupersededであり、実装には使用しない。
 - 実装目的: 50Salads strict sequential one-pass / multi-epoch LoRA fine-tuning基盤
 - 基準repository/commit: `tamaki-lab/2026_04_ishikawa_simple-MeMViT@e0deb093694d367ed9b02065e6d4cd38802093d6`
 - external loader: `tamaki-lab/sequential_loader@cef09aa12560127451a5f569d86d5d51671e6986`
