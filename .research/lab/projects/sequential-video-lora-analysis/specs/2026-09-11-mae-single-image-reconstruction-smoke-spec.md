@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: approved
 title: MAE事前学習モデル統合と単一画像reconstruction loss smoke
 created: 2026-09-11
 last_updated: 2026-09-13
@@ -17,10 +17,10 @@ hf_checkpoint: facebook/vit-mae-large
 
 # MAE事前学習モデル統合と単一画像reconstruction loss smoke spec
 
-> **Status: draft**
+> **Status: approved**
 >
 > 本specは、MAEを現在の研究実装基盤へ追加する最初の実装契約を定義する。
-> `approved` へ変更されるまでは、研究コードの変更・実装開始を許可しない。
+> 2026-09-13にユーザーが内容を確認し、approvedとして承認した。
 > 本specは既存の逐次LoRA draft specを自動的に置き換えたり、承認したりしない。
 
 ## 1. 目的
@@ -52,13 +52,14 @@ RGB画像1枚
 
 本specの判断根拠は、優先順に次のとおりとする。
 
-1. 2026-09-11のユーザー指示
+1. 2026-09-11〜2026-09-13のユーザー指示
    - MAEを研究方針として採用する。
    - `facebook/vit-mae-large` を使用する。
    - MAE専用LightningModuleを作る。
    - 単一画像でreconstruction lossを確認する。
    - `seed = 0`、single GPU、Lightning `Trainer`を使わず`forward`を直接smokeする。
    - 今回はbackward / optimizer step / parameter updateを行わない。
+   - 2026-09-13に本spec内容を承認した。
 2. `.research/secretary/notes/brainstorm/2026-09-11-mae-vs-clip-direction.md`
    - MAEを主軸とし、最初にpretrained MAE integrationと単一画像reconstruction loss確認を行う方針。
 3. プロジェクト `README.md` と既存の研究文脈。
@@ -394,7 +395,7 @@ lossの絶対値をpass/fail閾値にはしない。
 
 **なし。**
 
-以下は2026-09-11のユーザー判断で確定した。
+以下は2026-09-11〜2026-09-13のユーザー判断で確定した。
 
 - `facebook/vit-mae-large`
 - MAE専用LightningModule
@@ -445,5 +446,5 @@ MAE load + single-image reconstruction loss
 本specは、目的、scope、対象外、外部checkpoint、実装責務、input/output契約、再現性条件、
 GPU条件、成功条件、非回帰条件まで固定済みであり、blocking ambiguityは残っていない。
 
-ただし現在のstatusは`draft`である。ユーザーが本spec本文を確認し、`approved`への変更を明示した後にのみ、
+2026-09-13にユーザーが本文を確認し、`approved`への変更を明示したため、
 `engineering-task`へ引き継いで研究コード実装を開始できる。
