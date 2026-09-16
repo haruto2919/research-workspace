@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: implemented
 title: MAE単一画像1-step学習 smoke
 created: 2026-09-16
-last_updated: 2026-09-16
+last_updated: 2026-09-17
 workspace_repository: haruto2919/research-workspace
 workspace_base_branch: main
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
@@ -15,13 +15,13 @@ hf_checkpoint: facebook/vit-mae-large
 
 # MAE単一画像1-step学習 smoke spec
 
-> **Status: draft**
+> **Status: implemented**
 >
 > 本specは、単一画像forward / reconstruction loss計算まで成立したMAE実装を次段階へ進め、
 > PyTorch Lightningの通常training pathを用いて1 optimization stepだけ実行し、
 > reconstruction lossからMAE parameterが実際に更新されることを確認するための実装契約である。
 >
-> `approved`へ変更されるまでは、本specを根拠とした研究コード変更を開始しない。
+> 2026-09-17のユーザー指示により承認され、同日に実装と必須検証を完了した。
 
 ## 1. 目的
 
@@ -587,5 +587,5 @@ parameter updateの観測方法、scope、対象外、再現性条件、success 
 
 blocking ambiguityは残っていない。
 
-ただしstatusは`draft`である。
-ユーザーが本文を確認し、`approved`への変更を明示した後にのみ、`engineering-task`へ引き継いで実装を開始する。
+statusは`implemented`である。
+2026-09-17に`approved`へ変更後、`engineering-task`による実装と必須検証を完了した。
