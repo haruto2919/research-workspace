@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: approved
+status: implemented
 title: MAE事前学習モデル統合と単一画像reconstruction loss smoke
 created: 2026-09-11
-last_updated: 2026-09-13
+last_updated: 2026-09-16
 workspace_repository: haruto2919/research-workspace
 workspace_base_branch: main
 workspace_base_commit: 723e4c462f03befc0e3493114c7c500b2b851f2d
@@ -17,10 +17,11 @@ hf_checkpoint: facebook/vit-mae-large
 
 # MAE事前学習モデル統合と単一画像reconstruction loss smoke spec
 
-> **Status: approved**
+> **Status: implemented**
 >
 > 本specは、MAEを現在の研究実装基盤へ追加する最初の実装契約を定義する。
 > 2026-09-13にユーザーが内容を確認し、approvedとして承認した。
+> 2026-09-16に実装と必須smoke検証が完了し、implementedへ更新した。
 > 本specは既存の逐次LoRA draft specを自動的に置き換えたり、承認したりしない。
 
 ## 1. 目的
@@ -446,5 +447,6 @@ MAE load + single-image reconstruction loss
 本specは、目的、scope、対象外、外部checkpoint、実装責務、input/output契約、再現性条件、
 GPU条件、成功条件、非回帰条件まで固定済みであり、blocking ambiguityは残っていない。
 
-2026-09-13にユーザーが本文を確認し、`approved`への変更を明示したため、
-`engineering-task`へ引き継いで研究コード実装を開始できる。
+2026-09-13にユーザーが本文を確認し、`approved`への変更を明示した。
+2026-09-16にapproved scopeの実装と必須smoke検証が完了したため、
+本specのstatusを`implemented`とする。
