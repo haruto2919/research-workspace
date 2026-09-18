@@ -1,0 +1,443 @@
+---
+date: 2026-09-18
+project: sequential-video-lora-analysis
+source_todo: null
+topic: simple_cnnを基盤にしたViT-sequential-LoRA-MoCoのクリーンな実装構造
+status: exploratory
+tags: [brainstorm, research, architecture, simple-cnn, vit, sequential-loader, lora, moco]
+---
+
+# simple_cnnを基盤にしたViT-sequential-LoRA-MoCoのクリーンな実装構造
+
+## 出発点
+
+実験frameworkについて、`tamaki-lab/simple_cnn_training` の単純なmodel/data/trainer構造を基盤にし、
+Saeki / Hayashi repositoryから必要部分だけを参照・追加する方が、研究コード全体を理解しやすく保てるのではないかという案を検討した。
+
+現在の実装順の有力候補は次。
+
+```text
+ViT single-image smoke
+ -> sequential_loader video forward smoke
+ -> clip feature contract
+ -> LoRA update smoke
+ -> MoCo mechanics
+ -> LoRA + MoCo + sequential video integration
+```
+
+## 確認済み事実
+
+### simple_cnn_training
+
+- `model/model_factory.py` でmodel選択を集約。
+- `model/simple_lightning_model.py` にLightning training loop。
+- `dataset/dataloader_factory.py` にdataset選択を集約。
+- ViT実装は `ViTForImageClassification` を利用する画像分類model。
+- VideoFolderはPyTorchVideoベース。
+- 構造が小さく、entry point / model / dataset / optimizer / loggerが追いやすい。
+
+### Saeki
+
+- bare `ViTModel` を使う `ViTFrameEncoder` があり、BCHW -> [B,D] を明示。
+- video側はBCTHWをframeへ分解し、frame featureとtemporal logicを分離。
+- GRU/LSTM/sliding transformer等は別責務。
+- config/test/runnerもsimple_cnn系から拡張されている。
+
+### Hayashi
+
+- external `sequential_loader` のpublic APIだけをconsumerとして利用。
+- `SequentialSample` の frames / frame_indices / timestamps / valid_mask / is_first / is_last を明示的に扱う。
+- loader内部moduleへ依存しない。
+- EOF / padding / frame continuityをsmokeで検証。
+
+### 現在の石川repo
+
+- simple_cnn系のmodel/dataset/Lightning構造を残している。
+- 一方、旧MeMViT / classification / legacy sequential datasetの責務が多く残っている。
+- current model factoryでは `vit_b` が実質MeMViTへ読み替えられる状態であり、新しいViT-MoCo pathは分離して作る必要がある。
+
+## 現時点の方向性
+
+simple_cnnを「骨格」として使う案は有力。
+
+ただし、Saeki/Hayashiのコードを大きな塊でコピーするのではなく、次の責務単位で再構成する。
+
+1. Data source / sequential contract
+2. Frame encoder
+3. Clip encoder / aggregation
+4. Parameter-efficient adapter (LoRA)
+5. Self-supervised objective (MoCo)
+6. Training orchestration
+7. Experiment configuration / smoke
+
+各layerは下位layerだけに依存し、dataset固有情報をmodelへ漏らさない。
+
+## 推奨依存関係
+
+```text
+main_moco.py / runner
+        |
+        v
+MoCoLightningModule
+        |
+        v
+MoCoModel
+        |
+        v
+VideoEncoder
+  |           |
+  v           v
+FrameEncoder  ClipAggregator
+  |
+  v
+ViTModel
+  ^
+  |
+LoRA injection
+
+Data path:
+sequential_loader
+   |
+   v
+SequentialLoaderAdapter
+   |
+   v
+SequentialBatch
+   |
+   v
+preprocess
+   |
+   +---------------------> VideoEncoder
+```
+
+重要なのは、`sequential_loader` をViT内部から呼ばない、LoRAをDataLoaderから意識しない、
+MoCoをViT classへ直接埋め込まないこと。
+
+## 推奨directory案
+
+現行simple_cnn系の理解しやすさを維持するため、大規模なsrc-layout移行は初期段階では行わない候補。
+
+```text
+.
+├── main_pl.py                    # 既存classification pathは維持
+├── main_moco.py                  # 新しいSSL/MoCo entry point
+│
+├── dataset/
+│   ├── dataloader_factory.py     # dataset選択だけ
+│   ├── transforms.py
+│   └── sequential/
+│       ├── __init__.py
+│       ├── loader_adapter.py     # Hayashiを参考: external sequential_loader public APIのみ
+│       ├── batch.py              # modelへ渡す共通batch contract
+│       ├── collate.py
+│       └── transforms.py         # uint8 frame -> ViT preprocess
+│
+├── model/
+│   ├── model_factory.py
+│   ├── encoders/
+│   │   ├── __init__.py
+│   │   ├── vit_frame_encoder.py  # Saekiを参考: BCHW -> [B,D]
+│   │   └── video_encoder.py      # [B,T,C,H,W] -> [B,T,D] -> clip feature
+│   │
+│   ├── aggregation/
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   └── mean_pool.py          # 初期non-temporal baseline
+│   │
+│   ├── adapters/
+│   │   ├── __init__.py
+│   │   └── lora.py               # LoRA注入・freeze・parameter auditのみ
+│   │
+│   ├── ssl/
+│   │   ├── __init__.py
+│   │   ├── moco.py               # query/key encoder, EMA
+│   │   ├── projector.py
+│   │   ├── queue.py              # queue版を採用する場合
+│   │   └── losses.py             # InfoNCE等
+│   │
+│   ├── moco_lightning_model.py   # training orchestrationのみ
+│   └── simple_lightning_model.py # 既存classification path
+│
+├── config/
+│   ├── vit.py
+│   ├── sequential.py
+│   ├── lora.py
+│   └── moco.py
+│
+├── scripts/
+│   ├── smoke_vit.py
+│   ├── smoke_sequential_loader.py
+│   ├── smoke_sequential_vit.py
+│   ├── smoke_lora.py
+│   └── smoke_moco.py
+│
+└── test/
+    ├── dataset/
+    │   └── test_sequential_loader_adapter.py
+    ├── model/
+    │   ├── test_vit_frame_encoder.py
+    │   ├── test_video_encoder.py
+    │   └── test_lora.py
+    └── ssl/
+        └── test_moco.py
+```
+
+これは候補構造であり、specではない。
+
+## 各moduleの責務
+
+### dataset/sequential/loader_adapter.py
+
+Hayashiの考え方を採る。
+
+担当:
+- external `sequential_loader` のpublic API利用。
+- SequentialSampleを研究側の共通batch contractへ変換。
+- frame index / timestamps / valid mask / sequence境界の保持。
+
+担当しない:
+- ViT normalization。
+- LoRA。
+- MoCo augmentation。
+- model forward。
+
+外部loaderの内部実装をcopyしない。
+
+### dataset/sequential/batch.py
+
+research code内部の安定したinterfaceを定義する候補。
+
+例:
+
+```text
+frames:       [B,T,C,H,W]
+valid_mask:   [B,T]
+frame_indices:[B,T]
+timestamps:   [B,T]
+sequence_id
+is_first
+is_last
+```
+
+外部 `SequentialSample` の変更をmodel全体へ直接波及させないための境界。
+
+### model/encoders/vit_frame_encoder.py
+
+Saekiの責務分離を採る。
+
+担当:
+- pretrained bare ViTのload。
+- BCHW -> [B,D]。
+- feature source (CLS等)。
+- freeze設定。
+
+担当しない:
+- 動画順序。
+- clip aggregation。
+- LoRA学習ロジック。
+- MoCo。
+- classifier。
+
+### model/encoders/video_encoder.py
+
+動画とframe encoderの橋渡し。
+
+```text
+[B,T,C,H,W]
+ -> [B*T,C,H,W]
+ -> FrameEncoder
+ -> [B*T,D]
+ -> [B,T,D]
+ -> ClipAggregator
+ -> [B,D]
+```
+
+Python loopより、初期候補としてB*Tへflattenして一括forwardする方が単純かつ効率的。
+
+`valid_mask` をaggregationへ渡す。
+
+### model/aggregation/
+
+初期baselineは `MaskedMeanPool`。
+
+これはorder-invariantであり、「時間情報を使わないvideo baseline」として意図的に残す。
+
+将来:
+- temporal transformer
+- GRU/LSTM
+- future-prediction module
+
+等を追加してもVideoEncoderのinterfaceを変えない。
+
+Saekiのtemporal headは初期実装では持ち込まない。
+
+### model/adapters/lora.py
+
+LoRAをViT classへ直接書き込まない。
+
+担当:
+- target module指定。
+- LoRA注入。
+- base freeze。
+- trainable parameter audit。
+- LoRA on/off。
+
+これにより、将来CLIP-ViTへframe encoderを差し替えてもadapter layerを再利用しやすくする。
+
+### model/ssl/moco.py
+
+MoCoをVideoEncoderへ埋め込まない。
+
+担当:
+- query encoder。
+- key/momentum encoder。
+- EMA。
+- projector/predictor。
+- queue（採用variantなら）。
+- q/k生成。
+
+`VideoEncoder` は「clip -> feature」だけを知り、MoCoを知らない。
+
+### moco_lightning_model.py
+
+既存 `SimpleLightningModel` をMoCo対応へ肥大化させない。
+
+新しいmoduleは:
+- batch受取。
+- two-view augmentation呼出。
+- MoCo forward。
+- loss logging。
+- optimizer。
+- checkpoint。
+
+だけを担当。
+
+classification top1/top5の前提を持ち込まない。
+
+## config方針
+
+simple_cnnの単純さを保つため、最初からSaekiのHydra全体を移植する必要はない。
+
+ただし、LoRA/MoCoでargument数が増えるため、1つの巨大なargparse Namespaceへ全設定を追加するのも避けたい。
+
+候補:
+- `ViTConfig`
+- `SequentialConfig`
+- `LoRAConfig`
+- `MoCoConfig`
+
+をdataclassとして分離し、entry pointで組み立てる。
+
+Hydra導入は複数baseline/ablationを大量に回す段階で再評価できる。
+
+## 追加順
+
+### Phase A: framework cleanupを最小化
+
+既存classification / MeMViT codeを大規模削除しない。
+新しいpathを横に追加する。
+
+### Phase B: ViT frame encoder
+
+```text
+image -> ViTFrameEncoder -> [B,D]
+```
+
+### Phase C: external sequential_loader bridge
+
+```text
+SequentialSample
+ -> SequentialBatch
+ -> preprocess
+ -> VideoEncoder
+ -> [B,T,D]
+```
+
+この段階ではaggregation前後をログで確認する。
+
+### Phase D: non-temporal clip baseline
+
+MaskedMeanPoolを追加。
+
+### Phase E: LoRA
+
+VideoEncoder interfaceを変えず、FrameEncoder内部へadapterを注入。
+
+### Phase F: MoCo
+
+MoCoModelとMoCoLightningModuleを追加。
+
+### Phase G: temporal extension
+
+新しいAggregator/Objectiveとして追加し、mean baselineを壊さない。
+
+## cleanに保つための禁止事項候補
+
+- `model_factory.py` の中へtraining logicを書かない。
+- `SimpleLightningModel` にclassification / MAE / MoCoの巨大なif分岐を追加しない。
+- dataset classからmodelをimportしない。
+- modelから `sequential_loader` をimportしない。
+- ViTFrameEncoderへGRU / queue / EMAを追加しない。
+- LoRA target module名を複数fileに重複させない。
+- `sequential_loader` の内部moduleをimportしない。
+- Hayashi / Saeki repoのdataset/modelを丸ごとcopyしない。
+- 旧MeMViT pathを新しいViT pathのために無理に再利用しない。
+
+## smoke / testをarchitecture境界に対応させる
+
+1. `test_vit_frame_encoder`
+   - BCHW -> [B,D]
+2. `test_sequential_loader_adapter`
+   - order / valid_mask / EOF
+3. `test_video_encoder`
+   - B,T,C,H,W -> B,T,D -> B,D
+4. `test_lora`
+   - base unchanged / LoRA changed
+5. `test_moco`
+   - query gradient / key no-grad / EMA / finite loss
+6. integration smoke
+   - sequential_loader -> ViT -> LoRA -> MoCo
+
+各stageのfailure原因を責務単位で切り分ける。
+
+## 代替案との比較
+
+### Saeki repoを丸ごとbaseにする
+
+実装量は減る部分もあるが、Hydra、独自50Salads dataset、temporal head、streaming evaluation等、
+現在不要な責務まで持ち込みやすい。
+
+### Hayashi repoをbaseにする
+
+sequential_loaderは綺麗だがtraining frameworkを新設する割合が大きい。
+
+### simple_cnn骨格 + 必要部分追加
+
+新規module数は増えるが、各責務を理解しながら増やせる。
+今後のCLIP-ViT、LoRA、MoCo、temporal objectiveの差し替えにも向く。
+
+## 現時点の収束
+
+有力候補:
+
+- current Ishikawa repo / simple_cnn系の骨格を維持。
+- Hayashiからはexternal sequential_loaderのconsumer boundaryだけ採る。
+- Saekiからはbare ViT frame encoderとframe/video責務分離だけ採る。
+- LoRAはadapter layer。
+- MoCoはSSL layer。
+- temporal moduleはaggregation/objective layerとして後付け。
+- 既存classification / MeMViT pathは初期段階では壊さず、新しいpathを並行追加する。
+
+これにより「データ」「画像encoder」「動画化」「追加学習parameter」「自己教師ありobjective」を独立して差し替えられる。
+
+## 未解決事項
+
+- configをdataclass + argparseのまま行くかHydraを早期導入するか。
+- new entry point名を `main_moco.py` にするか汎用 `main_ssl.py` にするか。
+- `SequentialBatch` をdataclassにするかdictにするか。
+- clip aggregationの初期仕様。
+- MoCo variant。
+- LoRA library / target module。
+- current legacy codeを将来どの段階で整理・削除するか。
+
+このメモは探索記録であり、specまたは実装許可ではない。
