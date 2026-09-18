@@ -11,7 +11,7 @@ workspace_base_commit: 162755bf97ddf789226665bb7be8677e028f0436
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_base_branch: main
 implementation_base_commit: e0deb093694d367ed9b02065e6d4cd38802093d6
-implementation_work_branch: chore/simple-cnn-baseline-sync
+implementation_work_branch: chore-simple-cnn-baseline-sync
 reference_repository: tamaki-lab/simple_cnn_training
 reference_branch: main
 reference_commit: e541dd98f825eb58c193ccd55cffa858392b89fe
@@ -96,7 +96,7 @@ simple_cnn baseline
 implementationは必ず次のbranchで行う。
 
 ```text
-chore/simple-cnn-baseline-sync
+chore-simple-cnn-baseline-sync
 ```
 
 branch種別を `chore/` とする理由は、本作業が新機能追加ではなく、
@@ -127,7 +127,7 @@ main@e0deb093694d367ed9b02065e6d4cd38802093d6
 未commit変更を自動削除・stash・上書きしない。
 
 clean working treeまたは新しいworktreeで
-`chore/simple-cnn-baseline-sync` を用意できない場合は停止し、状況を報告する。
+`chore-simple-cnn-baseline-sync` を用意できない場合は停止し、状況を報告する。
 
 ### 3.4 commit
 
@@ -465,7 +465,7 @@ GPU / datasetが利用可能な場合は追加smokeとして実行してよい�
 本specの実装成功は、次をすべて満たすこととする。
 
 1. implementation branchが
-   `chore/simple-cnn-baseline-sync` であり、
+   `chore-simple-cnn-baseline-sync` であり、
    `main@e0deb093...` を起点としている。
 2. `main` と `mae` を直接変更していない。
 3. 5.1の旧研究固有30ファイルが削除されている。
@@ -593,7 +593,7 @@ statusを `approved` へ変更し、engineering-taskへ引き継ぐ。
 - 基準repository/commit:
   - implementation: `tamaki-lab/2026_09_ishikawa_sequential-video-lora@e0deb093694d367ed9b02065e6d4cd38802093d6`
   - reference: `tamaki-lab/simple_cnn_training@e541dd98f825eb58c193ccd55cffa858392b89fe`
-- work branch: `chore/simple-cnn-baseline-sync`
+- work branch: `chore-simple-cnn-baseline-sync`
 - 変更scope: 5章の削除30 / 復元30 / revert15 / repo固有2設定
 - 対象外: ViT新規実装、sequential_loader、LoRA、MoCo、full experiment
 - success criteria: 9章
