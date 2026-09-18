@@ -301,3 +301,75 @@ control:
 - Spec D: ViT + LoRA + MoCo integration smoke
 
 このメモは探索記録であり、specまたは実装許可ではない。
+
+
+## 2026-09-18 追記: sequential loaderをLoRAより先に置く順序の再検討
+
+ユーザーから、`ViTのみ -> 動画clip入力（sequential loader） -> LoRA` の順で進める方がよいのではないかという提案があった。
+
+再検討の結果、現在の研究ではこの順序の方が初期実装として適している。
+
+理由は、今回の大きなintegration riskがLoRA注入よりも「2D image ViTにsequential loaderの動画clipをどう接続するか」にあるためである。LoRAはViT内部の局所的なparameterizationであり、base ViTへの注入・freeze・update確認は比較的独立して検証できる。一方、動画clip入力ではinput shape、frame-wise preprocessing、clip内frameの扱い、feature shape、metadata、時系列順、将来frame不使用など、後続全体のinterfaceを決める。
+
+したがって初期順序を次のように修正する案を有力とする。
+
+```text
+Stage 1: pretrained ViT + single image
+  -> 単一画像でfeature extraction
+
+Stage 2: sequential_loader -> video clip -> frozen ViT
+  -> frame-wise feature extraction
+  -> [B,T,D] 等のclip feature contractを固定
+  -> metadata / chronological orderを確認
+
+Stage 3: clip representation baseline
+  -> order-invariant mean pooling等で最小clip representation
+  -> この段階は非temporal baselineとして明示
+
+Stage 4: LoRA注入
+  -> Base ViT freeze
+  -> Query LoRAのみtrainable
+  -> 1-step parameter update smoke
+  -> 同じvideo input pathで動作確認
+
+Stage 5: MoCo mechanics
+  -> query/key, EMA, projector, InfoNCE, queue（採用variantに応じて）
+  -> 必要ならMoCo部分だけ独立unit smoke
+
+Stage 6: ViT + video clip + LoRA + MoCo統合
+  -> sequential clipで自己教師あり更新
+
+Stage 7: sequential vs random/shuffle
+  -> online順序の比較
+
+Stage 8: temporal extension
+  -> ordered / reversed / shuffled / static、future prediction等
+```
+
+### この順序の利点
+
+- LoRA追加前にvideo data pathを固定できる。
+- LoRA実装後に問題が起きた場合、loader/ViT接続は既に正常と切り分けられる。
+- clip representationのshapeやfeature位置が確定してからLoRAを入れるため、wrapperやforward interfaceの手戻りが少ない。
+- 2026-09-11のMAE向け壁打ちでも、`pretrained model -> sequential_loader integration smoke -> LoRA` の順を有力としており、同じengineering principleをViTでも適用できる。
+
+### 注意
+
+Stage 2でsequential loaderを通しても、各frameを独立にViTへ通すだけなら時間関係をmodelが利用したことにはならない。ここで確認するのはdata/interface integrationだけである。
+
+また、LoRAを追加する前にMoCoまで完成させる必要はない。MoCoは最終的な学習objectiveなので、video input contractを固定した後にLoRAを入れ、その後MoCoを統合する方が研究目的に対応しやすい。
+
+### 現時点の収束
+
+初期実装の順序は次を有力候補とする。
+
+```text
+ViT single-image smoke
+ -> sequential_loader video forward smoke
+ -> clip feature contract
+ -> LoRA update smoke
+ -> MoCo mechanics
+ -> LoRA + MoCo + sequential video integration
+```
+
+これは「入力経路を先に固定し、その後に学習parameterとobjectiveを追加する」という順序であり、現在の実装リスクを最も切り分けやすい。
