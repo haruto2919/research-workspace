@@ -243,3 +243,177 @@ LoRA -> MoCo -> sequential/shuffle比較
 の順に追加する。
 
 このメモは現在方針を整理した探索記録であり、specまたは実装許可ではない。
+
+
+## 2026-09-18 19:06 追記: simple_cnn baselineをmainへ反映後の現在地
+
+### GitHub上で確認した現在状態
+
+実装repository:
+`tamaki-lab/2026_09_ishikawa_sequential-video-lora`
+
+current `main`:
+`e1c1715135d5f43fbaf700bbc3533ada1b367a59`
+
+commit message:
+`chore: restore simple_cnn baseline`
+
+baseline同期spec:
+`.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-18-simple-cnn-baseline-sync-spec.md`
+
+status:
+`implemented`
+
+branch一覧は現時点で `main` と `mae`。
+baseline作業branchはmain反映後に残っていないが、実装commitはmainから参照できる。
+
+したがって研究コードは現在「simple_cnn由来のclean baselineを0地点として、研究固有機能を追加し始める段階」にある。
+
+### 現行ViT path
+
+`model/vit/vision_transformer.py` は現在、
+`ViTForImageClassification.from_pretrained("google/vit-base-patch16-224")`
+を用いるclassification model。
+
+現在研究で次に必要なのはclassification logitsではなく、
+frameごとの再利用可能なfeature `[B,D]`。
+
+Saeki repoの `ViTFrameEncoder` はbare `ViTModel` を使い、
+BCHW -> [B,D] のfeature extractionへ責務を限定しているため、
+次Stageの設計参照として適している。
+
+### 今後の実装順
+
+```text
+Stage 0: 完了
+simple_cnn clean baseline
+main@e1c1715...
+
+Stage 1: 次
+ImageNet-pretrained ViT frame feature extractor
+single image [B,C,H,W] -> [B,D]
+classification headから研究用feature pathを分離
+
+Stage 2
+external sequential_loader bridge
+SequentialSample [T,C,H,W]
+ -> preprocess
+ -> ViTFrameEncoder
+ -> frame features [T,D] / batched [B,T,D]
+
+Stage 3
+non-temporal clip representation
+valid_maskを考慮したmean pooling等
+[B,T,D] -> [B,D]
+これはorder-invariant baseline
+
+Stage 4
+LoRA
+Base ViT freeze
+LoRAのみtrainable
+video input pathのまま1-step update smoke
+
+Stage 5
+MoCo mechanics
+query/key encoder
+EMA
+projector
+InfoNCE
+queueは採用variantに応じる
+
+Stage 6
+sequential video + ViT + LoRA + MoCo統合
+self-supervised video LoRA updateを成立
+
+Stage 7
+sequential vs random/shuffle
+update順序の影響を比較
+
+Stage 8
+temporal extension
+ordered / shuffled / reversed / static-repeat
+order-aware aggregation
+past -> future prediction等
+
+Stage 9
+LoRA解析 / backbone比較
+ImageNet ViT vs CLIP-ViT
+parameter / feature / semantic probe
+```
+
+### Stage 1の役割
+
+次に作るべきものはまだLoRAやMoCoではなく、
+「画像分類modelとしてのViT」から「動画研究で再利用できるframe encoder」へ責務を切り出すこと。
+
+最小contract候補:
+
+```text
+input:
+pixel_values [B,3,224,224]
+
+backbone:
+ImageNet-pretrained ViT
+
+output:
+frame_features [B,D]
+
+initial feature source:
+CLS token candidate
+```
+
+exact checkpoint / feature sourceは次specのDecision Contractで固定する。
+現行simple_cnnの `google/vit-base-patch16-224` をそのまま採用するかはまだ未承認。
+
+### branch方針
+
+baseline同期と同様、以降も各Stageを別作業単位にする。
+
+候補例:
+
+```text
+main
+  |
+  +-- feat-vit-frame-encoder
+  |
+  +-- feat-sequential-loader-bridge
+  |
+  +-- feat-video-clip-encoder
+  |
+  +-- feat-vit-lora
+  |
+  +-- feat-moco
+```
+
+branch名はspecで固定し、前Stageがmainへ反映されたcommitを次Stageのbaseにする。
+複数Stageを1 branchへまとめない。
+
+### 研究上の主張の段階
+
+Stage 1-3:
+「videoをViT feature pathへ入力できる」
+まで。時間情報学習は主張しない。
+
+Stage 4-6:
+「動画自己教師あり学習でLoRAだけを更新できる」
+まで。時間情報学習はまだ主張しない。
+
+Stage 7:
+sequential update順序の効果を評価。
+
+Stage 8以降:
+order-awareなcontrol / objectiveを用いて、
+単なるvideo domain adaptationとtemporal information acquisitionを分離して評価する。
+
+### 次に決めるべきこと
+
+最初に必要なのはStage 1 spec。
+
+blockingになり得るのは主に次。
+
+- pretrained ViT checkpoint
+- feature source（CLS / pooler / mean patch等）
+- 既存 `ViTb` classification modelを残しつつ新しいFrameEncoderを追加するか
+- Stage 1でfreezeを既定にするか（feature smokeだけならfreeze / no-grad候補）
+
+LoRA / MoCo / dataset最終選定はまだStage 1のblockingではない。
