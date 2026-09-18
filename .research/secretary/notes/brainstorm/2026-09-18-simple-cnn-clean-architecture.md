@@ -441,3 +441,59 @@ sequential_loaderは綺麗だがtraining frameworkを新設する割合が大き
 - current legacy codeを将来どの段階で整理・削除するか。
 
 このメモは探索記録であり、specまたは実装許可ではない。
+
+
+## 2026-09-18 15:32 追記: まずsimple_cnnと同等状態へ揃える案
+
+ユーザーから、現在の石川repoを一度 `tamaki-lab/simple_cnn_training@main` と同等の状態へ戻してから、新しい研究実装を始める案が提示された。
+
+現行repoを確認すると、README、pyproject、requirements、logger/callback等はsimple_cnn系と共通部分が多い一方で、MeMViT、旧sequential dataset、追加config、分類用state/debug処理等が上乗せされている。
+
+現研究の新規pathは
+`ViT -> sequential_loader -> LoRA -> MoCo`
+であり、旧MeMViT/classification固有処理への依存を必要としない。
+
+そのため、実装開始前にsimple_cnn相当のbaselineへ揃える方針は有力。
+
+ただし、Git historyを消すようなforce resetではなく、現在状態をcommit/branch等で参照可能に残し、
+「simple_cnn baselineを復元した1 commit」を明示的な研究実装の起点にする方が安全。
+
+推奨イメージ:
+
+```text
+current legacy state
+   |
+   | preserve in history / branch
+   v
+simple_cnn baseline sync commit
+   |
+   v
+Stage 1: ViT feature extractor
+   |
+   v
+Stage 2: sequential_loader bridge
+   |
+   v
+Stage 3: clip feature
+   |
+   v
+Stage 4: LoRA
+   |
+   v
+Stage 5: MoCo
+```
+
+baseline同期後は、まずsimple_cnn由来の既存smoke/testが通ることをGateとする。
+その後、新しい機能は各Stageごとに別commitで追加する。
+
+この方式の利点:
+- どの変更が研究固有かGit diffで明確になる。
+- 旧MeMViT由来の副作用を切り離せる。
+- Hayashi/Saekiから持ち込む要素を必要最小限にできる。
+- 失敗時にsimple_cnn baselineまで容易に戻せる。
+- 後から「simple_cnnから何を追加したか」を説明しやすい。
+
+注意:
+- READMEやproject固有のGit metadataまで機械的に完全一致させる必要はない。
+- 研究repoとして必要なrepository name、READMEの研究説明、gitignore等は必要に応じて保持する。
+- 「コード基盤をsimple_cnnと同等にする」と「repositoryそのものをsimple_cnnのcloneにする」は分けて考える。
