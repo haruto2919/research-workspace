@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: approved
 title: simple_cnn baseline同期
 created: 2026-09-18
 last_updated: 2026-09-18
@@ -19,7 +19,9 @@ reference_commit: e541dd98f825eb58c193ccd55cffa858392b89fe
 
 # simple_cnn baseline同期 spec
 
-> **Status: draft**
+> **Status: approved**
+>
+> 2026-09-18にユーザー承認済み。本specに従って実装可能である。
 >
 > 本specは、現在の石川research code repositoryを、
 > `tamaki-lab/simple_cnn_training@e541dd98f825eb58c193ccd55cffa858392b89fe`
@@ -27,8 +29,7 @@ reference_commit: e541dd98f825eb58c193ccd55cffa858392b89fe
 > `ViT -> sequential_loader -> LoRA -> MoCo`
 > 実装を差分として追跡しやすくするための実装契約である。
 >
-> 本specはコード実装の許可ではない。ユーザー承認後にapprovedへ変更し、
-> implementationは専用branchで行う。
+> implementationは専用branch `chore-simple-cnn-baseline-sync` で行う。
 
 ## 1. 目的
 
@@ -580,15 +581,13 @@ branch、変更scope、breaking change、検証、Success Criteria、対象外�
 
 blocking ambiguityは現時点でない。
 
-ただし、現在の依頼は「specを作る」までであり、
-コード実装の明示承認ではないためstatusは `draft` とする。
+2026-09-18にユーザーが本spec内容を明示承認したため、statusは `approved` とする。
 
-ユーザーが本内容を承認した場合、
-statusを `approved` へ変更し、engineering-taskへ引き継ぐ。
+本specはengineering-taskへ引き継ぎ可能である。実装時は `chore-simple-cnn-baseline-sync` branchを使用し、push / PR / mergeは別途明示指示があるまで行わない。
 
 # Implementation Handoff
 
-- approved spec: 本specがapprovedになった後に使用
+- approved spec: `.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-18-simple-cnn-baseline-sync-spec.md`
 - 実装目的: current Ishikawa repoをsimple_cnn clean baselineへ同期する
 - 基準repository/commit:
   - implementation: `tamaki-lab/2026_09_ishikawa_sequential-video-lora@e0deb093694d367ed9b02065e6d4cd38802093d6`
