@@ -497,3 +497,200 @@ baseline同期後は、まずsimple_cnn由来の既存smoke/testが通ること�
 - READMEやproject固有のGit metadataまで機械的に完全一致させる必要はない。
 - 研究repoとして必要なrepository name、READMEの研究説明、gitignore等は必要に応じて保持する。
 - 「コード基盤をsimple_cnnと同等にする」と「repositoryそのものをsimple_cnnのcloneにする」は分けて考える。
+
+
+## 2026-09-18 15:32 追記: 石川repoをsimple_cnn baselineへ揃える具体差分
+
+比較対象:
+- Ishikawa: `tamaki-lab/2026_09_ishikawa_sequential-video-lora@main`
+  - commit: `e0deb093694d367ed9b02065e6d4cd38802093d6`
+- simple_cnn: `tamaki-lab/simple_cnn_training@main`
+  - commit: `e541dd98f825eb58c193ccd55cffa858392b89fe`
+
+recursive tree比較結果:
+- Ishikawa files: 72
+- simple_cnn files: 72
+- 内容同一: 25
+- 同じpathだが内容変更: 17
+- Ishikawa側のみ: 30
+- simple_cnn側のみ: 30
+
+### そのまま保持する25ファイル
+
+両repoでblob SHAまで一致している。
+
+```text
+.flake8
+.mypy.ini
+.pep8
+.pylintrc
+.pytest.ini
+.vscode/extensions.json
+.vscode/tasks.json
+README.md
+args/__init__.py
+callback/__init__.py
+callback/callback_pl.py
+logger/__init__.py
+logger/logger.py
+logger/logger_pl.py
+model/base_model.py
+pyproject.toml
+requirements.pytorch.txt
+requirements.txt
+setup/__init__.py
+setup/scheduler.py
+utils/average_meter.py
+utils/checkpoint.py
+utils/mixin/__init__.py
+utils/mixin/average_meter_mixin.py
+utils/tqdm_loss_topk.py
+```
+
+### Ishikawa側のみで、baseline化時に削除する候補30ファイル
+
+すべて旧MeMViT / old sequential dataset / Orthogonal Gradient / old run/debug系に由来し、現在のsimple_cnn baselineには存在しない。
+
+```text
+configs/MeMViT_16_50Salads_frame.yaml
+configs/MeMViT_16_K400.yaml
+configs/MeMViT_16_K400_multi_classes.yaml
+configs/parser.py
+dataset/sequential/base_sequential_video_dataset.py
+dataset/sequential/epic_kitchens/epic_kitchens_sequential_data_folder.py
+dataset/sequential/epic_kitchens/epic_kitchens_sequential_dataset.py
+dataset/sequential/salads50/__init__.py
+dataset/sequential/salads50/salads50_sequential_data_folder.py
+dataset/sequential/salads50/salads50_sequential_dataset.py
+dataset/sequential/use_50Salads_webdataset.py
+dataset/sequential_video_dataset.py
+dataset/sequential_video_folder.py
+model/memvit/__init__.py
+model/memvit/attention.py
+model/memvit/build.py
+model/memvit/common.py
+model/memvit/config/__init__.py
+model/memvit/config/custom_config.py
+model/memvit/config/defaults.py
+model/memvit/distributed.py
+model/memvit/logging.py
+model/memvit/memvit_model.py
+model/memvit/stem_helper.py
+model/memvit/utils.py
+run_epic_frame_1gpu_memvit.sh
+run_sequential_video_folder_1gpu.sh
+setup/orthogonalAdamW.py
+test_dataloader.py
+utils/validation_evaluator.py
+```
+
+これらはGit historyからは消さず、baseline commitでworking treeから削除する。
+
+### simple_cnn側から復元する30ファイル
+
+現在Ishikawa側に存在せず、simple_cnn baselineの標準機能・testsを構成する。
+
+```text
+dataset/cifar10.py
+dataset/image_folder.py
+dataset/video_folder.py
+dataset/zero_images.py
+main.py
+model/abn/__init__.py
+model/abn/attention_branch_network.py
+model/dummy_models/__init__.py
+model/dummy_models/zero_outout_model.py
+model/resnet/__init__.py
+model/resnet/resnet18.py
+model/resnet/resnet50.py
+model/vit/__init__.py
+model/vit/vision_transformer.py
+model/x3d/__init__.py
+model/x3d/x3d.py
+test/dataset/test_cifar10.py
+test/dataset/test_video_folder.py
+test/dataset/test_zero_images.py
+test/model/test_image_models.py
+test/model/test_model_factory.py
+test/model/test_videomodels.py
+test/setup/conftest.py
+test/setup/test_optimizer.py
+test/setup/test_scheduler.py
+test/utils/test_accuracy.py
+test/utils/test_average_meter.py
+test/utils/test_checkpoint.py
+train.py
+val.py
+```
+
+### simple_cnn版へ戻す15ファイル
+
+同pathだがIshikawa側で旧研究向けに拡張されているため、baselineではsimple_cnn版へ戻す候補。
+
+```text
+.vscode/launch.json
+.vscode/settings.json
+args/arg_parse.py
+dataset/__init__.py
+dataset/dataloader_factory.py
+dataset/dataset_pl.py
+dataset/transforms.py
+main_pl.py
+model/__init__.py
+model/model_config.py
+model/model_factory.py
+model/simple_lightning_model.py
+setup/optimizer.py
+utils/__init__.py
+utils/accuracy.py
+```
+
+主な差分:
+- `args/arg_parse.py`: sequential / EPIC / 50Salads / MeMViT / Orthogonal optimizer等の引数が追加。
+- `dataset/*`: old sequential datasetへ拡張。
+- `main_pl.py`: MeMViT configと追加device/state処理。
+- `model/*`: model factoryが実質MeMViT中心、LightningModuleにframewise/state/debug処理を追加。
+- `setup/optimizer.py`: AdamW / OrthogonalAdamW等を追加。
+- `utils/*`: framewise metric / validation evaluator追加。
+- `.vscode/settings.json`: 旧 `2026_04_ishikawa_simple-MeMViT/.venv-memvit` へのhard-coded interpreter pathが残っている。
+
+### repo固有として機械的にsimple版へ戻さない2ファイル
+
+#### `.comet.config`
+
+simple_cnn側は `workspace=tttamaki`, `project_name=test-20220222`。
+Ishikawa側は `workspace=haruto2919`, `project_name=2026-04-ishikawa-simple-memvit`。
+
+simple側へ戻すのではなく、研究repo固有設定としてcurrent project名へ更新する候補。
+少なくとも旧 `2026-04-ishikawa-simple-memvit` 名は現状と不整合。
+
+#### `.gitignore`
+
+Ishikawa側だけに
+- `.codex/`
+- `test/`
+- `batch_debug.csv`
+- `data/`
+
+が追加されている。
+
+baseline testsを復元するため `test/` ignoreは削除すべき。
+一方、`.codex/`, `batch_debug.csv`, `data/` はlocal/generated artifact除外として保持候補。
+
+したがってsimple_cnn版を丸ごとcopyするより、
+`simple_cnn .gitignore + 必要なIshikawa固有ignore`
+へ整理するのが安全。
+
+## baseline化の推奨操作単位
+
+1. 現在のIshikawa main状態をGit historyで参照可能なことを確認。
+2. 上記30 Ishikawa-only filesを削除。
+3. 上記30 simple-only filesをsimple_cnn `e541dd98...` から復元。
+4. 上記15 modified filesをsimple_cnn版へ戻す。
+5. `.comet.config` をcurrent project用に整理。
+6. `.gitignore` はsimple baselineを基準に `test/` ignoreを外し、必要なlocal artifact ignoreだけ残す。
+7. tests / import / Lightning smokeを実行。
+8. 「simple_cnn baseline sync」として1 commitにまとめる。
+9. 以降のViT / sequential_loader / LoRA / MoCoは別commit・別作業単位で追加。
+
+この追記は探索記録であり、実装許可やspecではない。
