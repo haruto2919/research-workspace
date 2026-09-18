@@ -417,3 +417,22 @@ blockingになり得るのは主に次。
 - Stage 1でfreezeを既定にするか（feature smokeだけならfreeze / no-grad候補）
 
 LoRA / MoCo / dataset最終選定はまだStage 1のblockingではない。
+
+
+## 2026-09-18 Stage 1 spec昇格
+
+Stage 1で採用する条件を固定した。
+
+- checkpoint: `google/vit-base-patch16-224`
+- feature source: CLS token
+- 既存 `ViTb`: 維持
+- 新規 `ViTFrameEncoder`: `model/vit/vit_frame_encoder.py`
+- backbone: freeze
+- smoke: local RGB image + `AutoImageProcessor`
+- smoke inference: eval + no_grad
+- implementation branch: `feature-vit-frame-encoder`
+
+実装契約の正本候補:
+`.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-18-vit-frame-encoder-spec.md`
+
+本brainstormは探索経緯の参照に留め、Stage 1実装scope・Success Criteriaは上記specを参照する。
