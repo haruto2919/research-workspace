@@ -694,3 +694,13 @@ baseline testsを復元するため `test/` ignoreは削除すべき。
 9. 以降のViT / sequential_loader / LoRA / MoCoは別commit・別作業単位で追加。
 
 この追記は探索記録であり、実装許可やspecではない。
+
+
+## 2026-09-18 15:32 Spec昇格
+
+simple_cnn baseline同期の実装契約を次のdraft specへ昇格した。
+
+- `.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-18-simple-cnn-baseline-sync-spec.md`
+
+以降、baseline同期の実装scope・branch・Success Criteriaは上記specを正本候補として扱い、
+本brainstormは探索経緯の参照に留める。
