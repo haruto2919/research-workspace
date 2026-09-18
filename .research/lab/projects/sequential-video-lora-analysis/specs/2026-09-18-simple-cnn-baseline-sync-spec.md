@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: approved
+status: implemented
 title: simple_cnn baseline同期
 created: 2026-09-18
 last_updated: 2026-09-18
@@ -12,6 +12,7 @@ implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_base_branch: main
 implementation_base_commit: e0deb093694d367ed9b02065e6d4cd38802093d6
 implementation_work_branch: chore-simple-cnn-baseline-sync
+implementation_commit: e1c1715135d5f43fbaf700bbc3533ada1b367a59
 reference_repository: tamaki-lab/simple_cnn_training
 reference_branch: main
 reference_commit: e541dd98f825eb58c193ccd55cffa858392b89fe
@@ -19,9 +20,9 @@ reference_commit: e541dd98f825eb58c193ccd55cffa858392b89fe
 
 # simple_cnn baseline同期 spec
 
-> **Status: approved**
+> **Status: implemented**
 >
-> 2026-09-18にユーザー承認済み。本specに従って実装可能である。
+> 2026-09-18にユーザー承認後、同日に実装と必須検証を完了した。
 >
 > 本specは、現在の石川research code repositoryを、
 > `tamaki-lab/simple_cnn_training@e541dd98f825eb58c193ccd55cffa858392b89fe`
@@ -581,9 +582,9 @@ branch、変更scope、breaking change、検証、Success Criteria、対象外�
 
 blocking ambiguityは現時点でない。
 
-2026-09-18にユーザーが本spec内容を明示承認したため、statusは `approved` とする。
+2026-09-18にユーザーが本spec内容を明示承認し、同日に`engineering-task`による実装と必須検証を完了したため、statusは `implemented` とする。
 
-本specはengineering-taskへ引き継ぎ可能である。実装時は `chore-simple-cnn-baseline-sync` branchを使用し、push / PR / mergeは別途明示指示があるまで行わない。
+実装は`chore-simple-cnn-baseline-sync` branchのcommit `e1c1715135d5f43fbaf700bbc3533ada1b367a59`へ記録した。push / PR / mergeは行っていない。
 
 # Implementation Handoff
 
@@ -599,3 +600,16 @@ blocking ambiguityは現時点でない。
 - 許可されている短時間検証: syntax/import smoke、CPU/local-data-independent pytest、利用可能なら追加GPU smoke
 - 長時間runの許可状態: 未許可
 - push / PR / merge: 未許可
+
+# Implementation Result
+
+- branch: `chore-simple-cnn-baseline-sync`
+- base commit: `e0deb093694d367ed9b02065e6d4cd38802093d6`
+- implementation commit: `e1c1715135d5f43fbaf700bbc3533ada1b367a59`
+- 構造検証: 削除30、reference同期45、変更なし25、repository固有設定2を確認。変更対象はspecどおり77ファイル。
+- syntax: 指定対象への`compileall`成功。
+- import smoke: `args`, `dataset`, `model`, `setup`, `utils`のimport成功。
+- CPU / local-data-independent tests: 指定3 test fileで`20 passed`。
+- GPU / external dataset依存tests: 未実行。pretrained download、CUDA実行、研究室NAS datasetを必要とし、本specの必須pass条件ではないため。
+- 長時間run / scientific training run: 未実行。
+- push / PR / merge: 未実行。
