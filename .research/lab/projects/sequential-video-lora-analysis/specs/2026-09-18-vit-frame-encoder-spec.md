@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: approved
 title: ViT Frame Encoderと単一画像feature extraction smoke
 created: 2026-09-18
-last_updated: 2026-09-18
+last_updated: 2026-09-22
 workspace_repository: haruto2919/research-workspace
 workspace_base_branch: main
 workspace_base_commit: 7dc46ba54ced621da5cf426ca73704d43ad8fad7
@@ -18,14 +18,13 @@ hf_checkpoint: google/vit-base-patch16-224
 
 # ViT Frame Encoderと単一画像feature extraction smoke spec
 
-> **Status: draft**
+> **Status: approved**
 >
 > 本specは、simple_cnn clean baselineを起点として、動画研究で再利用できる
 > frame-level ViT encoderを追加し、単一RGB画像からCLS featureを取得できることを確認する
 > Stage 1の実装契約である。
 >
-> 現在の依頼はStage 1の設計条件を固定してspec化するところまでであり、
-> コード実装の許可ではない。ユーザー承認後にapprovedへ変更する。
+> 2026-09-22にユーザーが承認し、Stage 1のコード実装を依頼した。
 
 ## 1. 目的
 
@@ -483,17 +482,16 @@ clip aggregation / LoRA / MoCoはさらに後段へ分離する。
 
 ## 14. Spec Gate
 
-本draftでは、checkpoint、feature source、freeze、class責務、
+本specでは、checkpoint、feature source、freeze、class責務、
 既存classification pathとの互換性、single-image smoke、Success Criteria、対象外を固定した。
 
 blocking ambiguityは残っていない。
 
-ただし、現在はspec内容のユーザー最終承認前なのでstatusは `draft` とする。
-ユーザー承認後に `approved` へ変更し、engineering-taskへ引き継ぐ。
+2026-09-22にユーザーが承認したため、statusを `approved` とし、engineering-taskへ引き継ぐ。
 
 # Implementation Handoff
 
-- approved spec: 本specがapprovedになった後に使用
+- approved spec: 本spec
 - 実装目的: pretrained ViTからsingle-frame CLS featureを取得する研究用encoderを追加
 - 基準repository/commit: `tamaki-lab/2026_09_ishikawa_sequential-video-lora@e1c1715135d5f43fbaf700bbc3533ada1b367a59`
 - work branch: `feature-vit-frame-encoder`
