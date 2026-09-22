@@ -436,3 +436,68 @@ Stage 1で採用する条件を固定した。
 `.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-18-vit-frame-encoder-spec.md`
 
 本brainstormは探索経緯の参照に留め、Stage 1実装scope・Success Criteriaは上記specを参照する。
+
+
+## 2026-09-22 15:30 追記: Stage 1実装・実checkpoint smoke確認後の現在地
+
+### 確認済み事実
+
+implementation repository:
+`tamaki-lab/2026_09_ishikawa_sequential-video-lora`
+
+feature branch:
+`feature-vit-frame-encoder@eb40182e6738776436063cf0c17a58bc171a926f`
+
+main:
+`main@e1c1715135d5f43fbaf700bbc3533ada1b367a59`
+
+したがってStage 1実装はfeature branchにあり、mainにはまだ未反映。
+
+Stage 1 spec:
+`.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-18-vit-frame-encoder-spec.md`
+statusは現時点で `approved`。
+
+ユーザー実行のreal-checkpoint smokeで次を確認済み。
+
+```text
+checkpoint ID: google/vit-base-patch16-224
+resolved device: cuda
+pixel_values shape: (1, 3, 224, 224)
+pixel_values dtype: torch.float32
+feature shape: (1, 768)
+feature dtype: torch.float32
+feature finite: True
+total backbone parameters: 86389248
+trainable backbone parameters: 0
+```
+
+この結果からStage 1の主要contractである
+「real RGB image -> AutoImageProcessor -> frozen ViTModel -> CLS feature [1,768]」
+は実環境で成立している。
+
+### 現在地
+
+```text
+Stage 0 simple_cnn baseline        DONE / main
+Stage 1 ViT frame feature encoder DONE / feature branch
+Stage 2 sequential_loader bridge  NEXT
+Stage 3 clip representation
+Stage 4 LoRA
+Stage 5 MoCo
+Stage 6 full sequential SSL loop
+Stage 7 sequential vs shuffle
+Stage 8 temporal controls/objective
+Stage 9 LoRA analysis / CLIP comparison
+```
+
+### 次の短期手順
+
+1. Stage 1 branchをmainへ反映する。
+2. mainの反映commitを確認する。
+3. Stage 1 specをimplementation result付きで `implemented` へ整合する。
+4. Stage 2を別branch / 別specで開始する。
+5. Stage 2ではexternal `sequential_loader` から1 video clipを読み、
+   frame順・valid_mask等を保持したまま `ViTFrameEncoder` へ渡して
+   `[T,768]` またはbatched `[B,T,768]` を得るところまでに限定する。
+
+Stage 2ではclip aggregation、LoRA、MoCoをまだ入れない。
