@@ -883,3 +883,53 @@ spec化前の残確認は主に次。
 
 missing policyはfull primary rootsでmissing=0のため、
 今回のAdapter baselineでは複雑なfallbackを持たせない方向が有力。
+
+
+## 2026-09-23 17:50 追記: subsetとphysical directoryの完全一致確認
+
+研究サーバ上のfull ActivityNet v1.3に対し、
+annotation JSONのsubset ID集合とlocal directoryのnormalized ID集合を比較した。
+
+確認結果:
+
+```text
+training: 10024
+validation: 4926
+testing: 5044
+
+train_val local: 14950
+test local: 5044
+
+training ∪ validation == train_val: True
+testing == test: True
+train_val ∩ test: 0
+
+missing from train_val: 0
+extra in train_val: 0
+missing from test: 0
+extra in test: 0
+```
+
+### 確認済み事実
+
+- `training ∪ validation` のID集合は `v1-3/train_val` のID集合と完全一致。
+- `testing` のID集合は `v1-3/test` のID集合と完全一致。
+- `train_val` と `test` のID集合はdisjoint。
+- missing / extraはいずれも0。
+
+### Adapter設計への含意
+
+ActivityNet Adapterのprimary local rootsは次で十分。
+
+```text
+v1-3/train_val
+v1-3/test
+```
+
+subsetのSSOTはannotation JSONの `subset` とする。
+
+`manual_crawling_from_youtube/video` はprimary rootsの完全subset copyであり、
+baseline Adapterの探索対象には含めない方向が有力。
+
+次の技術確認は、`.mp4` / `.mkv` / `.webm` を
+現行 `SequentialVideoReader` が問題なくdecodeできるかの少数smoke。
