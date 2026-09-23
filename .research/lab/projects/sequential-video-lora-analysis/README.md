@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: sequential_loaderからMeMViTへの入力変換と最小LoRA更新を確認し、逐次LoRA本実装の統合・挙動検証を進める段階。
+summary: 50Saladsのsequential_loaderからfrozen ViTのframe feature [16,768]までを実データで確認し、ActivityNet対応とLoRA学習統合を次段階とする。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-09-13
+last_updated: 2026-09-23
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -27,6 +27,8 @@ last_updated: 2026-09-13
 
 一方、loaderからMeMViT、LoRA更新までの本実装への統合と、frame index・target・supervision mask・annotationの対応、chunk境界の状態保持、sequence切り替え時のresetは引き続き検証が必要である。最小構成の動作確認だけから、LoRAが時間情報・動作情報を獲得したという結論は出さない。
 
+2026-09-23には別経路のStage 2として、50Salads `train1` の先頭16 frameを `sequential_loader` から取得し、frozen ViTのCLS feature列 `[16,768]` へ変換するsmokeを確認した。valid featureの有限性とbackboneの学習可能parameter数0を実データで、padding行のゼロ埋めとtimestamp逆行時の順序保持を人工データで確認した。ActivityNet対応とViT-LoRA学習はこの段階では未実施。
+
 基盤の成立後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
 ## マイルストーン
@@ -47,3 +49,4 @@ last_updated: 2026-09-13
 | 2026-09-04 | `2026_04_ishikawa_simple-MeMViT` をメイン実装フォルダに設定 |
 | 2026-09-10 | sequential_loaderからMeMViTへの入力変換と、全16 blockのattention q/vへのLoRA注入・最小更新を確認。本実装統合とloader出力の挙動検証を次段階とした |
 | 2026-09-13 | `2026_09_ishikawa_sequential-video-lora` をメイン実装フォルダに変更 |
+| 2026-09-23 | 50Saladsの1 chunkからfrozen ViT frame feature `[16,768]` へのStage 2接続を実データで確認。paddingと順序保持は人工データで検証 |

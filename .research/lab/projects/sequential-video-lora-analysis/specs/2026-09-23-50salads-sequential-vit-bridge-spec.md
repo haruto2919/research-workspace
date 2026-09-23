@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: implemented
 title: Stage 2 50Salads sequential_loaderとViTFrameEncoder接続
 created: 2026-09-23
 last_updated: 2026-09-23
@@ -24,15 +24,14 @@ frames_per_chunk: 16
 
 # Stage 2 50Salads sequential_loaderとViTFrameEncoder接続 spec
 
-> **Status: draft**
+> **Status: implemented**
 >
 > 本specは、Stage 1で実装済みの `ViTFrameEncoder` と、
 > external `tamaki-lab/sequential_loader` の `SequentialSample` を接続し、
 > 50Saladsの1 video chunkをframe feature列 `[T,768]` へ変換できることを確認する
-> Stage 2の実装契約候補である。
+> Stage 2の実装契約である。
 >
-> 本specはユーザーの「specを作成してください」という依頼に基づくdraftであり、
-> コード実装の許可ではない。ユーザー承認後に `approved` へ変更する。
+> 2026-09-23のユーザー指示により承認され、コード実装が許可された。
 
 ## 1. 目的
 
@@ -585,9 +584,9 @@ padding / scatter等のロジックを短時間test可能にするため、
 
 ### 12.1 Blocking
 
-draft作成時点では、実装開始を妨げる技術的blocking ambiguityは置かない案とする。
+実装開始を妨げる技術的blocking ambiguityはない。
 
-以下をdraftの採用候補として固定した。
+以下を採用内容として固定した。
 
 - work branch: `feature-50salads-loder`
 - loader revision: `cef09aa12560127451a5f569d86d5d51671e6986`
@@ -603,8 +602,7 @@ draft作成時点では、実装開始を妨げる技術的blocking ambiguityは
 - Stage 2はforward smokeのみで学習なし
 - ActivityNet対応は別spec
 
-ただし本specは `draft` であり、
-これらを実装契約として有効化するにはユーザーの明示承認が必要である。
+これらは2026-09-23のユーザー指示により実装契約として承認された。
 
 ### 12.2 Non-blocking
 
@@ -645,15 +643,14 @@ clip representation / aggregationのStageへ進む。
 
 ## 14. Spec Gate
 
-本draftでは、Stage 2の目的、dataset fixture、loader revision、
+本specでは、Stage 2の目的、dataset fixture、loader revision、
 input/output shape、padding、frame order、metadata、freeze、
 勾配更新なし、ActivityNetとの責務分離、Success Criteriaを定義した。
 
-現在statusは `draft`。
-ユーザーが内容を明示承認した時点で `approved` へ変更し、
-`engineering-task` へ引き継ぐ。
+現在statusは `implemented`。
+2026-09-23のユーザー指示に基づき、`engineering-task` へ引き継ぐ。
 
-# Implementation Handoff（承認後に有効）
+# Implementation Handoff
 
 - approved spec: 本spec
 - 実装目的: 50Salads SequentialSampleをfrozen ViT frame feature列へ変換するStage 2 bridge smoke
