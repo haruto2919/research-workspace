@@ -267,3 +267,12 @@ LoRAの情報評価はProjectorを捨てたpre-projector clip featureとLoRA par
 必要なら後続ablationで `trainable projector vs identity/no-projector` を比較する。
 
 この追記は探索記録であり、specではない。
+
+
+## 2026-09-24 01:38 追記: approved specへの引き継ぎ
+
+Stage 5のMoCo v2-style 1-step mechanics方針はユーザー承認を受け、次のapproved specへ昇格した。
+
+- `.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-24-stage5-moco-v2-lora-one-step-smoke-spec.md`
+
+以後、Stage 5の実装契約は上記specを正本とする。
