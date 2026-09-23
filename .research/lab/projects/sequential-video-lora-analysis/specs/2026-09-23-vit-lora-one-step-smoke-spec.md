@@ -173,8 +173,24 @@ feature finite = True
 
 を確認した。
 
-このdry-runはpoolerありの `ViTModel.from_pretrained(checkpoint)` で行われたため、
-poolerなし + PEFTの組合せはSpec Gateで別途確認する。
+その後、研究サーバのローカルworktreeで
+`ViTModel.from_pretrained(checkpoint, add_pooling_layer=False)` とPEFT 0.21.0を組み合わせた
+preflightもユーザーが実行し、次を確認した。
+
+```text
+pooler = None
+target count = 24
+trainable parameters = 294,912
+trainable tensor count = 48
+unexpected trainable = []
+CLS feature shape = [2,768]
+feature finite = True
+```
+
+loading reportではpoolerのMISSINGは消え、checkpoint側のclassifier weight/biasのみUNEXPECTEDとして残った。
+また、ローカルの `ViTFrameEncoder` についても `encoder.vit.pooler is None` を確認した。
+
+これらは研究サーバ上のローカル実行Evidenceであり、GitHub上のresearch codeへ反映済みとは扱わない。
 
 既存testについてはユーザー環境で
 
@@ -500,7 +516,7 @@ base ViTは `requires_grad=False` により更新対象外とする。
 
 ### 5.1 poolerなし + PEFT preflight
 
-approved / implementation前に次を実測する。
+2026-09-23に研究サーバのローカルworktreeで実測済み。
 
 ```text
 ViTModel(add_pooling_layer=False)
@@ -508,12 +524,16 @@ ViTModel(add_pooling_layer=False)
  -> PEFT q_proj/v_proj injection succeeds
  -> target count = 24
  -> trainable params = 294,912
+ -> trainable tensor count = 48
  -> unexpected trainable = []
- -> CLS feature [B,768]
+ -> CLS feature [2,768]
  -> finite = True
 ```
 
-この確認が失敗する場合、本specをapprovedにしない。
+さらにローカル `ViTFrameEncoder` でも `pooler is None` を確認した。
+
+このpreflightは成功済みであり、Ambiguity Gateのblocking Aは解消した。
+ただしローカル変更のGitHub反映状態は別途implementation開始時に確認する。
 
 ### 5.2 unit tests
 
@@ -887,9 +907,10 @@ ViT+LoRA -> temporal relationを明示したobjective
 
 approvedへ移行するには、少なくとも次が必要。
 
-1. 12.1-Aのpoolerなし + PEFT preflightが成功する。
-2. Transformers 5.17.0をrequirementsへpinするか、環境契約だけにするか決定する。
-3. 本specのscope / LoRA config / smoke loss / optimizer / success criteriaをユーザーが明示承認する。
+1. Transformers 5.17.0をrequirementsへpinするか、環境契約だけにするか決定する。
+2. 本specのscope / LoRA config / smoke loss / optimizer / success criteriaをユーザーが明示承認する。
+
+poolerなし + PEFT preflightは成功済み。
 
 長時間runはStage 4 approved後でも別途許可が必要。
 
