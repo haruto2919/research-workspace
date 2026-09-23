@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title description">
+  <title id="title">Stage 6A: 4動画の逐次入力とMoCo更新順</title>
+  <desc id="description">ActivityNetの4動画AからDを各動画内の時系列順に読み、A1からD1をKeyだけでQueueへ入れてから、A2、B2、C2、D2、A3の順に学習する。各stepでは旧Queueの異動画negativeを使い、Query更新、Key EMA、current keyのenqueueの順に処理する。実ActivityNetのCPU 10-stepとfresh 100-stepは成功したが、時間情報の獲得は未評価。</desc>
+  <defs>
+    <style>
+      text { font-family: 'Noto Sans CJK JP', 'Yu Gothic', sans-serif; }
+      .title { font-size: 27px; font-weight: 700; fill: #183247; }
+      .subtitle { font-size: 16px; fill: #4a5f70; }
+      .heading { font-size: 20px; font-weight: 700; fill: #183247; }
+      .body { font-size: 16px; fill: #243d50; }
+      .small { font-size: 14px; fill: #40596c; }
+      .step { font-size: 18px; font-weight: 700; fill: #183247; }
+      .accent { font-size: 17px; font-weight: 700; fill: #07577b; }
+      .caution { font-size: 17px; font-weight: 700; fill: #743d13; }
+      .source { font-size: 13px; fill: #617484; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#287397"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="680" fill="#ffffff"/>
+  <text class="title" x="40" y="45">Stage 6A: 4動画の逐次入力からMoCoの複数step更新へ</text>
+  <text class="subtitle" x="40" y="76">ActivityNet training先頭4動画。各動画内の順序を保ち、動画間をround-robinで処理する。</text>
+
+  <rect x="40" y="112" width="300" height="225" rx="14" fill="#f1f7fb" stroke="#91b6cc" stroke-width="2"/>
+  <text class="heading" x="60" y="147">4本の入力stream</text>
+  <text class="body" x="67" y="183">A:  A1 → A2 → A3 → …</text>
+  <text class="body" x="67" y="218">B:  B1 → B2 → B3 → …</text>
+  <text class="body" x="67" y="253">C:  C1 → C2 → C3 → …</text>
+  <text class="body" x="67" y="288">D:  D1 → D2 → D3 → …</text>
+  <text class="small" x="60" y="318">各行の順序は入れ替えない</text>
+
+  <line x1="344" y1="225" x2="382" y2="225" stroke="#287397" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="395" y="112" width="305" height="225" rx="14" fill="#e9f6f5" stroke="#7bb9af" stroke-width="2"/>
+  <text class="heading" x="415" y="147">Key-only warm-up</text>
+  <text class="accent" x="415" y="184">A1 → B1 → C1 → D1</text>
+  <text class="body" x="415" y="221">Key forward → Queueへ登録</text>
+  <text class="body" x="415" y="255">開始時のQueue: 4件</text>
+  <text class="small" x="415" y="291">optimizer更新・EMAは行わない</text>
+  <text class="small" x="415" y="318">4件はtraining step数に含めない</text>
+
+  <line x1="704" y1="225" x2="742" y2="225" stroke="#287397" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="755" y="112" width="405" height="225" rx="14" fill="#f1f7fb" stroke="#91b6cc" stroke-width="2"/>
+  <text class="heading" x="775" y="147">chronological round-robin学習</text>
+  <text class="accent" x="775" y="184">A2 → B2 → C2 → D2 → A3 → …</text>
+  <text class="body" x="775" y="221">各stepで下のMoCo更新を実行</text>
+  <text class="small" x="775" y="257">4動画間を交互に処理。future chunkは先読みしない</text>
+  <rect x="775" y="277" width="363" height="42" rx="8" fill="#dcefee"/>
+  <text class="accent" x="791" y="304">実データCPU: 10-step / fresh 100-step PASS</text>
+
+  <text class="heading" x="40" y="390">各training stepの更新順</text>
+  <text class="small" x="40" y="417">positiveは同一clipの2 view。negativeには、現stepのkeyをまだ含まない旧Queueの異動画keyだけを使う。</text>
+
+  <rect x="40" y="438" width="255" height="128" rx="12" fill="#f1f7fb" stroke="#91b6cc" stroke-width="2"/>
+  <text class="step" x="58" y="472">1  InfoNCE</text>
+  <text class="body" x="58" y="507">旧Queueの異動画negative</text>
+  <text class="small" x="58" y="538">同一動画のkeyは除外</text>
+
+  <line x1="300" y1="502" x2="328" y2="502" stroke="#287397" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="340" y="438" width="245" height="128" rx="12" fill="#e9f6f5" stroke="#7bb9af" stroke-width="2"/>
+  <text class="step" x="358" y="472">2  Query更新</text>
+  <text class="body" x="358" y="507">LoRA + Projectorを更新</text>
+  <text class="small" x="358" y="538">Base ViTは固定</text>
+
+  <line x1="590" y1="502" x2="618" y2="502" stroke="#287397" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="630" y="438" width="225" height="128" rx="12" fill="#e9f6f5" stroke="#7bb9af" stroke-width="2"/>
+  <text class="step" x="648" y="472">3  Key EMA</text>
+  <text class="body" x="648" y="507">Queryを移動平均で追従</text>
+  <text class="small" x="648" y="538">Keyへのgradientなし</text>
+
+  <line x1="860" y1="502" x2="888" y2="502" stroke="#287397" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="900" y="438" width="260" height="128" rx="12" fill="#e9f6f5" stroke="#7bb9af" stroke-width="2"/>
+  <text class="step" x="918" y="472">4  current keyをenqueue</text>
+  <text class="body" x="918" y="507">EMA前keyをdetachして登録</text>
+  <text class="small" x="918" y="538">次stepからnegative候補</text>
+
+  <rect x="40" y="586" width="1120" height="50" rx="10" fill="#fff2e3" stroke="#dba96b" stroke-width="1.5"/>
+  <text class="caution" x="58" y="617">この図は更新機構の成立を示す。表現性能・時間順序・動作情報の獲得は未評価。</text>
+
+  <text class="source" x="40" y="661">出典: 2026-09-24 Stage 6A spec／Stage 6A実装・短時間検証記録</text>
+</svg>
