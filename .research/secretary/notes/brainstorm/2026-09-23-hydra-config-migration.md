@@ -78,3 +78,12 @@ tags: [brainstorm, research, configuration, hydra, yaml, reproducibility]
 5. full SSL loopとcontrol比較。
 
 このメモは探索記録であり、specまたは実装許可ではない。
+
+## 2026-09-23 追記: specへ昇格
+
+上記方針は次のapproved specへ昇格した。
+
+`.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-23-hydra-config-migration-spec.md`
+
+以降、Hydra移行の実装scope・互換性・Success Criteriaは上記specを正本とする。
+本brainstormは探索経緯の記録に留める。
