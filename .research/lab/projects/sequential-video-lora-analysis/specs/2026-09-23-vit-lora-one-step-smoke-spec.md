@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: approved
 title: Stage 4 ActivityNet clip経路へのViT LoRA注入と1-step更新smoke
 created: 2026-09-23
-last_updated: 2026-09-23
+last_updated: 2026-09-24
 workspace_repository: haruto2919/research-workspace
 workspace_base_branch: main
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
@@ -25,7 +25,7 @@ feature_size: 768
 
 # Stage 4 ActivityNet clip経路へのViT LoRA注入と1-step更新smoke spec
 
-> **Status: draft**
+> **Status: approved**
 >
 > 本specは、Stage 3で成立した
 > `ActivityNet -> ViT frame feature -> masked mean clip feature`
@@ -816,7 +816,9 @@ CUDAでのtraining性能は本specの成功条件に含めない。
 
 ### 12.1 Blocking
 
-draft時点で次の2点をapproved前に確定する。
+以下はdraft時点の確認事項。Aは2026-09-23のpreflightで成功済み、
+Bは`requirements.txt`をTransformers 5.17.0へpinする方針で確定済み。
+両項目は解消済みであり、現在のblocking事項はない。
 
 #### A. poolerなし + PEFT preflight
 
@@ -906,16 +908,11 @@ ViT+LoRA -> temporal relationを明示したobjective
 
 ## 15. Spec Gate
 
-本specは現在 `draft`。
+本specは現在 `approved`。
 
-ユーザーの「specを作成してください」という指示に基づきdraftとして保存する。
-この指示はコード実装の承認ではない。
-
-approvedへ移行するための技術的blocking ambiguityはない。
-
-残るGateは、本spec全体
-（scope / LoRA config / smoke loss / optimizer / success criteria / dependency pin）
-に対するユーザーの明示承認のみ。
+2026-09-23のユーザー指示「このスペックをapprovedに変更し，実装してください」により、
+本spec全体（scope / LoRA config / smoke loss / optimizer / success criteria / dependency pin）
+とコード実装、unit tests / 実ActivityNet one-chunk smokeを承認済み。
 
 poolerなし + PEFT preflight、およびTransformers 5.17.0 pin方針は確定済み。
 
@@ -923,12 +920,18 @@ poolerなし + PEFT preflight、およびTransformers 5.17.0 pin方針は確定�
 
 # Implementation Handoff
 
-- approved spec: 未承認。本draft
+- approved spec: 本spec（2026-09-23にユーザー承認済み）
 - 実装目的: ActivityNet clip経路でbase ViTを固定し、Q/V LoRAだけを1 step更新可能にする
 - 基準repository/commit: `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev@b6385d87e2e3e82a719d8f4b686b44aa293b1135`
 - change scope: poolerなしViT contract / PEFT dependency / LoRA encoder / unit tests / ActivityNet one-step smoke
 - 対象外: MoCo / temporal objective / long training / scientific performance evaluation
 - success criteria: 7章
-- 許可されている短時間検証: draft時点ではread-only確認のみ。approved後にunit tests / one-chunk smoke
+- 許可されている短時間検証: unit tests / one-chunk smoke
 - 長時間run: 未許可
 - 未検証予定: temporal learning / downstream evaluation / multi-step training
+
+## 実装・必須検証の完了記録
+
+2026-09-24、指定`dev`へ実装し、新規22件・既存65件のテストと実ActivityNet先頭1 chunkの
+CPU one-step smokeが成功した。詳細は[実装・検証記録](../experiments/2026-09-24-vit-lora-one-step-verification.md)を参照。
+statusはユーザー指定の`approved`を維持する。長時間run・commit・pushは行っていない。
