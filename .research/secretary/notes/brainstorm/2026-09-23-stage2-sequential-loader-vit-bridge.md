@@ -337,3 +337,103 @@ ActivityNet側では少なくとも次を別途決める必要がある候補:
 4. その後Stage 3のclip representationへ進む。
 
 50Saladsを最終datasetとして採用する判断ではない。
+
+
+## 2026-09-23 追記: ViTFrameEncoderを複数frame対応へ変更する必要性
+
+### 結論候補
+
+Stage 2では `ViTFrameEncoder` 自体を動画対応・時間対応へ変更しない。
+
+現在の `ViTFrameEncoder.forward(pixel_values)` はHugging Face `ViTModel` へ
+`[B,3,224,224]` を渡し、CLS feature `[B,768]` を返す。
+
+そのため1 chunkのvalid framesが
+
+```text
+[T,3,H,W]
+```
+
+であっても、preprocess後に
+
+```text
+[N_valid,3,224,224]
+```
+
+として渡せば、ViT側では単なるimage batchとして処理できる。
+
+```text
+frame_0
+frame_1
+...
+frame_{T-1}
+   |
+   | batchとしてまとめる
+   v
+ViTFrameEncoder
+   |
+   v
+feature_0
+feature_1
+...
+feature_{T-1}
+```
+
+batchの並び順を変えなければ、出力feature列は入力frame順と1対1に対応する。
+
+### 重要な意味
+
+ViTFrameEncoderは時間次元を理解しない。
+
+```text
+[T,3,H,W] -> [T,768]
+```
+
+が成立しても、それは
+「T枚のframeを独立に同じ2D ViTでencodeした」
+だけであり、temporal modelingではない。
+
+これはStage 2の目的と一致する。
+
+### 必要な変更箇所
+
+必要なのはViT本体の変更ではなく、外側のbridge / orchestration。
+
+bridge側の責務候補:
+
+1. `SequentialSample.frames [T,3,H,W]` と `valid_mask [T]` を受け取る。
+2. valid frameだけを抽出する。
+3. checkpoint-compatible preprocessingをbatchで行う。
+4. `pixel_values [N_valid,3,224,224]` を `ViTFrameEncoder` へ渡す。
+5. `[N_valid,768]` を元のT位置へ戻す。
+6. padding位置featureを0にする。
+7. original `valid_mask/frame_indices/timestamps/sequence metadata` を保持する。
+
+### Stage 2でViTFrameEncoderへ入れないもの
+
+- T dimensionの特別処理。
+- Python loopでframeごとにforwardする責務。
+- valid_mask処理。
+- padding処理。
+- temporal positional embedding。
+- frame間attention。
+- mean pooling。
+- sequential_loader import。
+- no_grad hard-code。
+
+### 将来との関係
+
+Stage 3のmasked meanや、Stage 8のorder-aware temporal moduleは
+`[T,768]` の外側へ追加する。
+
+LoRAはStage 4で `ViTFrameEncoder` 内のViT backboneへ注入する予定なので、
+Stage 2でforward内に `torch.no_grad()` を埋め込まない。
+
+### 実装粒度
+
+Stage 2 smokeだけなら、専用model classを増やさずsmoke script内のbridge処理から開始できる。
+
+同じ処理をStage 3以降でも再利用する必要が明確になった場合、
+`VideoEncoder` 等の薄いwrapperへ切り出す候補がある。
+
+ただし現時点では、`ViTFrameEncoder` を動画modelへ肥大化させないことを優先する。
