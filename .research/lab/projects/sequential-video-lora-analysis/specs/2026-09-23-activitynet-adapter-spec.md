@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: approved
+status: implemented
 title: ActivityNet v1.3 Adapter for sequential_loader
 created: 2026-09-23
 last_updated: 2026-09-23
@@ -18,7 +18,7 @@ annotation_json: json/activity_net.v1-3.min.json
 
 # ActivityNet v1.3 Adapter for sequential_loader spec
 
-> **Status: approved**
+> **Status: implemented**
 >
 > 本specは、既存 `sequential_loader` Coreを変更せず、
 > 50Saladsと同じ責務分離でActivityNet v1.3を `SequenceSource` へ変換する
@@ -623,7 +623,7 @@ absolute dataset pathはAdapter実装へhard-codeせず、runtimeの `dataset_ro
 
 ## 14. Spec Gate
 
-本specは現在 `approved`。
+本specは現在 `implemented`。
 
 ユーザーはActivityNet Adapterの方向性、
 strict error policy、
@@ -648,6 +648,8 @@ strict error policy、
 
 ## 15. Implementation / Verification
 
-2026-09-23: 指定の`ActivityNet` branch / 基準commitで実装し、必須検証を完了した。
-ユーザー指定のstatus `approved`を維持する。検証結果と実装差分の識別情報は
+2026-09-23: 指定の`ActivityNet` branch / 基準commitから実装し、必須検証を完了した。
+remote `ActivityNet` branchの実装commitは `19a0ed7e4c00300214bc9a2fe12da8c72c0499c0`。
+ActivityNet専用22 tests、全183 tests、実ActivityNet source count `10024 / 4926 / 5044`、
+3形式のReader smokeが成功したため、spec statusを `implemented` とする。検証結果と実装差分の識別情報は
 [実装・短時間検証記録](../experiments/2026-09-23-activitynet-adapter-verification.md)を参照。
