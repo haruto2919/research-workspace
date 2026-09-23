@@ -433,14 +433,20 @@ schedulerは使用しない。
 peft==0.21.0
 ```
 
-Transformersについては現行環境で `5.17.0` を使用している。
+Transformersは再現性とQ/V module name contractの固定を優先し、
+`requirements.txt` で次へpinする。
 
-**draft時点のblocking decision:**
-現行 `requirements.txt` の `transformers[torch]` を
-`transformers[torch]==5.17.0` へpinするかは、approved前に決定する。
+```text
+transformers[torch]==5.17.0
+```
 
-module name contractがversion依存であるため、
-少なくとも実装・verification recordにはTransformers 5.17.0を必ず記録する。
+PEFTも同様に次へpinする。
+
+```text
+peft==0.21.0
+```
+
+Stage 4のimplementation / verificationでは、このdependency contractを使用する。
 
 ### 4.2 frozen encoder pooler contract
 
@@ -905,12 +911,13 @@ ViT+LoRA -> temporal relationを明示したobjective
 ユーザーの「specを作成してください」という指示に基づきdraftとして保存する。
 この指示はコード実装の承認ではない。
 
-approvedへ移行するには、少なくとも次が必要。
+approvedへ移行するための技術的blocking ambiguityはない。
 
-1. Transformers 5.17.0をrequirementsへpinするか、環境契約だけにするか決定する。
-2. 本specのscope / LoRA config / smoke loss / optimizer / success criteriaをユーザーが明示承認する。
+残るGateは、本spec全体
+（scope / LoRA config / smoke loss / optimizer / success criteria / dependency pin）
+に対するユーザーの明示承認のみ。
 
-poolerなし + PEFT preflightは成功済み。
+poolerなし + PEFT preflight、およびTransformers 5.17.0 pin方針は確定済み。
 
 長時間runはStage 4 approved後でも別途許可が必要。
 
