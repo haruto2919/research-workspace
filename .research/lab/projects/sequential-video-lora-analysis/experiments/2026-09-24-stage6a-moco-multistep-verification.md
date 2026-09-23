@@ -1,12 +1,13 @@
 ---
 project: sequential-video-lora-analysis
 record_type: implementation-verification
-status: real-run-pending
+status: completed
 created: 2026-09-24
 last_updated: 2026-09-24
 spec: ../specs/2026-09-24-stage6a-moco-multistep-canary-spec.md
 implementation_branch: dev
 implementation_base_commit: 1cbaa4a0fde2fd196a36feb3eeb0074709b52cd9
+implementation_commit: 8304d033b2cf2da7e6636842ef250ed45a5693bb
 sequential_loader_branch: ActivityNet
 sequential_loader_commit: 19a0ed7e4c00300214bc9a2fe12da8c72c0499c0
 ---
@@ -16,13 +17,12 @@ sequential_loader_commit: 19a0ed7e4c00300214bc9a2fe12da8c72c0499c0
 [approved spec](../specs/2026-09-24-stage6a-moco-multistep-canary-spec.md)に従い、
 4 streamのchronological round-robinとmulti-step orchestrationを実装した。
 新規42件・既存125件のテストが成功。人工データで10-step / 100-stepのmechanicsを検証した。
-実ActivityNetの10-step / 100-step Gateは未実施であり、Stage 6A全体の成功はまだ主張しない。
+その後、実ActivityNetで10-step smokeと別fresh processの100-step canaryをCPU実行し、
+両方ともtarget stepへ到達してPASSした。これによりStage 6A specの必須Gate 1〜40を満たした。
 
-spec第14章とHandoffの「real 10-step / 100-step runは実行時にユーザー指示を確認する」
-に従い、今回の実装依頼ではunit / integration / 回帰までを実施した。
-実装repositoryは`/mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora`、
-origin・branch・HEADはspecと一致。開始時cleanで、下記4ファイルを新規追加した。
-変更は未コミット。GPU run・長時間run・commit・pushは実施していない。
+実装repositoryは`/mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora`。
+実run時にorigin、`dev` branch、HEAD `8304d033b2cf2da7e6636842ef250ed45a5693bb`を確認し、
+GitHub上の`dev` HEADとも一致した。GPU run・full ActivityNet trainingは実施していない。
 
 ## 追加ファイル
 
@@ -60,13 +60,13 @@ CLIのprovenance監査とStage 6A baseline ancestry検査も成功。
 
 | 検証 | 結果 |
 |---|---|
-| 新規unit / integration | 42 passed、26.80秒 |
-| Stage 5 MoCo + Stage 1〜4 / 50Salads / config回帰 | 125 passed、2 warnings、108.78秒 |
+| 新規unit / integration | 42 passed、26.75秒 |
+| Stage 5 MoCo + Stage 1〜4 / 50Salads / config回帰 | 125 passed、2 warnings、107.25秒 |
 | 新規Python 4ファイルのAST / 末尾空白検査 | 成功 |
 | CLI `--help` | exit code 0、既定10 / device指定 / max_steps指定を確認 |
 | `git diff --check` | 成功 |
-| 実ActivityNet 10-step | 未実施・実行指示待ち |
-| 実ActivityNet fresh 100-step | 未実施・10-step Gate成功後に実行 |
+| 実ActivityNet 10-step | PASS、training_steps=10、queue_count=14 |
+| 実ActivityNet fresh 100-step | PASS、training_steps=100、queue_count=104 |
 
 回帰warningは既存のSentry Hub / Torch JIT非推奨通知。
 初回は異常optimizer集合の注入がテストfixtureの初期検査で止まる1件が失敗した。
@@ -118,15 +118,15 @@ Query更新なしを拒否することを確認した。
 | 14〜15 Stage 5条件 / optimizer集合 | Stage 5 component無変更、既存回帰、実PEFT integrationとoptimizer監査成功 |
 | 16〜28 negatives / 更新順序 / gradients / Queue / finite性 | 10 / 100-step人工データtestsと異常注入tests成功 |
 | 29〜34 base不変 / Query更新 / EMA / Reader解放 | 初期snapshot・毎stepの監査、終了時検査、例外・EOF tests成功 |
-| 35 実ActivityNet 10-step | 未実施 |
-| 36 実ActivityNet fresh 100-step | 未実施 |
+| 35 実ActivityNet 10-step | PASS。target 10 steps、queue 4→14、終了監査成功 |
+| 36 実ActivityNet fresh 100-step | PASS。fresh runでtarget 100 steps、queue 4→104、終了監査成功 |
 | 37〜39 Stage 1〜5 / classification / 50Salads回帰 | 指定主要125件成功、既存コード無変更 |
 | 40 研究性能・時間情報獲得を主張しない | engineering testのみ。研究性能は未評価 |
 
-## 実行指示後のコマンド
+## 実ActivityNet run
 
-以下は未実行。実装rootで10-stepがPASSした後、別processで100-stepを起動する。
-いずれも既存cacheを使うCPU案であり、GPU runは含まない。
+以下を実装rootで実行した。10-step完了後、100-stepは別processで起動し、
+`fresh state: True`を確認した。いずれもCPU・offlineで、GPU runは含まない。
 
 ```bash
 CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=4 HF_HUB_OFFLINE=1 HF_HUB_DISABLE_PROGRESS_BARS=1 \
@@ -146,3 +146,50 @@ CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=4 HF_HUB_OFFLINE=1 HF_HUB_DISABLE_PROGRE
 | `training/moco_canary.py` | `67cec2f6c683adf97bb271ebc2ee62989b13b5f3667d14a8999c93186fc4163d` |
 | `smoke_activitynet_vit_lora_moco_multistep.py` | `f7a4878cca32bb47611ceca09ba990b665042378e54da83f6c2b121ab34f9172` |
 | `test/model/test_moco_multistep_canary.py` | `cfb3af8386b4f069fbd0c893915c155d9203dbfffd1cb646a6e8f74688b56f38` |
+
+
+## 実ActivityNet 10-step / 100-step Evidence
+
+共通provenance:
+
+- implementation: `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev@8304d033b2cf2da7e6636842ef250ed45a5693bb`
+- Sequential Loader: `ActivityNet@19a0ed7e4c00300214bc9a2fe12da8c72c0499c0`
+- checkpoint: `google/vit-base-patch16-224`
+- runtime: PyTorch `2.14.0+cu130` / Transformers `5.17.0` / PEFT `0.21.0`
+- device: CPU
+- ActivityNet training first four sequence IDs:
+  `---9CpRcKoU`, `--0edUL8zmA`, `--mFXNrRZ5E`, `--veKG73Di4`
+
+10-step smoke:
+
+- fresh stateで開始。
+- A1 / B1 / C1 / D1 warm-up後にQueue=4。
+- training順はA2 -> B2 -> C2 -> D2 -> A3 ... を維持。
+- 全10 stepでvalid negative >= 3、Query Base gradient=0、Key gradient=0。
+- 全parameter / Queue keyがfinite。
+- 終了時 `training_steps=10`、`queue_count=14`。
+- changed tensors:
+  Query Base 0 / Query LoRA 48 / Query Projector 4 /
+  Key Base 0 / Key LoRA 48 / Key Projector 4。
+- `Stage 6A 10-step mechanics: PASS`。
+
+fresh 100-step canary:
+
+- 10-step stateを引き継がない別processで `fresh state: True` を確認。
+- A1 / B1 / C1 / D1 warm-up後にQueue=4。
+- step 0〜99をround-robinで完走し、各sequenceの`sequence_index`がchronologicalに進んだ。
+- 全stepで`queue_unique_sequence_id_count=4`、valid different-sequence negative >= 3。
+- 全stepでQuery LoRA / Query Projector gradientがfiniteかつnon-zero。
+- 全stepでQuery Base gradient=0、Key gradient=0。
+- 全parameter / Queue keyがfinite。
+- step 99終了時 `queue_count=104`。
+- 終了監査は `training_steps=100`、`max_steps=100`、
+  `queue_count=104`。
+- changed tensors:
+  Query Base 0 / Query LoRA 48 / Query Projector 4 /
+  Key Base 0 / Key LoRA 48 / Key Projector 4。
+- `Stage 6A 100-step mechanics: PASS`。
+
+loss、positive similarity、gradient normはstep間で変動したが、本specでは単調減少やexact値を
+成功条件にしていない。今回のEvidenceは100-step範囲のengineering stabilityを示すものであり、
+representation性能向上、loss収束、temporal order / motion獲得は未評価である。
