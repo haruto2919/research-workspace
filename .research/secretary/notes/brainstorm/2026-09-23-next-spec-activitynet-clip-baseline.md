@@ -201,3 +201,14 @@ temporal-specific control / LoRA parameter・feature解析
 ```
 
 LoRAやMoCoをStage 3へ混ぜない方針を維持する。
+
+
+## 2026-09-23 追記: Stage 3 draft specへ昇格
+
+上記方針は次のdraft specへ昇格した。
+
+`.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-23-activitynet-clip-feature-spec.md`
+
+以降、ActivityNet -> frozen ViT -> masked mean -> clip_feature [768] の
+実装scope、Success Criteria、対象外は上記specを正本候補とする。
+本brainstormは探索経緯の記録に留める。
