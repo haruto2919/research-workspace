@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: implemented
 title: Stage 3 ActivityNetからfrozen ViTとmasked meanによるclip feature生成
 created: 2026-09-23
 last_updated: 2026-09-23
@@ -24,14 +24,15 @@ feature_size: 768
 
 # Stage 3 ActivityNetからfrozen ViTとmasked meanによるclip feature生成 spec
 
-> **Status: draft**
+> **Status: implemented**
 >
 > 本specは、ActivityNet v1.3の1 chunkを既存Sequential Loaderとfrozen ViTで処理し、
 > valid frameだけを用いたmasked meanによってorder-invariantな
-> `clip_feature [768]` を生成するStage 3の実装契約案である。
+> `clip_feature [768]` を生成するStage 3の実装契約である。
 >
-> 本specではコード実装・学習・長時間runはまだ許可しない。
-> ユーザー承認後に `approved` へ昇格し、実装へ引き継ぐ。
+> 2026-09-23のユーザー指示により承認し、同日に実装・必須の短時間検証を完了した。
+> 詳細は[実装・検証記録](../experiments/2026-09-23-activitynet-clip-feature-verification.md)を参照。
+> 学習・長時間runは許可範囲に含めない。
 
 ## 1. 目的
 
@@ -679,7 +680,7 @@ training integration等へ勝手にscopeを拡張しない。
 
 現時点で技術的なblocking ambiguityはない。
 
-本draftでは次を固定案とする。
+本specでは次を固定する。
 
 - implementation branch: `dev`
 - implementation base: `3c0e40e86924ceb38931c2d5214ecf3251a8f99d`
@@ -796,19 +797,21 @@ MoCoはさらにその後のStage 5とする。
 
 ## 16. Spec Gate
 
-本specは現在 `draft`。
+本specは2026-09-23のユーザー指示「このspecをapprovedに変更して実装してください」により `approved` へ更新した。
 
 目的、dataset、revision、input/output、aggregation、
 mask semantics、freeze、Hydraとの責務境界、
 成功条件、対象外は定義済みで、blocking ambiguityは残っていない。
 
-ただし、`specを作成してください` はdraft作成の許可であり、
-コード実装の承認とは扱わない。
+コード実装、unit / regression tests、実ActivityNetの先頭1 chunk smokeを完了し、
+現在は `implemented`。新規25件・50Salads 1件・Hydra 38件が成功した。
+既存ViT testの期待引数不一致1件は実装前後で同一で、新規回帰はない。
+詳細は[実装・検証記録](../experiments/2026-09-23-activitynet-clip-feature-verification.md)を参照。
+実装開始時に、implementation `dev` とloader `ActivityNet` のHEADが
+それぞれ本specの基準revisionと一致し、両worktreeがcleanであることを確認した。
+学習・長時間run・commit・pushは実施範囲に含めない。
 
-ユーザーが本spec内容を承認した時点で `approved` へ昇格し、
-engineering implementationへ引き継ぐ。
-
-# Implementation Handoff（approval後）
+# Implementation Handoff
 
 - approved spec: 本spec
 - 実装目的: ActivityNetの1 chunkからorder-invariantな `clip_feature [768]` を生成する
