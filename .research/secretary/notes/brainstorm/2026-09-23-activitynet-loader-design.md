@@ -434,3 +434,38 @@ sampling / strideはActivityNet Adapterへ入れない。
 
 temporal sampling policyはAdapter smokeとは分離し、
 実際のvideo SSL training条件を決める段階で別途詰める。
+
+
+## 2026-09-23 17:08 追記: manual_crawling_from_youtube/video のrelease解釈
+
+添付ActivityNet構造と公式release情報を照合した結果、
+`manual_crawling_from_youtube/video` を「v1.2動画だけの保存先」とみなすのは不適切。
+
+確認できた根拠:
+
+- `manual_crawling_from_youtube/video_list_all_id.txt` は19,994 IDを含む。
+- ActivityNet v1.3公式構成は training 10,024 + validation 4,926 + testing 5,044 = 19,994 videos。
+- 同directoryには
+  - `missing_list.1.2.txt`
+  - `missing_list.1.3.txt`
+  の両方が存在する。
+- `video_list_downloaded_id.txt` は18,226 ID、
+  `video_list_unavailable_id.txt` は1,768 IDで、
+  合計19,994となる。
+- downloaded IDは `missing_list.1.2` と `missing_list.1.3` の双方に交差する。
+
+したがって、このmanual crawling領域はrelease 1.2専用ではなく、
+full ActivityNet v1.3の19,994 video ID集合をYouTubeから取得しようとした結果
+（downloaded / unavailableを記録したもの）と解釈するのが最も整合的。
+
+一方、release別の確実な区分は `official_tarball_baidu/tarball/README.md` にあり、
+
+- `v1-2_train.tar.gz`, `v1-2_val.tar.gz`, `v1-2_test.tar.gz`
+  = ActivityNet release 1.2 data
+- `v1-3_train_val.tar.gz`, `v1-3_test.tar.gz`
+  = release 1.3で追加されたvideos
+
+と明記されている。
+
+ActivityNet Adapterを設計するときはdirectory名だけでv1.2/v1.3を推定せず、
+annotation JSONのvideo ID / subsetをSSOTとしてlocal filesと照合する方針が有力。
