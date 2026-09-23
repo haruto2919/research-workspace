@@ -14,7 +14,7 @@ implementation_base_commit: cef09aa12560127451a5f569d86d5d51671e6986
 2026-09-23のユーザー指示により[spec](../specs/2026-09-23-activitynet-adapter-spec.md)を
 `approved`へ更新し、指定された`ActivityNet` branchに実装した。
 全183テスト、実データの全source inventory、3形式各1本の先頭chunk検証に成功した。
-specのstatusはユーザー指定の`approved`を維持し、実装・検証の完了を本記録で示す。
+remote反映と必須検証まで完了したため、specは`implemented`へ更新した。
 
 ## 実装差分
 
@@ -107,7 +107,15 @@ training→validation→testingの順に全sourceを見て、各拡張子の最�
 
 ## 変更版の識別と実行範囲
 
-変更はローカルの未commit差分。commit / pushは行っていない。
+remote `ActivityNet` branchへ反映済み。
+
+- implementation commit: `19a0ed7e4c00300214bc9a2fe12da8c72c0499c0`
+- parent / approved base: `cef09aa12560127451a5f569d86d5d51671e6986`
+- remote branchはbaseから1 commit aheadで、変更対象はAdapter / public export / testsの4ファイルのみ。
+
+ユーザーがremote反映後にActivityNet専用22 testsと全183 testsを再実行し、いずれもOKを確認した。
+さらに実ActivityNetを新Adapterから列挙し、`training=10024`, `validation=4926`, `testing=5044`, `total=19994`を再確認した。
+
 ViT・LoRA・SSL学習、全動画decode、長時間runは実行していない。
 本記録はAdapterと既存Coreの接続成立を示し、学習効果やdownstream性能を示すものではない。
 
