@@ -159,3 +159,43 @@ checkpointのclassification headは使用しないため、load reportに
 | `smoke_activitynet_vit_lora_one_step.py` | `13ee33dbffc7d6ab12588145c31e4202c58b0161009f0c258f3299ec8d71ad55` |
 | `test/model/test_vit_lora_frame_encoder.py` | `8c8a70001f5ea7cc959a0df1f73ad759f8b1340a852a31a6ca96be2dbcf16768` |
 | `test/model/test_activitynet_vit_lora_one_step.py` | `ffc74768127abe49e6265b6054f87b9d1ddb13da20c6fd78369f0b55d4ab0d0c` |
+
+
+## 現行devでの再検証（2026-09-24 04:14 JST開始）
+
+指定specの再確認時、Stage 4実装は既にcommit
+`3b980c8a90e8cad08e78a5ba13cbb3629ec5ae58`に含まれていた。
+現行HEADは`dev@1cbaa4a0fde2fd196a36feb3eeb0074709b52cd9`で、実装repositoryのworktreeはclean。
+spec基準commitの後継であることと、その後のStage 5追加・module配置整理の影響を確認した。
+Stage 4 encoderの現行配置は`model/backbones/vit/vit_lora_frame_encoder.py`であり、
+後続変更はStage 4経路のimport・testのmock参照先を新配置へ追従させている。
+specを満たす既存実装が揃っているため、今回コードの追加・変更は行っていない。
+
+上記と同じPython / PyTorch / Transformers / PEFT環境、CPU、既存checkpoint cacheを使用し、
+現在のコードで次を再実行した。loaderも引き続き指定branch / revisionに一致し、tracked変更なし。
+
+```bash
+CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=1 HF_HUB_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 \
+  .venv/bin/python -m pytest \
+  test/model/test_vit_lora_frame_encoder.py \
+  test/model/test_activitynet_vit_lora_one_step.py \
+  test/model/test_vit_frame_encoder.py \
+  test/model/test_masked_mean_clip_aggregator.py \
+  test/model/test_activitynet_vit_clip_feature.py \
+  test/model/test_50salads_vit_bridge.py test/config \
+  -q -o addopts='' -p no:cacheprovider
+
+CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=4 HF_HUB_OFFLINE=1 HF_HUB_DISABLE_PROGRESS_BARS=1 \
+  PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -u smoke_activitynet_vit_lora_one_step.py \
+  /mnt/NAS-TVS872XT/dataset/ActivityNet --device cpu
+```
+
+- Stage 4の22件と既存回帰65件: **87 passed, 1 warning、87.43秒**。warningは既存の`torch.jit.script_method`非推奨通知。
+- 実ActivityNet先頭1 chunk: **終了code 0**。sequence `---9CpRcKoU`、valid 16/16、pixel `[16,3,224,224]`、frame `[16,768]`、clip `[768]`。
+- poolerなし、Q/V各12・計24 target、trainable 294,912 parameters / 48 tensors、unexpected trainable `[]`、optimizer集合一致。
+- loss `0.7365954518318176`、finite gradient 48 tensors / nonzero 24 tensors、base gradient 0。
+- base変更0、LoRA変更24 tensors、更新後の全parameter有限性True。
+- `git diff --check`成功。今回の長時間run・GPU run・commit・pushはなし。
+
+今回もspecのengineering検証条件を満たした。研究性能・時間情報獲得はこの検証の対象外。
+上のSHA-256表は初回の未コミット実装版を識別する記録であり、今回の検証版は上記HEADで識別する。

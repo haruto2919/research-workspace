@@ -514,3 +514,11 @@ ordering、source選択、shape、parameter集合、update semantics、finite性
 - 許可されている短時間検証: 実装依頼時にunit / integration /既存回帰を実施可能。real 10-step / 100-step runは実行時にユーザー指示を確認する
 - 長時間run: 未許可
 - 未検証予定: representation性能、temporal learning、strict streaming、sequential-vs-shuffle、augmentation recipe、GPU memory、long-run stability
+
+## 実装・短時間検証の記録
+
+2026-09-24、指定`dev`へconsumer側orchestrationとentrypointを実装した。
+新規42件・既存125件のテストが成功し、人工データ10/100-stepと実ViT/PEFT接続を検証済み。
+実ActivityNetの10-step / fresh 100-stepは第14章に従い実行指示待ちであり、
+成功条件35・36は未検証。statusは`approved`を維持する。
+詳細は[実装・短時間検証記録](../experiments/2026-09-24-stage6a-moco-multistep-verification.md)を参照。
