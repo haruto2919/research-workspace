@@ -473,3 +473,30 @@ sequential/online update semanticsとloader/training orchestrationの設計問�
 特にonline/sequential比較では、複数sequenceを同一optimizer stepへまとめると
 「1 chunkずつ時系列に更新する」意味が変わり得るため、
 B>1対応可能であることとB>1を研究条件として採用することを分離する。
+
+
+## 2026-09-23 11:50 追記: Stage 2 specへ昇格
+
+Stage 2の実装契約候補を次のspecへ昇格した。
+
+`.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-23-50salads-sequential-vit-bridge-spec.md`
+
+status:
+`draft`
+
+主なdraft条件:
+- implementation branch: `feature-50salads-loder`
+- implementation base: `e7e037a9191f36b26e87f80f48caccfb35b6166d`
+- sequential_loader: `master@cef09aa12560127451a5f569d86d5d51671e6986`
+- engineering fixture: 50Salads / train1 / 16 frames
+- `SequentialSample` public APIを直接consume
+- valid frameだけencode
+- output `[T,768]`、invalid rowはzero
+- frame order / valid_mask / metadataを保持
+- `ViTFrameEncoder` は変更しない
+- eval + no_gradのforward smokeのみ
+- backward / optimizer / parameter updateなし
+- ActivityNet Adapterは別spec
+
+以降、Stage 2の実装scope・Success Criteriaは上記specを正本候補として参照する。
+本brainstormは探索経緯の記録に留める。
