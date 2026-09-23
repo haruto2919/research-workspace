@@ -108,3 +108,104 @@ MoCo v3が「EMAを使わない」から不向きなのではなく、
 - queue size / momentum coefficient / projector dimension。
 
 このメモは探索記録であり、specまたは実装許可ではない。
+
+
+## 2026-09-24 00:33 追記: Stage 5 queue negative policyの収束案
+
+### 中心となる問い
+
+Stage 5のnon-temporal MoCo baselineで、
+
+- 同じ動画の過去clipをnegativeにするか
+- 隣接clipを除外するか
+- different videoだけをnegativeにするか
+- queue sizeをどうするか
+
+を整理した。
+
+### 有力方針
+
+Stage 5 baselineでは、**positiveは同一clipの2 view、negativeはdifferent sequence_idのみ**とする案を有力候補とする。
+
+理由:
+
+- 同一動画の近接clipをnegativeにすると、意味的・時間的に近いclipを強制的に離すfalse negativeが起きやすい。
+- 同一動画の遠いclipもActivityNetのuntrimmed videoでは意味が同じ/異なるの両方があり、ラベルなしでは安全にnegativeと断定しにくい。
+- Stage 5はtemporal objectiveを入れないnon-temporal baselineなので、same-video temporal distanceに依存したnegative policyを混ぜない方が解釈しやすい。
+- CVRLの「same short videoの2 clipsをpositive、different videosをnegative」とする考え方とも整合する。
+
+したがってStage 5では、同一sequence_idのkeyは距離に関係なくnegativeから除外する。
+この方針では「隣接clip exclusion window」は不要で、same-video全体除外に包含される。
+
+### same-video distant negativeの扱い
+
+same-videoの十分離れたclipをnegativeとして使う案は棄却ではなく、後続ablation候補とする。
+
+比較候補:
+
+1. different-video-only negatives
+2. same-video distant negatives（temporal exclusion windowあり）
+3. same-video all negatives
+
+これにより、negative policy自体がLoRA表現へ与える影響を後で測れる。
+
+### Queue実装候補
+
+Queue entryに最低限、
+
+`(key, sequence_id, sequence_index / clip_start)`
+
+を保持し、loss計算時にcurrent queryと同じ`sequence_id`をmaskする。
+
+Stage 5初期候補としてqueue sizeは **K=4096** を採用候補とする。
+
+理由:
+
+- original MoCoの65536より小さく、逐次更新下で古いkeyのstalenessを抑えやすい。
+- 小batchでも数千negativeを確保できる。
+- queue memoryはprojected keyのみなので実装コストが小さい。
+- 最終値ではなくengineering baselineとし、後で1024 / 4096 / 16384等をablation可能にする。
+
+VideoMoCoが古いqueue keyの劣化をtemporal decayで扱っていることからも、長すぎるqueueを無条件に採用しない方がよい。
+
+### strict sequential時の注意
+
+1本の長い動画を連続処理すると、その動画のkeyがFIFO queueを占有し、
+different-video-only mask後のvalid negativesが減る可能性がある。
+
+Stage 5ではMoCo mechanicsの成立を優先し、複数sequence_idを含むsample streamで検証する。
+後続のstrict sequential stageでは、
+
+- valid negative countのログ
+- sequenceごとのqueue占有率
+- 必要ならper-sequence cap / enqueue間引き
+
+を別途検討する。
+
+### 現在の収束
+
+Stage 5 baseline候補:
+
+```text
+Positive:
+same clip, two augmentations
+
+Negative:
+different sequence_id only
+
+Same-video keys:
+queueには保持可能だがcurrent queryのnegativeからmask
+
+Adjacent same-video clips:
+negativeにしない
+
+Same-video distant clips:
+Stage 5ではnegativeにしない
+後続ablation候補
+
+Queue:
+FIFO, metadata付き
+K=4096を初期候補
+```
+
+これは探索上の有力候補であり、specではない。
