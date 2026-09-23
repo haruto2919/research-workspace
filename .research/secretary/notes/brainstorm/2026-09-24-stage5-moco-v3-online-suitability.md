@@ -209,3 +209,61 @@ K=4096を初期候補
 ```
 
 これは探索上の有力候補であり、specではない。
+
+
+## 2026-09-24 01:38 追記: Projectorを学習する意味とLoRAへの影響
+
+### 確認
+
+- 標準的なMoCo v2ではprojection MLPはtrainable。
+- Query projectorはcontrastive lossからgradient updateされる。
+- Key projectorはQuery projectorをEMAで追従する。
+- ProjectorはMoCo成立の数学的必須条件ではない。identity / fixed projectionでもlossからLoRAへgradientを流すことは可能。
+- ただし標準MoCo v2からは外れ、representation qualityやoptimization特性が変わる。
+
+### LoRAへのgradient
+
+Query側を
+`h = f_theta(x)`（thetaはLoRA）、
+`z = p_phi(h)`（phiはProjector）、
+`L = InfoNCE(z,...)`
+とすると、
+
+`dL/dtheta = dL/dz * dz/dh * dh/dtheta`
+
+となる。
+
+したがってProjectorのJacobian `dz/dh` がLoRAへ流れるgradientの方向・大きさを決める。
+Projectorを更新すると、このgradient変換もstepごとに変化する。
+
+### 研究上の意味
+
+trainable Projectorには2つの側面がある。
+
+利点:
+- MoCo v2として標準に近いbaselineになる。
+- contrastive objective専用空間をProjector側へ分離でき、pre-projector featureを過度にcontrastive taskへ特化させにくい。
+- 画像SSLではlearnable nonlinear projection headがpre-projection representation qualityを改善するEvidenceがある。
+
+注意:
+- loss改善の一部をProjectorが担えるため、「学習による変化はLoRAだけに蓄積された」とは言えない。
+- Projectorが変わることでLoRAへ流れるgradient自体も変わるため、ProjectorはLoRA学習 dynamicsの一部になる。
+
+### Stage 5候補
+
+目的が「標準MoCo baselineの成立」なら、
+- Query LoRA + Query Projectorをgradient update
+- Key LoRA + Key ProjectorをEMA
+- Base ViTはfreeze
+が有力。
+
+目的が「LoRAだけにcontrastive objectiveを直接担わせる」なら、
+- Projectorなし（identity）
+- または固定Projector
+が解釈しやすいが、標準MoCo v2 baselineではなくなる。
+
+現段階では、まず標準寄りのtrainable Projectorを採用し、
+LoRAの情報評価はProjectorを捨てたpre-projector clip featureとLoRA parameterで行う案が有力。
+必要なら後続ablationで `trainable projector vs identity/no-projector` を比較する。
+
+この追記は探索記録であり、specではない。
