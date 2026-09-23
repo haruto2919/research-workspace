@@ -1107,3 +1107,16 @@ ViT + LoRA + SSL
 validation / testingは学習に使用しない。
 
 この方針はActivityNet Adapterの責務と研究上の比較可能性を最も分離しやすい。
+
+
+## 2026-09-23 spec引き継ぎ
+
+ActivityNet Adapterの設計方針を次のdraft specへ昇格した。
+
+- [ActivityNet v1.3 Adapter for sequential_loader spec](../../lab/projects/sequential-video-lora-analysis/specs/2026-09-23-activitynet-adapter-spec.md)
+- status: `draft`
+- implementation repository: `tamaki-lab/2026_09_ishikawa_sequential_loader`
+- work branch: `ActivityNet`
+- base: `cef09aa12560127451a5f569d86d5d51671e6986`
+
+本brainstormは探索記録として残し、実装契約の正本は承認後のspecとする。
