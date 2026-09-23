@@ -259,3 +259,81 @@ adapter導入を再検討する。
 5. outputを `frame_features [T,768]` + `valid_mask` で固定するか。
 
 これらが固まれば、research-specへ渡せる材料になる。
+
+
+## 2026-09-23 10:47 追記: ActivityNetを最終datasetとする場合のStage 2確認順
+
+ユーザーは最終的な動画datasetとしてActivityNetを利用する予定。
+
+GitHub上の `tamaki-lab/sequential_loader@master` を確認したところ、
+現時点のpublic example / adapterは50Salads向けであり、
+repository code searchではActivityNet対応は確認できなかった。
+
+ここで重要なのは、現在のloader設計では
+「50Salads専用SequentialDataset」が中心なのではなく、
+generic `SequentialDataset` にdataset固有Adapterが `SequenceSource` を供給する構造であること。
+
+したがって推奨する切り分けは次。
+
+```text
+Step A: 既存50Salads adapterでgeneric bridgeを検証
+Salads50Adapter
+ -> SequentialDataset
+ -> SequentialSample
+ -> preprocessing
+ -> ViTFrameEncoder
+ -> [T,768]
+
+Step B: ActivityNet adapterをsequential_loader側へ追加
+ActivityNet
+ -> ActivityNetAdapter候補
+ -> same SequentialDataset
+ -> same SequentialSample contract
+
+Step C: ActivityNetで同じbridgeを再検証
+ActivityNet SequentialSample
+ -> same preprocessing / ViTFrameEncoder path
+ -> [T,768]
+```
+
+### 推奨理由
+
+50Saladsを先に使う目的は科学的dataset選定ではなく、
+既に動くAdapterを使って
+「SequentialSample consumer -> preprocessing -> ViTFrameEncoder」
+だけを独立に検証するため。
+
+ActivityNet adapterを先に作ると、
+- ActivityNet file/split/source mapping
+- dataset adapter
+- chunk/read semantics
+- loader -> ViT bridge
+を同時に新規実装することになり、失敗時に原因を切り分けにくい。
+
+50Salads bridgeが先に通っていれば、ActivityNet導入後のfailureは
+ActivityNet adapter / data mapping側へかなり絞れる。
+
+### 注意
+
+50Salads smoke成功だけでActivityNet pipeline完成とはしない。
+最終研究datasetがActivityNetなら、Stage 3 / LoRA / MoCoへ進む前に
+ActivityNetでも同一public contractとfeature extraction smokeを通す。
+
+ActivityNet側では少なくとも次を別途決める必要がある候補:
+- dataset root / video file mapping
+- train/val split mapping
+- 1 sequenceを何として表すか
+- start/stop frame policy
+- sampling / chunking policy
+- annotationをcausal inputから分離し、evaluation_referenceへどう持つか
+- missing/corrupt videoの扱い
+
+### 現時点の収束
+
+有力:
+1. 50Saladsをengineering fixtureとしてStage 2 generic bridge smokeに使う。
+2. bridgeのinterfaceが固定できたらActivityNet adapterを別作業単位で作る。
+3. ActivityNetで同じStage 2 smokeを通す。
+4. その後Stage 3のclip representationへ進む。
+
+50Saladsを最終datasetとして採用する判断ではない。
