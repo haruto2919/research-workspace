@@ -630,7 +630,7 @@ strict error policy、
 既存 `ActivityNet` branchを使うことを採用した。
 
 2026-09-23にユーザーが「このスペックをapprovedに変更し，実装してください」と
-明示的に依頼したため、承認済みとして実装と8章の短時間検証へ進む。
+明示的に依頼したため、承認済みとして実装と8章の短時間検証を実施した。
 
 # Implementation Handoff（承認済み）
 
@@ -651,5 +651,6 @@ strict error policy、
 2026-09-23: 指定の`ActivityNet` branch / 基準commitから実装し、必須検証を完了した。
 remote `ActivityNet` branchの実装commitは `19a0ed7e4c00300214bc9a2fe12da8c72c0499c0`。
 ActivityNet専用22 tests、全183 tests、実ActivityNet source count `10024 / 4926 / 5044`、
-3形式のReader smokeが成功したため、spec statusを `implemented` とする。検証結果と実装差分の識別情報は
+3形式のReader smokeが成功したため、spec statusを `implemented` とする。
+同日、ユーザーの明示指示によりstatusを`implemented`へ更新した。検証結果と実装差分の識別情報は
 [実装・短時間検証記録](../experiments/2026-09-23-activitynet-adapter-verification.md)を参照。
