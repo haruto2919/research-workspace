@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: approved
+status: implemented
 title: ViT Frame Encoderと単一画像feature extraction smoke
 created: 2026-09-18
-last_updated: 2026-09-22
+last_updated: 2026-09-23
 workspace_repository: haruto2919/research-workspace
 workspace_base_branch: main
 workspace_base_commit: 7dc46ba54ced621da5cf426ca73704d43ad8fad7
@@ -18,7 +18,7 @@ hf_checkpoint: google/vit-base-patch16-224
 
 # ViT Frame Encoderと単一画像feature extraction smoke spec
 
-> **Status: approved**
+> **Status: implemented**
 >
 > 本specは、simple_cnn clean baselineを起点として、動画研究で再利用できる
 > frame-level ViT encoderを追加し、単一RGB画像からCLS featureを取得できることを確認する
@@ -487,7 +487,7 @@ clip aggregation / LoRA / MoCoはさらに後段へ分離する。
 
 blocking ambiguityは残っていない。
 
-2026-09-22にユーザーが承認したため、statusを `approved` とし、engineering-taskへ引き継ぐ。
+2026-09-22にユーザーが承認し、実装と短時間検証が完了したため、2026-09-23にstatusを `implemented` へ更新した。
 
 # Implementation Handoff
 
