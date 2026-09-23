@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: approved
+status: implemented
 title: argparseからHydra/YAMLへの設定基盤移行
 created: 2026-09-23
 last_updated: 2026-09-23
@@ -17,14 +17,15 @@ hydra_version: 1.3.7
 
 # argparseからHydra/YAMLへの設定基盤移行 spec
 
-> **Status: approved**
+> **Status: implemented**
 >
 > 本specは、研究コードのtraining設定基盤を、flatな `argparse.Namespace` から
 > YAML + Hydraへ移行するための実装契約である。
 >
 > 2026-09-23にユーザーが、training configのみHydra化し、`main.py` / `main_pl.py` の両方を移行、
 > 旧training CLI互換layerを残さず、dataset / model / optimizerをconfig group化する方針を採用した。
-> 本specはコード実装の契約を承認済みとするが、実装・実験runはまだ実施していない。
+> 2026-09-23に `dev` へ実装し、短時間検証を完了した。学習・実験runは未実施。
+> 検証結果と既存テスト不一致1件は[実装・検証記録](../experiments/2026-09-23-hydra-config-migration-verification.md)を参照。
 
 ## 1. 目的
 
@@ -655,14 +656,15 @@ ActivityNet
 
 ## 13. Spec Gate
 
-本specは `approved`。
+本specは承認済み契約に基づき、2026-09-23に `implemented` とした。
 
 目的、scope、breaking change、config構造、既存default mapping、
 working directory、dependency、verification、対象外を固定し、blocking ambiguityは残っていない。
 
 2026-09-23にユーザーが上記方針を採用し、本specの作成を明示的に依頼した。
 同日、実装branchを既存の `dev` に変更する指示を受け、本specへ反映した。
-コード実装およびtraining runはまだ実施していない。
+承認時点ではコード実装およびtraining runは未実施だった。
+同日、コード実装と必須の短時間検証を完了した。Hydra新規テスト38件成功、既存CPUテスト21件成功・既存不一致1件で、新たな回帰はない。training runは未実施。
 
 # Implementation Handoff
 
