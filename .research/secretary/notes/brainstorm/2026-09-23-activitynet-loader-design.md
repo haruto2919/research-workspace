@@ -722,3 +722,38 @@ Loader統合:
 
 sampling / strideはAdapter specとは分離し、
 ActivityNetでの動画自己教師あり学習spec前に決める。
+
+
+## 2026-09-23 17:30 追記: ActivityNet inventory確認方法
+
+Adapter spec前のデータ監査は、full ActivityNet rootを走査し、
+annotation JSONのdatabase keyとlocal video IDを集合比較する方針とする。
+
+確認対象root候補:
+- `manual_crawling_from_youtube/video`
+- `v1-3/train_val`
+- `v1-3/test`
+
+normalized video ID:
+- file stemのleading `v_` のみ除去
+- extensionはIDに含めない
+
+集計する値:
+- rootごとのvideo file数
+- rootごとのnormalized unique ID数
+- rootごとのJSON key一致ID数
+- JSONにはあるがlocal unionにないmissing ID数
+- localにはあるがJSONにないunmatched ID数
+- root横断duplicate ID数
+- extension別file数
+- JSON subset（training / validation / testing）ごとのmetadata総数、local available数、missing数
+
+重要:
+- duplicateはpath数2以上のnormalized IDとして検出し、path一覧を出す。
+- missingは各root単体ではなく、まず全local rootのunionに対して判定する。
+- subsetはdirectory名ではなくannotation JSONの `subset` をSSOTにする。
+- full dataset auditではvalidなfull `activity_net.v1-3.min.json` を使う。
+  添付ZIP内のJSONは抜粋で途中までのためfull auditの正本には使わない。
+
+このinventory結果をEvidenceにして、
+local root priority、missing policy、利用manifest、ActivityNet Adapterのsplit contractをspec化する。
