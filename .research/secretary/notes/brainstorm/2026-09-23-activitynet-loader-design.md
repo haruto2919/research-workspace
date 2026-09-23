@@ -1001,3 +1001,109 @@ ActivityNet Adapterがcontainer/codec別のdecode logicを持つ必要はない�
 
 sampling stride / temporal windowはAdapter specとは分離し、
 後続のvideo SSL training条件として扱う。
+
+
+## 2026-09-23 18:10 追記: training subsetとsequence単位の収束案
+
+現在の研究目的
+「画像事前学習済みViTへ動画を逐次入力し、自己教師あり学習でLoRAへ動画・時間的情報が
+どのように入るかを比較・解析する」
+に照らして、ActivityNet Adapter / baselineでは次を最有力とする。
+
+### SSLに使うsubset
+
+初期baselineでは `training` 10,024本のみをSSL学習に使う。
+
+`validation` 4,926本はheld-out evaluation / method selection / analysis用として保持し、
+`testing` 5,044本はtrainingへ混ぜない。
+
+理由:
+- SSLでもvalidation/testを学習入力へ含めると、後で同じsplitを評価に使う場合に
+  strict held-out比較ではなくtransductive設定になる。
+- 現研究ではsequential vs shuffle、LoRA設定、temporal controls等を比較するため、
+  untouched validationを残す方が比較設計が明確。
+- trainingだけで10,024動画あり、初期開発ループのデータ量として十分大きい。
+- 必要なら後に「training+validationでSSL」というdata-scale ablationを別条件として追加できる。
+
+### sequence単位
+
+Adapter contractは
+```text
+1 physical video = 1 sequence
+start_frame = 0
+stop_frame = None
+```
+を最有力とする。
+
+ActivityNet annotation segmentではsequenceを分割しない。
+
+理由:
+- 研究の「動画を逐次的に入力する」条件を自然に表現できる。
+- chunk 0 -> chunk 1 -> ... -> EOFというwithin-video chronologyを保てる。
+- sequence境界でmodel / optimizer-side stateをresetする規則を明確にできる。
+- action segmentで切るとlabel由来の境界をself-supervised input pipelineへ持ち込み、
+  研究上の「ラベルなしで動画から何を学ぶか」という条件が不必要に混ざる。
+- 将来のsequential vs shuffle比較でも、同じvideo/chunk集合に対してorderだけを変えやすい。
+
+### 重要な責務分離
+
+`1 video = 1 sequence` は、
+「全frameを必ず1-frame間隔で学習する」という意味ではない。
+
+Adapter:
+```text
+video identity / whole-video boundary / subset
+```
+
+後続sampling/training:
+```text
+frame stride
+temporal window
+clip sampling
+1 videoあたり何chunk使うか
+video order
+sequential vs shuffle
+```
+
+を担当する。
+
+ActivityNetの実測では同じ16 contiguous framesでも
+0.25〜1.25 sec等と実時間幅が大きく異なるため、
+sampling policyはAdapter specとは切り離して後続training specで決める。
+
+### 留意点
+
+whole-video sequential trainingでは長いvideoほどupdate回数が多くなり、
+video durationがtraining contributionへ直結する可能性がある。
+これはAdapterの問題ではなくtraining policyの論点であり、
+後続specで
+- per-video chunk budget
+- sampling interval / seconds-based sampling
+- video order
+- sequence reset
+を明示する必要がある。
+
+### 現時点の推奨baseline
+
+```text
+ActivityNet v1.3 training 10,024 videos
+        |
+        v
+1 video = 1 sequence
+        |
+        v
+whole-video boundaryを保持
+        |
+        v
+sampling policyは後段で適用
+        |
+        v
+sequential chunks
+        |
+        v
+ViT + LoRA + SSL
+```
+
+validation / testingは学習に使用しない。
+
+この方針はActivityNet Adapterの責務と研究上の比較可能性を最も分離しやすい。
