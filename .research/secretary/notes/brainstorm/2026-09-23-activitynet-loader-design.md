@@ -933,3 +933,71 @@ baseline Adapterの探索対象には含めない方向が有力。
 
 次の技術確認は、`.mp4` / `.mkv` / `.webm` を
 現行 `SequentialVideoReader` が問題なくdecodeできるかの少数smoke。
+
+
+## 2026-09-23 18:00 追記: mp4 / mkv / webm decode smoke
+
+研究サーバ上のActivityNet v1.3から各extensionを1本ずつ選び、
+現行 `SequentialVideoReader` で先頭16 frameをdecodeした。
+
+### mp4
+
+- video ID: `---9CpRcKoU`
+- path: `v1-3/train_val/v_---9CpRcKoU.mp4`
+- frames: `(16, 3, 240, 320)`
+- dtype: `torch.uint8`
+- valid: `16/16`
+- frame_indices: `0..15`
+- result: OK
+
+### mkv
+
+- video ID: `-02DygXbn6w`
+- path: `v1-3/train_val/v_-02DygXbn6w.mkv`
+- frames: `(16, 3, 720, 1280)`
+- dtype: `torch.uint8`
+- valid: `16/16`
+- frame_indices: `0..15`
+- result: OK
+
+### webm
+
+- video ID: `1v5HE_Nm99g`
+- path: `v1-3/train_val/v_1v5HE_Nm99g.webm`
+- frames: `(16, 3, 720, 1280)`
+- dtype: `torch.uint8`
+- valid: `16/16`
+- frame_indices: `0..15`
+- result: OK
+
+### 確認できたこと
+
+- `.mp4`, `.mkv`, `.webm` の3形式すべてを現行Readerでdecodeできる。
+- outputは既存contractどおりCPU `torch.uint8 [T,3,H,W]`。
+- 先頭16 frameのabsolute frame indexは `0..15`。
+- 3形式とも先頭chunkは `is_first=True`, `is_last=False`。
+- timestamp幅はformat/videoによって異なり、16 contiguous framesの実時間幅が動画ごとに異なることも実測できた。
+  - mp4例: 0.0〜0.5 sec
+  - mkv例: 0.0〜0.25 sec
+  - webm例: 0.0〜1.25 sec
+
+### Adapter specへの含意
+
+supported extensions候補を
+```text
+.mp4
+.mkv
+.webm
+```
+としてよいEvidenceが得られた。
+
+また、decode format差はReaderで吸収できているため、
+ActivityNet Adapterがcontainer/codec別のdecode logicを持つ必要はない。
+
+残る主要な研究方針決定は、
+- self-supervised trainingに `training` subsetのみを使うか
+- `1 video = 1 sequence`, whole-videoを正式採用するか
+である。
+
+sampling stride / temporal windowはAdapter specとは分離し、
+後続のvideo SSL training条件として扱う。
