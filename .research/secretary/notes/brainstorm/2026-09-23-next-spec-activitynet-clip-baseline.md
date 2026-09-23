@@ -120,3 +120,84 @@ masked meanはvalid frameのみを平均し、frame順を使わない order-inva
 - Stage 2 bridge処理をどこまでhelperへ切り出すか。大きな抽象化は避ける。
 
 このメモは探索記録であり、specまたは実装許可ではない。
+
+## 2026-09-23 追記: Hydra移行完了後の次段階
+
+### 最新状態
+
+- training configのargparse -> Hydra/YAML移行は実装・短時間検証まで完了したものとして扱う。
+- research codeの現在のGitHub基準は `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` の
+  `3c0e40e86924ceb38931c2d5214ecf3251a8f99d`。
+- ActivityNet Adapterの現在の基準は
+  `tamaki-lab/2026_09_ishikawa_sequential_loader@ActivityNet` の
+  `19a0ed7e4c00300214bc9a2fe12da8c72c0499c0`。
+- 50Saladsでは `SequentialSample -> frozen ViT -> frame_features [T,768]` のbridgeを確認済み。
+- ActivityNet -> ViT接続とclip-level representationは未実装。
+
+### 次に進める最有力Stage
+
+次の独立specは、Hydra移行とは切り離して次を対象とする。
+
+```text
+ActivityNet training subset
+  -> ActivityNetAdapter
+  -> SequentialSample [T,3,H,W]
+  -> valid frame extraction
+  -> AutoImageProcessor
+  -> frozen ViTFrameEncoder
+  -> frame_features [T,768]
+  -> valid_maskを使ったmasked mean
+  -> clip_feature [768]
+```
+
+初期chunkは `frames_per_chunk=16` のcontiguous framesを用いる候補を維持する。
+
+### なぜここまでを先に行うか
+
+- ActivityNet Adapterは完成しているが、研究code側のViT経路へまだ接続していない。
+- MoCo等のcontrastive SSLを実装する前に、query/keyへ渡すvideo-level feature contractが必要。
+- masked meanなら時間順序を使わないため、最初のorder-invariant late-fusion baselineとして解釈しやすい。
+- LoRA、MoCo、dataset integrationを一度に入れず、failure sourceを分離できる。
+
+### このStageで主張できること / できないこと
+
+確認できる:
+- ActivityNet動画を既存Sequential Loader経由でViT featureへ変換できる。
+- valid frameだけから1 chunkのfixed-size feature `[768]` を生成できる。
+- paddingをmeanへ混入しない。
+- ViT backboneをfrozenのまま利用できる。
+
+まだ主張できない:
+- LoRAが動画情報を学習した。
+- 時間順序を表現した。
+- 動的情報を獲得した。
+- sequential inputがshuffleより優れている。
+
+masked meanはpermutation invariantなので、この段階は明示的にtemporal baselineではなく
+order-invariant clip representation baselineとする。
+
+### その後の順序
+
+```text
+Stage 3
+ActivityNet -> ViT -> masked mean -> clip_feature [768]
+        ↓
+Stage 4
+ViTへLoRA注入
+base frozen / LoRA only trainable / 1-step update smoke
+        ↓
+Stage 5
+MoCo mechanics
+query / key / EMA / projector / InfoNCE / queue等
+        ↓
+Stage 6
+ActivityNet + sequential input + ViT + LoRA + MoCoを統合
+        ↓
+Stage 7
+ordered vs shuffle等のcontrol
+        ↓
+Stage 8
+temporal-specific control / LoRA parameter・feature解析
+```
+
+LoRAやMoCoをStage 3へ混ぜない方針を維持する。
