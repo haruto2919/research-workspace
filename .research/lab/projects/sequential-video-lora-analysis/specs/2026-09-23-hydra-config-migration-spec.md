@@ -11,7 +11,7 @@ workspace_base_commit: e7842199e34cafa3ab1c3489fb33f782e5cadc7c
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_base_branch: main
 implementation_base_commit: 7705e2159678fa516a8f17a0633e4712377b6eb9
-implementation_work_branch: refactor-hydra-config
+implementation_work_branch: dev
 hydra_version: 1.3.7
 ---
 
@@ -55,6 +55,7 @@ training設定をYAMLとしてversion controlし、Hydraでcompose / overrideで
 - dataset / model / optimizerをconfig group化する。
 - utility / smoke script固有の `argparse` は維持する。
 - Hydra導入だけを独立specとし、ActivityNet integration、clip aggregation、LoRA、MoCoを混ぜない。
+- 実装branchは既存の `dev` を使用する。
 
 ### 2.2 implementation基準revision
 
@@ -63,7 +64,8 @@ training設定をYAMLとしてversion controlし、Hydraでcompose / overrideで
 | Research Workspace | `haruto2919/research-workspace` | `main` | `e7842199e34cafa3ab1c3489fb33f782e5cadc7c` |
 | implementation base | `tamaki-lab/2026_09_ishikawa_sequential-video-lora` | `main` | `7705e2159678fa516a8f17a0633e4712377b6eb9` |
 
-implementation work branchは新規 `refactor-hydra-config` とする。
+implementation work branchは既存の `dev` とする。
+2026-09-23確認時点で `dev` は `main` と同じ `7705e2159678fa516a8f17a0633e4712377b6eb9` を指している。
 
 ### 2.3 現行実装から確認した依存関係
 
@@ -540,7 +542,7 @@ Hydra CLIがconfig表示だけで終了できない等の実装差異がある�
 
 本specの実装成功は次を全て満たすこととする。
 
-1. implementation baseが `main@7705e2159678fa516a8f17a0633e4712377b6eb9`。
+1. implementation work branchが `dev` であり、実装開始時点の基準が `7705e2159678fa516a8f17a0633e4712377b6eb9` である。
 2. `hydra-core==1.3.7` がdependencyとして追加される。
 3. `conf/config.yaml` がprimary configとして存在する。
 4. dataset / model / optimizerがconfig groupとして存在する。
@@ -618,7 +620,7 @@ main@7705e2159678fa516a8f17a0633e4712377b6eb9
 work branch:
 
 ```text
-refactor-hydra-config
+dev
 ```
 
 dependency:
@@ -659,6 +661,7 @@ ActivityNet
 working directory、dependency、verification、対象外を固定し、blocking ambiguityは残っていない。
 
 2026-09-23にユーザーが上記方針を採用し、本specの作成を明示的に依頼した。
+同日、実装branchを既存の `dev` に変更する指示を受け、本specへ反映した。
 コード実装およびtraining runはまだ実施していない。
 
 # Implementation Handoff
@@ -666,7 +669,7 @@ working directory、dependency、verification、対象外を固定し、blocking
 - approved spec: 本spec
 - implementation repository: `tamaki-lab/2026_09_ishikawa_sequential-video-lora`
 - base: `main@7705e2159678fa516a8f17a0633e4712377b6eb9`
-- work branch: `refactor-hydra-config`
+- work branch: `dev`
 - implementation purpose: flat argparse training configをYAML + Hydraへ移行
 - change scope: config files / training entrypoints / config consumer interface / dependency / README / tests
 - breaking change: 旧training CLI syntaxは廃止
