@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: Stage 4のActivityNet→ViT Q/V LoRA→masked meanで1-step更新を実データCPU smoke検証済み。base不変・LoRA更新を確認し、MoCoと時間情報獲得の評価は未実施。
+summary: Stage 5のViT-LoRA MoCoを実装し、ActivityNet 2動画のCPU 1-stepと新規38・既存87テストが成功。Query更新・Key EMA・base不変を確認。性能・時間情報獲得は未評価。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-09-24
@@ -35,6 +35,8 @@ last_updated: 2026-09-24
 
 2026-09-24、承認済みStage 4としてViT Q/V計24 moduleへのPEFT LoRAを実装し、ActivityNet先頭16 frameのCPU smokeで1-step更新を確認した。学習対象は294,912 parameters / 48 tensors、base変更0、LoRA変更24 tensors、勾配・更新後parameterは有限。新規22件・既存65件のテストが成功した。既存のpooler無効化と対応テスト修正も保持して検証済み。詳細は[Stage 4実装・検証記録](experiments/2026-09-24-vit-lora-one-step-verification.md)を参照。engineering-only lossでの経路確認までであり、MoCo・複数step学習・時間情報獲得の評価は未実施。
 
+同日、Stage 5としてViT-LoRAへMoCo v2-styleのQuery / Key / Projector / FIFO Queue / InfoNCE / EMAを追加した。実ActivityNetの異なる2動画を使うCPU 1-step smokeで、Query LoRA・Projector更新、Key EMA、両base不変を確認。same-sequence negative除外を含む新規38件・既存87件のテストも成功した。詳細は[Stage 5実装・検証記録](experiments/2026-09-24-stage5-moco-one-step-verification.md)を参照。実装は`dev`上で未コミット。複数step学習、性能、時間情報獲得の評価は未実施。
+
 基盤の成立後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
 ## マイルストーン
@@ -59,3 +61,4 @@ last_updated: 2026-09-24
 | 2026-09-23 | ActivityNet Adapter specを承認し、指定branchへ実装。Core無変更で全183テスト・実データinventory・3形式の先頭chunk smokeが成功 |
 | 2026-09-23 | Stage 3 specを承認・実装し、ActivityNet→frozen ViT→masked meanのclip feature `[768]`を実データ1 chunkで確認。新規25件・既存50Salads 1件・Hydra 38件成功 |
 | 2026-09-24 | Stage 4のQ/V LoRA encoderと1-step smokeを実装。新規22件・既存65件成功、実ActivityNet CPU smokeでbase不変・LoRA 24 tensors更新を確認 |
+| 2026-09-24 | Stage 5 MoCo v2-style mechanicsを実装。新規38件・既存87件と実ActivityNet 2動画のCPU 1-step smokeが成功。Query更新・Key EMA・base不変・queue更新を確認 |
