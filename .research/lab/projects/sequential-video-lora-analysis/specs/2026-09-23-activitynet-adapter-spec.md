@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: approved
 title: ActivityNet v1.3 Adapter for sequential_loader
 created: 2026-09-23
 last_updated: 2026-09-23
@@ -18,14 +18,14 @@ annotation_json: json/activity_net.v1-3.min.json
 
 # ActivityNet v1.3 Adapter for sequential_loader spec
 
-> **Status: draft**
+> **Status: approved**
 >
 > 本specは、既存 `sequential_loader` Coreを変更せず、
 > 50Saladsと同じ責務分離でActivityNet v1.3を `SequenceSource` へ変換する
 > dataset-specific Adapterを追加するための実装契約である。
 >
 > 実装先は既存branch `ActivityNet` とする。
-> 本spec作成はコード実装の許可を意味しない。
+> 2026-09-23にユーザーが本specの承認とコード実装を明示的に依頼した。
 
 ## 1. 目的
 
@@ -544,7 +544,7 @@ Reader統合確認では、既存Reader / Datasetを変更せず、
 
 ### 11.1 Blocking
 
-現時点で、spec内容をdraftとして作成する上でblocking ambiguityはない。
+本specの実装を妨げるblocking ambiguityはない。
 
 採用済み:
 
@@ -623,16 +623,16 @@ absolute dataset pathはAdapter実装へhard-codeせず、runtimeの `dataset_ro
 
 ## 14. Spec Gate
 
-本specは現在 `draft`。
+本specは現在 `approved`。
 
 ユーザーはActivityNet Adapterの方向性、
 strict error policy、
 既存 `ActivityNet` branchを使うことを採用した。
 
-ただし現在の依頼はspec作成までであり、コード実装は依頼されていない。
-実装へ進む前に、本specを明示的に承認して `approved` へ昇格させる。
+2026-09-23にユーザーが「このスペックをapprovedに変更し，実装してください」と
+明示的に依頼したため、承認済みとして実装と8章の短時間検証へ進む。
 
-# Implementation Handoff（approved後に有効）
+# Implementation Handoff（承認済み）
 
 - approved spec: 本spec
 - implementation repository: `tamaki-lab/2026_09_ishikawa_sequential_loader`
@@ -645,3 +645,9 @@ strict error policy、
 - allowed short verification: unit tests / source-count inventory / 3-format one-chunk smoke
 - long run permission: なし
 - excluded: ViT / LoRA / MoCo / training / sampling policy
+
+## 15. Implementation / Verification
+
+2026-09-23: 指定の`ActivityNet` branch / 基準commitで実装し、必須検証を完了した。
+ユーザー指定のstatus `approved`を維持する。検証結果と実装差分の識別情報は
+[実装・短時間検証記録](../experiments/2026-09-23-activitynet-adapter-verification.md)を参照。
