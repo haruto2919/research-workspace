@@ -169,3 +169,7 @@ ordered / shuffled / reversed / static-repeat等のcontrolを後続で比較す�
 masked meanを用いるが、このStageの目的は時間学習ではなくLoRA学習経路の成立確認に限定する。
 
 このメモは探索記録であり、specまたは実装許可ではない。
+
+## 2026-09-23: spec昇格先
+
+- [Stage 4 ActivityNet clip経路へのViT LoRA注入と1-step更新smoke spec](../../lab/projects/sequential-video-lora-analysis/specs/2026-09-23-vit-lora-one-step-smoke-spec.md)
