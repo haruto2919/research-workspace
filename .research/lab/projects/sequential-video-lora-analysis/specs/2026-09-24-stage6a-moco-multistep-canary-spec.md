@@ -2,7 +2,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: approved
+status: implemented
 title: Stage 6A ActivityNet ViT-LoRA MoCo multi-step canary
 created: 2026-09-24
 last_updated: 2026-09-24
@@ -11,6 +11,7 @@ workspace_base_branch: main
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_branch: dev
 implementation_base_commit: 1cbaa4a0fde2fd196a36feb3eeb0074709b52cd9
+implementation_commit: 8304d033b2cf2da7e6636842ef250ed45a5693bb
 sequential_loader_repository: tamaki-lab/2026_09_ishikawa_sequential_loader
 sequential_loader_branch: ActivityNet
 sequential_loader_commit: 19a0ed7e4c00300214bc9a2fe12da8c72c0499c0
@@ -489,7 +490,7 @@ ordering、source選択、shape、parameter集合、update semantics、finite性
 
 ## 14. Spec Gate
 
-本specは approved。
+本specは **implemented**。
 
 2026-09-24のユーザー指示
 「推奨を承認します．また，MoCo model内部へtraining loopを入れないことも実装方針に入れます．specが作成可能だったら作成してください」
@@ -519,6 +520,9 @@ ordering、source選択、shape、parameter集合、update semantics、finite性
 
 2026-09-24、指定`dev`へconsumer側orchestrationとentrypointを実装した。
 新規42件・既存125件のテストが成功し、人工データ10/100-stepと実ViT/PEFT接続を検証済み。
-実ActivityNetの10-step / fresh 100-stepは第14章に従い実行指示待ちであり、
-成功条件35・36は未検証。statusは`approved`を維持する。
-詳細は[実装・短時間検証記録](../experiments/2026-09-24-stage6a-moco-multistep-verification.md)を参照。
+さらに実ActivityNet 10-step smokeと別fresh processの100-step canaryが両方PASSし、
+成功条件35・36を含む本specの必須実装検証が完了した。
+
+実装commitは `8304d033b2cf2da7e6636842ef250ed45a5693bb`。
+本specのstatusを`implemented`へ更新した。
+詳細は[実装・検証記録](../experiments/2026-09-24-stage6a-moco-multistep-verification.md)を参照。
