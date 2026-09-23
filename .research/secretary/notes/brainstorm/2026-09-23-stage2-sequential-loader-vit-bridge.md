@@ -437,3 +437,39 @@ Stage 2 smokeだけなら、専用model classを増やさずsmoke script内のbr
 `VideoEncoder` 等の薄いwrapperへ切り出す候補がある。
 
 ただし現時点では、`ViTFrameEncoder` を動画modelへ肥大化させないことを優先する。
+
+
+## 2026-09-23 追記: 複数batch・複数frameへの拡張
+
+「frame列をimage batchとしてViTへ渡す」方針は、
+将来の `[B,T,C,H,W]` 入力を妨げない。
+
+基本変換は次。
+
+```text
+video batch [B,T,C,H,W]
+  -> flatten temporal dimension
+image batch [B*T,C,H,W]
+  -> ViTFrameEncoder
+frame features [B*T,D]
+  -> reshape
+video features [B,T,D]
+```
+
+paddingを含む場合は `valid_mask [B,T]` もflattenし、
+valid positionだけ `N_valid` 枚のimage batchとしてencodeし、
+featureを元の `[B,T,D]` 位置へscatterする。
+
+この設計ではViTFrameEncoderは引き続き
+`[N,C,H,W] -> [N,D]` の責務だけを持ち、
+BとTの意味は外側のvideo/bridge layerが管理する。
+
+注意:
+current sequential_loader strict modeはbatch_size=1でSequentialSampleへbatch次元を付けない。
+したがってStage 2 smokeは `[T,C,H,W] -> [T,D]` で十分。
+将来 `B>1` を使うかはmodel capabilityではなく、
+sequential/online update semanticsとloader/training orchestrationの設計問題として別に決める。
+
+特にonline/sequential比較では、複数sequenceを同一optimizer stepへまとめると
+「1 chunkずつ時系列に更新する」意味が変わり得るため、
+B>1対応可能であることとB>1を研究条件として採用することを分離する。
