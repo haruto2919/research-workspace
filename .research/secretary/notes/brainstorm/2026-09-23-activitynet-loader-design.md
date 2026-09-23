@@ -469,3 +469,256 @@ full ActivityNet v1.3の19,994 video ID集合をYouTubeから取得しようと�
 
 ActivityNet Adapterを設計するときはdirectory名だけでv1.2/v1.3を推定せず、
 annotation JSONのvideo ID / subsetをSSOTとしてlocal filesと照合する方針が有力。
+
+
+## 2026-09-23 17:20 追記: ActivityNet Adapter spec前チェックリスト
+
+ActivityNet Adapterをspec化する前に、
+「研究上の意味が変わるためユーザーが決める項目」と
+「実装前にデータ実体を確認すればよい項目」を分離した。
+
+### A. spec前に決めるべきblocking項目
+
+#### A1. dataset scope
+
+研究で使うActivityNetの集合を明示する。
+
+候補:
+- full ActivityNet v1.3
+- v1.3 additional videosのみ
+- 手元でdownload済みのavailable subset
+
+有力:
+full v1.3を論理datasetとし、実際に利用可能なlocal videoとのintersectionをmanifest化する。
+
+理由:
+directory名ではなくannotation JSONのvideo IDをSSOTにでき、
+release別保存場所やmanual crawlの重複を吸収できる。
+
+#### A2. annotation JSONの正本
+
+ActivityNet Adapterがsplit / metadata判定に使うJSONを1つ固定する。
+
+候補:
+- full `activity_net.v1-3.min.json`
+
+有力:
+v1.3のfull annotation JSONを正本とする。
+
+partial / truncated JSONはsmoke fixtureには使えても研究runのSSOTにはしない。
+
+#### A3. training / validation / testing policy
+
+有力:
+- self-supervised training: `training`
+- held-out check / evaluation: `validation`
+- `testing`: trainingへ混ぜない
+
+physical `train_val` directory名ではなくJSONの `subset` を使う。
+
+#### A4. local video discovery rootsと重複優先規則
+
+手元では少なくとも
+- `manual_crawling_from_youtube/video`
+- `v1-3/train_val`
+- `v1-3/test`
+に動画が存在し得る。
+
+同じnormalized video IDが複数rootに存在する場合のpolicyが必要。
+
+候補:
+1. duplicateは常にerror。
+2. root priorityを固定して1つを選ぶ。
+3. binary content / decode可能性を比較して選ぶ。
+
+有力:
+まず全rootをscanし、同一IDのduplicateを報告する。
+specでは優先順位を明示的に固定するか、duplicateが存在しないことを確認してから進む。
+黙って先に見つかったfileを採用しない。
+
+#### A5. missing video policy
+
+annotation JSONにはあるがlocal videoが存在しないケースの扱い。
+
+有力:
+available intersectionを利用可能datasetとして明示し、
+使用video ID manifestを固定する。
+missing count / IDsを必ず記録する。
+
+比較実験では同じmanifestを共有する。
+
+#### A6. 1 sequenceの定義
+
+有力:
+1 physical video = 1 sequence。
+
+```text
+start_frame = 0
+stop_frame = None
+```
+
+annotation segmentでsequenceを分割しない。
+
+#### A7. annotationの責務
+
+有力:
+Adapterはannotation JSONをsplit判定 / metadata参照には使うが、
+segment / labelをtraining inputやframe targetへ変換しない。
+
+annotation情報は `evaluation_reference` / `dataset_metadata` に保持し、
+厳密なtime-to-frame alignmentは評価specへ分離する。
+
+### B. 実装前に確認すべきデータ実体
+
+#### B1. full JSONがvalid JSONとしてparseできるか
+
+確認:
+- top-level keys
+- `database`
+- video entryの `subset`, `duration`, `annotations`
+- training / validation / testing件数
+
+#### B2. filename -> video ID normalization
+
+確認:
+- leading `v_` のみを除去するルールでJSON keyへ一致する割合
+- underscoreやhyphenを含むIDのedge case
+- extension違いでも同じIDとして扱えるか
+
+#### B3. extension集合
+
+添付では `.mp4` / `.mkv` を確認済み。
+
+full datasetで他extensionが存在するかをscanし、
+対応extensionをspecへ固定する。
+
+#### B4. rootごとのfile count / normalized ID count
+
+各rootについて:
+- file数
+- normalized unique ID数
+- JSON keyとのintersection
+- JSONにないlocal files
+- JSONにあるがlocalにないfiles
+- duplicate IDs
+
+を確認する。
+
+#### B5. duplicate実態
+
+`manual_crawling_from_youtube/video` と `v1-3/*` の間で
+同一video IDが重複しているかを実データで確認する。
+
+重複がある場合:
+- path
+- extension
+- file size
+- decode可能性
+を確認した上でpriority policyを決める。
+
+#### B6. subset-directory整合
+
+JSON `subset=training/validation` のIDが
+physical `train_val` またはmanual crawlのどこに存在するか、
+`subset=testing` がtest等に存在するかを確認する。
+
+directory名をsubsetのSSOTにしない。
+
+#### B7. decode smoke
+
+各subsetから少数videoを選び、
+`SequentialVideoReader` で
+- open可能
+- 先頭16 contiguous frames decode可能
+- output dtype / shape
+- EOF / padding
+を確認する。
+
+mp4とmkvを少なくとも1本ずつ含める。
+
+#### B8. duration / FPSのばらつき
+
+Adapter実装そのものには不要だが、
+training sampling設計のため確認する。
+
+- duration分布
+- FPS分布
+- resolution分布
+
+特にActivityNetは動画ごとにFPSが異なり得るため、
+16 contiguous framesの実時間幅が一定でない点を後続specで扱う。
+
+### C. Adapterの責務として固定したい候補
+
+```text
+ActivityNetAdapter
+  input:
+    dataset root / discovery roots
+    annotation JSON
+
+  responsibility:
+    local video discovery
+    video ID normalization
+    annotation metadata lookup
+    subset filtering
+    duplicate / missing reporting
+    deterministic SequenceSource enumeration
+
+  output:
+    SequenceSource(
+      sequence_id=video_id,
+      source_id=video_id,
+      source=video_path,
+      start_frame=0,
+      stop_frame=None,
+      source_metadata=...,
+      dataset_metadata=...,
+      evaluation_reference=...
+    )
+```
+
+Adapterに入れない候補:
+- frame stride
+- temporal subsampling
+- chunk size
+- shuffle
+- batch size
+- ViT preprocessing
+- LoRA / MoCo
+- annotation segment crop
+- frame-level target生成
+
+### D. Adapter smokeのsuccess候補
+
+Adapter単体:
+- full annotation JSONをparseできる。
+- training / validation / testingをJSON subsetで列挙できる。
+- source orderがdeterministic。
+- normalized IDがannotation keyへ対応する。
+- duplicate / missingをsilentに無視しない。
+- mp4 / mkvを扱える。
+
+Loader統合:
+- ActivityNet sourceから `SequentialSample` が得られる。
+- `frames [16,3,H,W]`, `valid_mask [16]`。
+- frame orderを壊さない。
+- tail paddingを既存core contractで扱える。
+
+研究repo統合:
+- Stage 2と同じbridgeを再利用し、
+  `SequentialSample -> ViTFrameEncoder -> [16,768]`
+  が成立する。
+
+### E. 現時点でspec前に最優先で確認・決定する順序
+
+1. full v1.3 annotation JSONを正本にするか。
+2. local video discovery rootsを列挙する。
+3. root横断のnormalized video ID inventoryを作る。
+4. duplicate IDの実態を確認し、priority policyを決める。
+5. missing policyと使用manifest方針を決める。
+6. training / validation / testing policyを固定する。
+7. 1 video = 1 sequence / whole-video policyを固定する。
+8. その後ActivityNet Adapter specへ昇格する。
+
+sampling / strideはAdapter specとは分離し、
+ActivityNetでの動画自己教師あり学習spec前に決める。
