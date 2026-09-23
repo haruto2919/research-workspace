@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: approved
+status: implemented
 title: Stage 5 ActivityNet ViT-LoRA MoCo v2-style 1-step mechanics smoke
 created: 2026-09-24
 last_updated: 2026-09-24
@@ -29,7 +29,7 @@ temperature: 0.07
 
 # Stage 5 ActivityNet ViT-LoRA MoCo v2-style 1-step mechanics smoke spec
 
-> **Status: approved**
+> **Status: implemented**
 >
 > 2026-09-24の壁打ちで、Stage 5をMoCo v2型のmechanicsを現在の
 > ActivityNet -> ViT+LoRA -> masked mean経路へ接続し、短時間の1-stepで検証する方針を

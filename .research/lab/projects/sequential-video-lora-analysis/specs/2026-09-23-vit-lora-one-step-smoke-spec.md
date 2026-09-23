@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: approved
+status: implemented
 title: Stage 4 ActivityNet clip経路へのViT LoRA注入と1-step更新smoke
 created: 2026-09-23
 last_updated: 2026-09-24
@@ -25,7 +25,7 @@ feature_size: 768
 
 # Stage 4 ActivityNet clip経路へのViT LoRA注入と1-step更新smoke spec
 
-> **Status: approved**
+> **Status: implemented**
 >
 > 本specは、Stage 3で成立した
 > `ActivityNet -> ViT frame feature -> masked mean clip feature`
