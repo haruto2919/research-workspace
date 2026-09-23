@@ -757,3 +757,129 @@ normalized video ID:
 
 このinventory結果をEvidenceにして、
 local root priority、missing policy、利用manifest、ActivityNet Adapterのsplit contractをspec化する。
+
+
+## 2026-09-23 17:40 追記: full ActivityNet inventory実測結果
+
+ユーザーが研究サーバ上のfull datasetに対してinventory scriptを実行した。
+
+### JSON
+
+- annotation: `/mnt/NAS-TVS872XT/dataset/ActivityNet/json/activity_net.v1-3.min.json`
+- valid JSONとしてparse可能
+- JSON video IDs: 19,994
+
+subset:
+- training: 10,024
+- validation: 4,926
+- testing: 5,044
+
+### local roots
+
+#### manual_crawling_from_youtube/video
+
+- video files: 18,226
+- normalized unique IDs: 18,226
+- JSON matched IDs: 18,226
+- local-only: 0
+- extension: mp4 18,226
+
+#### v1-3/train_val
+
+- video files: 14,950
+- normalized unique IDs: 14,950
+- JSON matched IDs: 14,950
+- local-only: 0
+- extensions:
+  - mp4: 13,545
+  - mkv: 1,386
+  - webm: 19
+
+#### v1-3/test
+
+- video files: 5,044
+- normalized unique IDs: 5,044
+- JSON matched IDs: 5,044
+- local-only: 0
+- extensions:
+  - mp4: 4,637
+  - mkv: 403
+  - webm: 4
+
+### union
+
+- local unique IDs: 19,994
+- JSON matched IDs: 19,994
+- missing IDs: 0
+- local-only IDs: 0
+- duplicate IDs: 18,226
+
+subset別local available:
+- training: 10,024 / 10,024
+- validation: 4,926 / 4,926
+- testing: 5,044 / 5,044
+- missing: all 0
+
+### 重要な解釈更新
+
+`v1-3/train_val` と `v1-3/test` の合計は
+
+```text
+14,950 + 5,044 = 19,994
+```
+
+で、annotation JSONのfull ActivityNet v1.3全ID数と一致する。
+
+また、
+
+```text
+training + validation
+= 10,024 + 4,926
+= 14,950
+```
+
+で `v1-3/train_val` のunique ID数と一致し、
+`testing = 5,044` は `v1-3/test` と一致する。
+
+したがって、この研究サーバ上のlocal layoutでは
+`v1-3/train_val` と `v1-3/test` がfull ActivityNet v1.3を完全に保持している
+と考えるのが最も整合的。
+
+以前の「v1-3 directoryはadditional videosだけ」という解釈は、
+official tarballの命名説明には当てはまっても、
+現在の研究サーバ上の展開済みdirectoryの実体には当てはまらない。
+Adapter設計では実測されたlocal layoutを優先する。
+
+### manual_crawling rootの位置付け
+
+18,226 IDがすべてfull v1.3集合内にあり、
+global duplicate IDsも18,226であることから、
+`manual_crawling_from_youtube/video` は
+`v1-3/train_val` / `v1-3/test` に存在する動画のsubset copyと考えられる。
+
+このためAdapterの通常探索rootとして両方を同時利用すると
+18,226件のduplicateを必ず発生させる。
+
+現時点の有力方針:
+- primary local rootsは
+  - `v1-3/train_val`
+  - `v1-3/test`
+- `manual_crawling_from_youtube/video` は通常探索対象から除外
+- fallbackとして使う必要は、primary rootsが0 missingなので現時点ではない
+
+これによりduplicate priority policy自体をAdapterへ持ち込まずに済む。
+
+### 次に確認したい最小事項
+
+spec化前の残確認は主に次。
+
+1. JSON subsetとphysical directoryの整合を集合演算で確認する。
+   - training ∪ validation == v1-3/train_val IDs
+   - testing == v1-3/test IDs
+   - train_valとtestのintersection == 0
+2. mp4 / mkv / webm各形式を少数decode smokeする。
+3. 1 video = 1 sequence / whole-video方針を正式に採用する。
+4. trainingのみをself-supervised learningに使うかを決定する。
+
+missing policyはfull primary rootsでmissing=0のため、
+今回のAdapter baselineでは複雑なfallbackを持たせない方向が有力。
