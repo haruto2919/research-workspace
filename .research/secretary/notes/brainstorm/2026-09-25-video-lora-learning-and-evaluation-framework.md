@@ -394,3 +394,104 @@ input orderを変えると、
 
 現行4-stream + different-sequence-only negativesは2と4をある程度回避するためのbaselineだが、
 strict online性を弱めるため、そのtrade-offを研究上明示する必要がある。
+
+
+## 2026-09-25 19:19 追記: current clip augmentationをpositive、past clipsをnegativeにするstrict online MoCo案
+
+### ユーザー案
+
+現在clip xから2 viewを作る。
+
+- query view: current clip x
+- positive key view: xへRGB channel permutation（例 RGB -> GBR）やhorizontal flip等のaugmentationを適用
+- negatives: Queueに保存された過去clipのkey
+- negative判定をvideo / sequence_id単位で制限せず、current clip以外のpast clipを候補にする
+
+この場合、1本の動画を連続処理してもpast clipがnegative dictionaryになるため、
+different-video-only policyで生じるstrict one-video streamのnegative枯渇を回避できる。
+
+### 確認
+
+これはMoCoのinstance discriminationに近い定義であり、技術的には成立する。
+original MoCoでもsame instanceの2 augmentationをpositive、別instanceをnegativeとして扱う。
+
+clipをinstanceと定義すれば、
+
+- current clipの2 view = positive
+- 別clip = negative
+
+という設計は一貫している。
+
+### 残る問題: false negative
+
+positive constructionとnegative validityは別。
+
+同一長尺動画の隣接clip A_t と A_{t-1} は別clipだが、
+同じaction / scene / objectを含み、semanticにはpositiveに近い可能性がある。
+それを強制的にnegativeにすると、時間的に連続した表現を離す学習になる。
+
+この性質は必ず悪いわけではない。
+研究目的が「各clipを細かく識別するinstance discrimination」ならhard negativeとして有効な可能性がある。
+一方、「同じactionや連続motionを共通表現として保持する」ことが目的なら逆方向の学習信号になる。
+
+### 三つのnegative policy候補
+
+A. different-video-only
+- false negativeを保守的に避ける。
+- strict one-videoではnegative不足。
+- 現行baseline。
+
+B. all-past-clips
+- strict one-video onlineと相性がよい。
+- negativeを大量に確保できる。
+- same-action / adjacent clip false negativeが増える可能性。
+
+C. temporal-aware
+- current clipのaugmentationをpositive。
+- 直近±w clipはnegativeから除外、またはsoft positive候補。
+- 十分離れたpast clipをnegative。
+- strict online性とfalse negative抑制の中間案。
+- wの選択自体がhyperparameter / ablationになる。
+
+### augmentationの注意
+
+RGB -> GBRの固定channel permutationは可能だが、ImageNet-pretrained ViTには強いdistribution shiftになる可能性がある。
+またpositive pairとして常用するとcolor/channel identityを捨てるよう学習する可能性がある。
+
+video SSLのbaselineとしては、
+
+- random resized crop
+- color jitter
+- grayscale
+- blur
+- horizontal flip
+
+等の標準augmentationを、clip内全frameへ時間的一貫性を保って適用する方が比較しやすい。
+
+horizontal flipも、左右方向そのものを研究対象にする場合はmotion directionを反転するので、
+「保持したい情報」を考えてpositive augmentationを決める必要がある。
+
+### 現時点の方向性
+
+ユーザー案は、different-video-only制約を外してstrict online MoCoへ進む有力候補。
+
+ただし最初からcurrent policyを置き換えるより、
+
+1. different-video-only
+2. all-past-clips
+3. temporal-exclusion-window
+
+を同一条件で比較し、
+
+- linear probe
+- positive / negative similarity
+- same-video adjacent similarity
+- LoRA gradient / update norm
+- Queue age
+
+を観測すると、negative policy自体がLoRAへ何を学ばせるか評価できる。
+
+特に「past clipをnegativeにすることでmotion changeを強調できる」という仮説と、
+「same-action false negativeでsemantic表現を壊す」という反対仮説を両方検証する価値がある。
+
+この追記は探索記録であり、specまたは実装許可ではない。
