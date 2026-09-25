@@ -319,3 +319,78 @@ strict onlineと4-streamは別factor。
 - Learning from Streaming Video with Orthogonal Gradients: https://openaccess.thecvf.com/content/CVPR2025/html/Han_Learning_from_Streaming_Video_with_Orthogonal_Gradients_CVPR_2025_paper.html
 
 このメモは探索記録であり、specまたは実装許可ではない。
+
+
+## 2026-09-25 追記: MoCoをonline / sequential動画学習で使う際の主要問題
+
+### 1. 連続clipが非IIDで強く相関する
+
+通常の学習ではshuffleによってbatch間の相関を下げるが、streaming動画では隣接clipが見た目・背景・物体・動作で強く似る。
+その結果、連続gradientも強く相関し、更新が冗長化しやすい。
+CVPR 2025のOrthogonal Gradients研究でも、shuffledからsequentialへ移るとVideoMAE等のdownstream性能が落ちることが報告されている。
+
+### 2. same-video false negative
+
+MoCoで過去clipをnegativeにすると、同一動画の隣接clipや同じaction区間を「異なるもの」として離してしまう可能性がある。
+現在のStage 5 baselineではsame sequence_idをnegativeから除外する設計を採用している。
+
+### 3. Queueのstaleness
+
+Queue内のkeyは過去時点のmomentum encoderで計算されたfeatureであり、現在のQuery / Key encoderが変化すると表現空間にずれが生じる。
+VideoMoCoはこの問題をtemporal decayで扱っている。
+
+### 4. strict one-video streamではnegativeが枯れやすい
+
+same-videoをnegativeから除外したまま1本の長い動画を連続処理すると、Queueがその動画のkeyで埋まり、current queryに使えるdifferent-video negativeが減る。
+現行4-stream round-robinはこの問題を避けるengineering designだが、strict one-video-at-a-time onlineとは異なる。
+
+### 5. EMA Key encoderの追従遅れ
+
+Key encoderはQueryをEMAでゆっくり追うため、急なscene / domain変化ではcurrent Queryに対してKeyが古い状態になる可能性がある。
+momentumを高くすると安定性は上がる一方で追従は遅くなるため、streamingでdistribution shiftが速い場合はtrade-offになる。
+
+### 6. forgettingとorder dependence
+
+Base ViTをfreezeしても単一LoRAを逐次更新し続ければ、後から来た動画に合わせてLoRAが変化し、以前の動画に有用だった方向を失う可能性がある。
+chronological / shuffledで最終LoRAが変わること自体も重要な評価対象になる。
+
+### 7. MoCo objectiveだけではtemporal orderを保証しない
+
+same clipのtwo-viewをpositive、different videoをnegativeとするだけでは、静的なscene / object semanticsでlossを下げられる可能性がある。
+現行masked meanはclip内frame permutationに不変なので、streamを時系列順に入力してもframe orderを理解したことにはならない。
+
+### 8. online protocolとQueueの扱い
+
+Queueはraw sampleを再学習するreplay bufferではないが、past representationを保持してcurrent lossに使う。
+そのため「online / single-pass」を何と定義するかを明記し、past featureの利用を許可するprotocolかを固定する必要がある。
+
+### 9. warm-upと初期negative不足
+
+学習開始直後はQueueが空または小さく、十分なnegativeがない。
+現行Stage 6Aでは複数streamの最初のkeyをKey-only warm-upでQueueへ入れてから更新を始めている。
+
+### 10. chronological vs shuffle比較の交絡
+
+input orderを変えると、
+- optimizer state
+- EMA Key encoder state
+- Queue composition
+- negativeのage
+も同時に変わる。
+
+したがってchronological vs shuffleの差を「時間順序を学んだ効果」と直ちに解釈せず、Queue構成やgradient norm等も同時にログする必要がある。
+
+### 現研究での重要度
+
+特に優先度が高いのは、
+
+1. non-IID / gradient correlation
+2. same-video false negatives
+3. queue staleness
+4. strict online時のnegative不足
+5. MoCo objectiveがtemporal orderを直接要求しないこと
+
+である。
+
+現行4-stream + different-sequence-only negativesは2と4をある程度回避するためのbaselineだが、
+strict online性を弱めるため、そのtrade-offを研究上明示する必要がある。
