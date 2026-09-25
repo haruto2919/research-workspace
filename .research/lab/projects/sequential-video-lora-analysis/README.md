@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: Stage 6Aの4-stream MoCo multi-stepを実装。新規42・既存125テストと人工データ10/100-stepが成功。実ActivityNet 10/100-stepは実行指示待ち。
+summary: AIを用いたActivityNet MoCo 100-step検証はPASS。実装の正しさは未確証で、LoRA評価とVideoMAE移植を検討中。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-09-24
+last_updated: 2026-09-25
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -35,11 +35,13 @@ last_updated: 2026-09-24
 
 2026-09-24、承認済みStage 4としてViT Q/V計24 moduleへのPEFT LoRAを実装し、ActivityNet先頭16 frameのCPU smokeで1-step更新を確認した。学習対象は294,912 parameters / 48 tensors、base変更0、LoRA変更24 tensors、勾配・更新後parameterは有限。新規22件・既存65件のテストが成功した。既存のpooler無効化と対応テスト修正も保持して検証済み。詳細は[Stage 4実装・検証記録](experiments/2026-09-24-vit-lora-one-step-verification.md)を参照。engineering-only lossでの経路確認までであり、MoCo・複数step学習・時間情報獲得の評価は未実施。
 
-同日、Stage 5としてViT-LoRAへMoCo v2-styleのQuery / Key / Projector / FIFO Queue / InfoNCE / EMAを追加した。実ActivityNetの異なる2動画を使うCPU 1-step smokeで、Query LoRA・Projector更新、Key EMA、両base不変を確認。same-sequence negative除外を含む新規38件・既存87件のテストも成功した。詳細は[Stage 5実装・検証記録](experiments/2026-09-24-stage5-moco-one-step-verification.md)を参照。実装は`dev`上で未コミット。複数step学習、性能、時間情報獲得の評価は未実施。
+同日、Stage 5としてViT-LoRAへMoCo v2-styleのQuery / Key / Projector / FIFO Queue / InfoNCE / EMAを追加した。実ActivityNetの異なる2動画を使うCPU 1-step smokeで、Query LoRA・Projector更新、Key EMA、両base不変を確認。same-sequence negative除外を含む新規38件・既存87件のテストも成功した。詳細は[Stage 5実装・検証記録](experiments/2026-09-24-stage5-moco-one-step-verification.md)を参照。複数step学習、性能、時間情報獲得の評価はこの段階では未実施。
 
-同日、Stage 6Aのconsumer側4-stream round-robinとKey-only warm-up、multi-step MoCo更新・監査を実装した。新規42件・既存125件のテストが成功し、人工データで10/100-stepと実ViT/PEFT接続を確認。実ActivityNetの10-step / fresh 100-step Gateはspecに従って実行指示待ち。詳細は[Stage 6A実装・短時間検証記録](experiments/2026-09-24-stage6a-moco-multistep-verification.md)を参照。実装は`dev`上で未コミット。
+同日、Stage 6Aのconsumer側4-stream round-robinとKey-only warm-up、multi-step MoCo更新・監査を実装した。新規42件・既存125件のテストが成功し、人工データで10/100-stepと実ViT/PEFT接続を確認。MTG時点では実ActivityNetの100-step結果は未確認だったが、その後、AIを用いた実行で10-stepと別fresh processの100-stepがCPUでPASSした。Queueは4→14 / 4→104、Baseは不変、Query LoRAとProjectorは更新された。これらはAIを用いて実行した範囲の観測結果であり、実装全体の正しさには現段階でも確証がない。表現性能・動的情報獲得の証拠でもない。詳細は[Stage 6A実装・短時間検証記録](experiments/2026-09-24-stage6a-moco-multistep-verification.md)を参照。実装commitは`8304d033`。
 
-基盤の成立後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
+2026-09-24のMTGでは、MoCoの過去Keyを逐次入力でnegativeにする妥当性、画像MAE重みをVideoMAEへ移してearly fusionを試す案、学習済みLoRAの下流タスク・linear probeおよび特異値・層別変化の解析を議論した。現行のActivityNet + late fusion経路はAIを用いて確認を進めているが、実装の正しさは未確証。次週に確認結果と残る不確実性、LoRA学習の根拠を報告する。詳細は[9月24日の議事録](meetings/2026-09-24-mtg.md)を参照。
+
+実装の正しさと基盤の成立を検証した後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
 ## マイルストーン
 
@@ -48,6 +50,9 @@ last_updated: 2026-09-24
 - [ ] 逐次入力に対するLoRAのみのファインチューニングを動作させる
 - [ ] 学習済みLoRAが保持する動画情報の評価方法を定める
 - [ ] 動画生成またはVLMを用いてLoRAを評価する
+- [ ] 現行ActivityNet + late fusion + MoCo経路のAIによる確認結果と実装の未確証点を次回MTGで報告する
+- [ ] 画像MAE/ViTの重みをVideoMAEへ移す方法を調査・検証する
+- [ ] 下流タスク・linear probeとLoRAの大きさ・特異値・層別変化による評価条件を定める
 - [ ] 静的・動的情報の分離やLoRAの直交化を検討する
 
 ## 更新履歴
@@ -64,4 +69,6 @@ last_updated: 2026-09-24
 | 2026-09-23 | Stage 3 specを承認・実装し、ActivityNet→frozen ViT→masked meanのclip feature `[768]`を実データ1 chunkで確認。新規25件・既存50Salads 1件・Hydra 38件成功 |
 | 2026-09-24 | Stage 4のQ/V LoRA encoderと1-step smokeを実装。新規22件・既存65件成功、実ActivityNet CPU smokeでbase不変・LoRA 24 tensors更新を確認 |
 | 2026-09-24 | Stage 5 MoCo v2-style mechanicsを実装。新規38件・既存87件と実ActivityNet 2動画のCPU 1-step smokeが成功。Query更新・Key EMA・base不変・queue更新を確認 |
-| 2026-09-24 | Stage 6A consumer側multi-stepを実装。新規42・既存125テスト成功。人工データ10/100-step検証済み、実ActivityNetの10/100-stepは実行指示待ち |
+| 2026-09-24 | MTGでオンライン学習に合う動画LoRA獲得を研究目的として再確認。現行MoCo経路と画像MAE重みのVideoMAE移植を検討し、下流評価・LoRA解析を課題とした |
+| 2026-09-24 | MTG後、AIを用いたStage 6Aの実ActivityNet 10-stepとfresh 100-stepがPASS。新規42・既存125テストも成功。表現性能・時間情報獲得は未評価 |
+| 2026-09-25 | ユーザー補足を反映。動作・テストのPASSはAIを用いた確認結果であり、実装が意図どおり正しいかは現段階でも未確証と明記 |
