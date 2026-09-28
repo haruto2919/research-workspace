@@ -495,3 +495,81 @@ horizontal flipも、左右方向そのものを研究対象にする場合はmo
 「same-action false negativeでsemantic表現を壊す」という反対仮説を両方検証する価値がある。
 
 この追記は探索記録であり、specまたは実装許可ではない。
+
+
+## 2026-09-28 追記: ActivityNet + image-pretrained ViT + LoRA + MoCo方針の妥当性
+
+### 結論
+
+この構成は「画像事前学習ViTに対して、動画データからLoRAだけを自己教師あり適応し、有用な動画表現を得られるか」を調べる**baselineとして妥当**。
+
+一方、現行のframe-wise ViT + masked mean + same-clip augmentation MoCoだけでは、clip内の時間順序やmotionを直接loss成立条件にしていないため、
+「時間情報を学習したLoRA」を主張する最終方式としては不足する。
+
+### ActivityNetを使う意味
+
+ActivityNet v1.3は大規模なuntrimmed動画集合で、多様なhuman activityと長い背景区間を含む。
+この性質は、
+- unlabeled video pretraining
+- sequential / streaming入力
+- action表現のlinear probe
+には使いやすい。
+
+一方で、
+- background比率が高い
+- 1動画内に複数activityが存在しうる
+- 隣接clipが非常に冗長
+ため、same-video negative policyやmotion評価では注意が必要。
+
+### image-pretrained ViT + LoRAの意味
+
+利点:
+- 画像で獲得済みのsemantic表現をBase ViTに保持しながら、動画で必要な追加変化をLoRAへ限定できる。
+- 「画像pretrainingに対して動画が何を追加したか」という研究問いを作りやすい。
+- LoRAのSVD、layer/QKV ablation、gradient/update norm等の内部解析がしやすい。
+
+制約:
+- 現行frame-wise ViTでは各frame内のspatial tokenしかattentionしない。
+- masked meanはframe permutationに不変。
+- よってLoRAが直接cross-frame relationを学ぶ構造ではない。
+
+### MoCoを使う意味
+
+利点:
+- labelなしでActivityNetを使える。
+- queue + momentum encoderはsmall-batch sequential条件でもcontrastive dictionaryを確保しやすい。
+- current implementationが既にmulti-stepまで成立しており、baseline構築コストが低い。
+
+問題:
+- sequential videoのnon-IID / gradient correlation
+- same-video false negative
+- queue key staleness
+- strict one-streamでのnegative policy
+- static semanticsだけでもlossを下げられる
+- chronological inputだけではtemporal order learningを保証しない
+
+### 研究上の主張を分ける
+
+このbaselineでまず検証できる主張:
+「ActivityNetのunlabeled動画でMoCo学習したLoRAが、frozen image-pretrained ViTよりdownstream representationを改善するか」
+
+このbaselineだけでは弱い主張:
+「LoRAがframe order / motion / temporal dynamicsを学習した」
+
+後者には、
+- reverse / static-repeat / motion-sensitive control
+- temporal aggregator
+- future prediction
+- ImageNet-initialized VideoMAE-style
+等との比較が必要。
+
+### 推奨評価順
+
+1. Base ViT vs MoCo-LoRAをlinear probeで比較。
+2. pre-projector featureを主評価し、Projector学習との交絡を避ける。
+3. negative policyを different-video-only / all-past / temporal-exclusion で比較。
+4. motion scoreとLoRA gradient / update normをログ。
+5. MoCo baselineとImageNet-initialized VideoMAE-style LoRAを同じdownstream評価で比較。
+6. temporal claimはreverse / static-repeat等のcontrolと組み合わせて判断。
+
+この追記は探索記録であり、specまたは実装許可ではない。
