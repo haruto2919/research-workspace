@@ -85,3 +85,12 @@ x_transは「online制約を避けるaugmentation」というより、
 VideoMoCo、CVRL、temporal contrastive objective等との比較が必要。
 
 このメモは探索記録であり、specまたは実装許可ではない。
+
+
+## 2026-09-28 specへの昇格
+
+現在のユーザー指示により、x_trans（RGB→GBR + horizontal flip）、same-video past negatives、1-stream strict onlineの実装契約を次のapproved specへ昇格した。
+
+- `.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-28-stage6b-strict-online-moco-xtrans-spec.md`
+
+以後、この変更の実装契約は上記specを正本とする。
