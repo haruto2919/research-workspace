@@ -168,3 +168,62 @@ historical Stage 6A smoke CLIを残す必要がある場合は薄いcompatibilit
 比較可能性、保守性、testの明確さの点で優れる。
 
 これは探索中の設計案であり、既存approved Stage 6B specの変更はまだ行わない。
+
+
+## 2026-09-28 追記: 共通化spec作成前のreadiness整理
+
+### 現在の判断
+
+Stage 6A / 6Bを別loopとして保持するより、共通Streaming MoCo engineへ寄せ、
+protocol差分を明示的な軸として選択可能にする設計が有力。
+
+共通化候補:
+- stream mode
+- key-view transform
+- negative policy
+- warm-upは「active streamごとの最初の1 sampleをKey-only enqueue」と一般化できる
+
+Stage 6A:
+- stream_mode = round_robin
+- source_count = 4
+- key_transform = horizontal_flip
+- negative_policy = different_sequence
+
+Stage 6B:
+- stream_mode = strict_single
+- source_count = 1
+- key_transform = gbr_horizontal_flip
+- negative_policy = all_past_in_queue
+
+### spec前のblocking候補
+
+1. 「同じ動画の過去clipをnegative」の範囲
+   - bounded FIFO Queue（K=4096）に現在保持されている全past keyを使う
+   - それとも4096を超えても全履歴を保持する
+   MoCoの現行設計・比較可能性を保つなら前者を推奨。
+
+2. protocol選択の外部interface
+   - Stage 6A / 6B presetだけ選ぶ
+   - stream / transform / negative policyを独立に選べる
+   ablationを考えると独立3軸を内部protocolとして持ち、Stage 6A / 6Bはpresetとして定義する案を推奨。
+   CLIで3軸すべてを直接公開するかは実装interface判断として別途固定する。
+
+3. strict onlineの今回scope
+   - 1本のActivityNet動画内だけでmechanicsを検証
+   - 複数動画境界まで今回定義
+   初期specでは1動画内に限定し、動画境界Queue reset/keepはfull-training specへ分離する案を推奨。
+
+### non-blocking候補
+
+- class / function / file名
+- dataclass / enum / literalの具体形
+- logging fieldの整形
+- historical Stage 6A CLIを薄いwrapperとして残すか、同一CLIのpreset aliasにするか（既存実行コマンド互換を保つ限り）
+- internal helperの分割
+
+### 既存approved specの扱い
+
+現在のStage 6B approved specは「Stage 6B専用consumerを追加する」設計であり、
+最新の共通engine方針と一致しない。
+共通化方針を正式採用する場合は、このspecをそのまま実装せず、
+superseded扱いにして共通protocol設計の新specへ置き換えるのが安全。
