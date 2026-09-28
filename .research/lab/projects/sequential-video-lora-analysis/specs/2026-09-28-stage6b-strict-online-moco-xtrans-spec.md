@@ -1,12 +1,13 @@
 ---
 project: sequential-video-lora-analysis
 record_type: implementation-spec
-status: approved
+status: superseded
 created: 2026-09-28
 last_updated: 2026-09-28
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_branch: dev
 implementation_base_commit: 4835b5736f0b1dcc9962cbeffd85e880010311ea
+superseded_by: 2026-09-28-shared-streaming-moco-protocol-spec.md
 ---
 
 # Stage 6B: x_trans + same-video past negatives + strict online MoCo
@@ -270,3 +271,13 @@ Git commit / push / PRはengineering-taskの実行境界に従い、別途明示
 - 短時間検証: 許可
 - 長時間run: 未許可
 - 未検証予定: downstream性能、temporal learning、full-dataset sequence-boundary policy
+
+
+## Superseded
+
+2026-09-28、Stage 6A / Stage 6Bを別consumerとして保持する設計を撤回し、共通Streaming MoCo engineへ統合する方針を採用したため、本specはsupersededとする。
+
+後継spec:
+- `2026-09-28-shared-streaming-moco-protocol-spec.md`
+
+本specを新規実装のAuthorityとして使用しない。
