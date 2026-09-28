@@ -227,3 +227,14 @@ Stage 6B:
 最新の共通engine方針と一致しない。
 共通化方針を正式採用する場合は、このspecをそのまま実装せず、
 superseded扱いにして共通protocol設計の新specへ置き換えるのが安全。
+
+
+## 2026-09-28 共通Streaming MoCo specへの昇格
+
+Stage 6A / Stage 6Bを別training loopとして保持せず、
+stream / key transform / negative policyを独立3軸とする共通Streaming MoCo protocolへ統合する方針を正式spec化した。
+
+後継Authority:
+- `.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-28-shared-streaming-moco-protocol-spec.md`
+
+旧 `2026-09-28-stage6b-strict-online-moco-xtrans-spec.md` はsuperseded。
