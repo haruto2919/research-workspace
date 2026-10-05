@@ -573,3 +573,12 @@ ActivityNet v1.3は大規模なuntrimmed動画集合で、多様なhuman activit
 6. temporal claimはreverse / static-repeat等のcontrolと組み合わせて判断。
 
 この追記は探索記録であり、specまたは実装許可ではない。
+
+## 2026-10-05 full-dataset / Linear Probe specへの昇格
+
+full-dataset single-pass Streaming MoCo、Query LoRA snapshot / resume、ActivityNet segment-level
+Linear Probe、Comet artifact lineageの承認済み実装契約を次へ保存した。
+
+- `.research/lab/projects/sequential-video-lora-analysis/specs/2026-10-05-full-dataset-streaming-moco-linear-probe-spec.md`
+
+以後、このscopeの実装契約は上記specを正本とする。本メモは探索記録として保持する。
