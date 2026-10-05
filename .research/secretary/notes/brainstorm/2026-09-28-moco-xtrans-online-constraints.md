@@ -238,3 +238,12 @@ stream / key transform / negative policyを独立3軸とする共通Streaming Mo
 - `.research/lab/projects/sequential-video-lora-analysis/specs/2026-09-28-shared-streaming-moco-protocol-spec.md`
 
 旧 `2026-09-28-stage6b-strict-online-moco-xtrans-spec.md` はsuperseded。
+
+## 2026-10-05 full-dataset後続spec
+
+approved共有Streaming MoCo protocolを前提に、複数動画境界のstate keep、single-pass full-dataset、
+Query LoRA snapshot / resume、ActivityNet segment-level Linear Probe、Comet lineageを次で固定した。
+
+- `.research/lab/projects/sequential-video-lora-analysis/specs/2026-10-05-full-dataset-streaming-moco-linear-probe-spec.md`
+
+共有protocol自体のAuthorityは既存2026-09-28 specが維持し、上記はfull-dataset・評価段階の後続契約とする。
