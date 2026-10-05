@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: AIを用いたActivityNet MoCo 100-step検証はPASS。実装の正しさは未確証で、LoRA評価とVideoMAE移植を検討中。
+summary: 共通Streaming MoCoのStage 6A/6Bを実装しCPUテスト242件成功。実装全体の正しさ・表現性能は未確証。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-09-25
+last_updated: 2026-09-28
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -41,6 +41,8 @@ last_updated: 2026-09-25
 
 2026-09-24のMTGでは、MoCoの過去Keyを逐次入力でnegativeにする妥当性、画像MAE重みをVideoMAEへ移してearly fusionを試す案、学習済みLoRAの下流タスク・linear probeおよび特異値・層別変化の解析を議論した。現行のActivityNet + late fusion経路はAIを用いて確認を進めているが、実装の正しさは未確証。次週に確認結果と残る不確実性、LoRA学習の根拠を報告する。詳細は[9月24日の議事録](meetings/2026-09-24-mtg.md)を参照。
 
+2026-09-28、承認済みspecに従い、Stage 6AとStage 6Bを共通Streaming MoCo engineと3軸protocolへ統合した。Stage 6Bは1動画のstrict-single、valid frameのGBR→horizontal flip、FIFO内のsame-video past negativesを使用する。既存167件・新規75件のCPUテストが成功し、Stage 6A基準loopとの人工10-step数値一致、Stage 6Bの実ViT/PEFT短時間integrationを確認した。実装は未コミット。Stage 6Bの実ActivityNet runと表現性能評価は未実施で、これらのテストは実装全体の正しさや時間情報獲得を保証するものではない。詳細は[共通Streaming MoCo実装・検証記録](experiments/2026-09-28-shared-streaming-moco-verification.md)を参照。
+
 実装の正しさと基盤の成立を検証した後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
 ## マイルストーン
@@ -72,3 +74,4 @@ last_updated: 2026-09-25
 | 2026-09-24 | MTGでオンライン学習に合う動画LoRA獲得を研究目的として再確認。現行MoCo経路と画像MAE重みのVideoMAE移植を検討し、下流評価・LoRA解析を課題とした |
 | 2026-09-24 | MTG後、AIを用いたStage 6Aの実ActivityNet 10-stepとfresh 100-stepがPASS。新規42・既存125テストも成功。表現性能・時間情報獲得は未評価 |
 | 2026-09-25 | ユーザー補足を反映。動作・テストのPASSはAIを用いた確認結果であり、実装が意図どおり正しいかは現段階でも未確証と明記 |
+| 2026-09-28 | Stage 6A/6Bを共通Streaming MoCoへ統合。既存167・新規75テスト、Stage 6A人工10-step数値一致、Stage 6B実ViT/PEFT接続が成功。実データStage 6B・表現性能は未検証 |

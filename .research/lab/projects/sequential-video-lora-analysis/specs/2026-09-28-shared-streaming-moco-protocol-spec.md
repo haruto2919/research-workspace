@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 record_type: implementation-spec
-status: approved
+status: implemented
 created: 2026-09-28
 last_updated: 2026-09-28
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
@@ -466,7 +466,7 @@ Queue capacityを超える場合はFIFOで最古entryをevictする。
 
 ## 15. Spec Gate
 
-本specは **approved**。
+本specの仕様は承認済み。2026-09-28に実装と必須短時間検証を完了し、実装statusを **implemented** とした。
 
 2026-09-28のユーザー指示により、
 Stage 6A / Stage 6Bを別loopで保持せず、stream等を選択可能な共通Streaming MoCo実装へ寄せる方針、
@@ -490,3 +490,12 @@ Stage 6A / Stage 6Bを別loopで保持せず、stream等を選択可能な共通
 - 許可されている短時間検証: 12章
 - 長時間run: 未許可
 - 未検証予定: full ActivityNet、動画境界policy、downstream性能、temporal learning
+
+
+## Implementation verification（2026-09-28）
+
+共通engine・3軸protocol・Stage 6A / 6B preset・共通CLIを実装した。
+既存167件、新規75件のテストが成功し、Stage 6A基準loopとの人工10-step数値一致、Stage 6Bの実ViT / PEFT短時間integrationも確認した。
+実装は`dev@4835b5736f0b1dcc9962cbeffd85e880010311ea`上の未コミット差分。
+実ActivityNetのStage 6B run、長時間run、downstream評価は未実施。
+詳細は[実装・検証記録](../experiments/2026-09-28-shared-streaming-moco-verification.md)を参照。
