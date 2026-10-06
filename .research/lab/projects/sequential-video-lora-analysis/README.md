@@ -4,7 +4,7 @@ status: active
 summary: 共通Streaming MoCoのStage 6A/6Bを実装しCPUテスト242件成功。実装全体の正しさ・表現性能は未確証。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-09-28
+last_updated: 2026-10-06
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -75,3 +75,4 @@ last_updated: 2026-09-28
 | 2026-09-24 | MTG後、AIを用いたStage 6Aの実ActivityNet 10-stepとfresh 100-stepがPASS。新規42・既存125テストも成功。表現性能・時間情報獲得は未評価 |
 | 2026-09-25 | ユーザー補足を反映。動作・テストのPASSはAIを用いた確認結果であり、実装が意図どおり正しいかは現段階でも未確証と明記 |
 | 2026-09-28 | Stage 6A/6Bを共通Streaming MoCoへ統合。既存167・新規75テスト、Stage 6A人工10-step数値一致、Stage 6B実ViT/PEFT接続が成功。実データStage 6B・表現性能は未検証 |
+| 2026-10-06 | Full MoCo / Linear Probeの設定をHydraのversion付きpresetへ一元化（未コミット）。記録値と実行値の二重管理を解消し、manifest / feature schemaを更新。全テスト527件成功、失敗36件は既存の環境依存。詳細は[検証記録](experiments/2026-10-06-full-pipeline-hydra-config-verification.md) |

@@ -3,9 +3,9 @@ project: sequential-video-lora-analysis
 record_type: implementation-spec
 status: approved
 created: 2026-10-05
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
-implementation_branch: main
+implementation_branch: dev
 implementation_base_commit: 8301ebb2903d467848f2d74b830b13a7f2a090b2
 sequential_loader_repository: tamaki-lab/2026_09_ishikawa_sequential_loader
 sequential_loader_branch: ActivityNet
@@ -154,6 +154,9 @@ MoCo-LoRAがBase ViTを上回ることは科学的評価結果であり、実装
 - source order: `ActivityNetAdapter.sequence_sources("training")`が返す順序をそのまま使う。
 - 現行Adapter contractではnormalized video ID順であり、追加shuffleを行わない。
 - ordered source ID listを保存し、そのcanonical SHA-256をrun metadataへ記録する。
+- MoCo初期化seedはproduction CLIの必須引数とし、値を暗黙defaultにしない。model / projector生成前に
+  Python、NumPy、Torch CPU、Torch CUDAへ適用し、resolved config、checkpoint、snapshotへ記録する。
+  resume時はfresh runと同じseedを要求する。これはLinear Probeのseeds `0, 1, 2`とは別の条件である。
 - 各動画内は`sequence_index=0,1,2,...`とabsolute frame orderを維持する。
 - future video / future chunkを明示的に先読みしてloss、positive、negative、warm-upへ使わない。
 
@@ -247,6 +250,7 @@ optimizer、Queueは含めない。Linear ProbeのMoCo条件はfinal Query LoRA 
 - LoRA config。
 - MoCo optimizer config。
 - creation time、local relative path、Comet upload status / artifact version。
+- MoCo初期化seed、実device identity、base ViT tensor fingerprint、依存version。
 
 ### 6.2 Resume checkpoint: complete training state
 
@@ -279,7 +283,8 @@ resume checkpointは一時fileへ完全保存して検証後にatomic replaceし
 完了済み動画の途中へ戻らず、次動画をskipしない。
 
 restore時は、repository / protocol / base model / LoRA / Queue capacity / optimizer config /
-ordered source hash / next source IDを照合する。不一致をwarningだけで継続せず停止する。
+ordered source hash / next source ID / seed / clean code state / device identityを照合する。
+untracked fileを含むdirty checkoutや不一致をwarningだけで継続せず停止する。
 fresh runとresume runの両方で、既存のbase frozen / parameter set / finite性監査を維持する。
 
 ### 6.3 Snapshotとresumeの関係
@@ -431,6 +436,11 @@ training / validationそれぞれで、`segment_ids`がmanifestの該当splitと
 load時にも検証する。metadataにはmanifest / label mapping / encoder snapshot / source codeのhashと
 provenanceを保存する。
 
+Base / LoRAのmetadataには、dataset root、annotation hash、split別source count / order、manifest / mapping、
+base ViT tensor fingerprint、processor config、feature definition、抽出code / dependency provenance、device identityを
+共有契約として保存する。Linear Probe開始前に共有契約のcanonical SHA-256と内容が完全一致することを検証し、
+意図したQuery LoRA以外の比較軸が異なる場合は停止する。
+
 feature extractionはProbe seedに依存せず、各condition・splitにつき1回だけ実行する。
 
 ## 9. Linear Probe protocol
@@ -497,7 +507,11 @@ log/linear_probe/results/<condition>/seed-<seed>/
 log/linear_probe/results/comparison/
   aggregate_summary.json
   aggregate_summary.csv
+  metadata.json              # mutable Comet status sidecar
 ```
+
+`aggregate_summary.json`と`aggregate_summary.csv`はimmutable payloadとし、Comet upload statusを
+payload自身へ追記しない。両payloadのSHA-256とretry情報は`metadata.json`へ分離する。
 
 `summary.json`はcondition、seed、hyperparameters、Top-1、Macro class accuracy、
 sample counts、manifest / mapping / feature hashes、code commit、Comet experiment keyを含む。
@@ -616,6 +630,7 @@ label-aware責務を混在させない。
 - `--resume`相当が指定された場合だけ`latest.pt`を読む。
 - final済みrunを通常resumeしない。
 - hash / protocol / source順不一致なら停止する。
+- production MoCo / feature extraction / Probeはuntracked fileを含むclean implementation checkoutだけで行う。
 - corrupted snapshot / checkpointをfallbackで部分loadしない。
 - manifest / feature / result artifactは同一IDの内容が一致する場合だけ再利用する。
 - 内容が異なる既存artifactを同一versionとして上書きしない。
@@ -709,7 +724,9 @@ processed videos、global stepが同一になることを確認する。CPU決�
 - current `.comet.config`を使い、secretをcodeへ移さない。
 - 新artifact schemaにはversionを付け、未対応schemaを黙ってloadしない。
 
-breaking changeは予定しない。必要になった場合は影響範囲とmigrationを別途承認する。
+本修正で追加したseed / code / device identityと共有feature契約を必須化するため、MoCo protocol、resume、
+snapshot、segment feature schemaは`v2`へ上げる。旧`v1` artifactをproductionへ混在・自動migrationせず、
+未対応schemaとして停止して新契約で再生成する。既存Stage 6A / 6Bの学習semantics自体は変更しない。
 
 ## 16. Ambiguity Gate
 
