@@ -211,3 +211,74 @@ multi-GPUはMoCo data parallelではなく、後段の独立feature extraction�
 - 完了後、固定ActivityNet prefixでper-stage/per-step profilingを行う。
 - profileでaudit overheadが支配的なら、production audit policyの変更をspec化する。
 - その後、ordered prefetchとdownstream 2-GPU feature extractionを段階的に評価する。
+
+
+## 2026-10-07 14:42 JST 追記: 既存機能を壊さない高速化でspec前に決める事項
+
+ユーザー方針は「既存の実行可能な機能・研究条件を壊さずに高速化する」。この方針では、単なる性能改善ではなく互換性契約を先に固定する必要がある。
+
+### Spec前にblockingとして決める事項
+
+1. **互換性境界**
+   - 既存 `run_full_pipeline.sh` の呼び出し方を維持するか。
+   - `fresh / resume / skip`、Stage 6A/6B smoke、既存Hydra preset、artifact、Comet naming/tag、checkpoint/resume semanticsのどこまでを完全維持対象にするか。
+   - 推奨: public CLI、既存preset、科学条件、artifact schema、resume semanticsは変更しない。高速化は追加のoperational pathとして導入する。
+
+2. **高速化のscope**
+   - Phase 1でaudit overhead削減だけを行うか、prefetchまで同一specへ含めるか。
+   - 推奨: 段階化する。まずprofiling + audit scheduling。効果確認後にordered prefetch。multi-GPU MoCo、AMP、batch/chunk条件変更は初期scope外。
+
+3. **Audit policy**
+   - 何を毎step残し、何を周期的にするか。
+   - 推奨候補: 最初の20 updateはfull audit、通常stepは最小finite/counter check、100 updateごとにQueue/gradient/model audit、resume checkpoint・snapshot・finalでfull audit。
+   - 現行full-audit modeは削除せず残す。
+
+4. **Equivalenceの定義**
+   - 「壊していない」を何で判定するか。
+   - Audit schedulingだけの変更では、同一seed・同一device・同一sample列でloss trajectory、Query/Key LoRA、Projector、Queue、optimizer state、countersをexact一致させることを第一候補とする。
+   - Prefetchでは少なくとも入力Sample列のbytes/order一致を必須とし、可能なら最終training stateもexact一致させる。
+
+5. **既定動作とopt-in**
+   - 既存利用者が何も指定しない時に旧挙動を維持するか。
+   - 推奨: equivalenceとbenchmarkが通るまではlegacy/full-auditをdefault、optimized modeは明示opt-in。検証後にdefault変更を検討しても、legacy pathは残す。
+
+6. **Benchmark protocolと合格基準**
+   - 固定prefix、計測対象、反復数、性能指標、最低改善量を固定する。
+   - 推奨: 同一ActivityNet prefix、同一seed/deviceで3回程度。decode / processor / H2D / Q forward / K forward / backward+optimizer / auditを分解し、updates/s、videos/min、wall-clock、GPU utilを記録する。
+   - 高速化採用条件は「equivalenceを満たした上で、固定benchmarkで有意なwall-clock短縮がある」とする。具体的な改善率閾値はspec前に決める。
+
+7. **Resume / artifact互換**
+   - 高速化コードから旧commitの途中runをcanonical resumeしてよいか。
+   - 推奨: cross-commit resumeは従来どおり禁止。既存runは元commitでresumeする。高速化でcheckpoint schemaを変えず、新コード内のfresh/resume契約を維持する。
+
+8. **Prefetchのstrict-online境界**
+   - CPU側で未来chunkをdecode/preprocessして待機させることをonline条件上許容するか。
+   - 推奨: model/optimizer/Queueは未来chunkを一切参照せず、consumer順序が完全一致する限り、bounded decode-only prefetchをengineering optimizationとして許可する。
+   - DataLoaderの `num_workers>0` を直接解放するのではなく、既存strict loader contractを維持する。
+
+9. **GPU利用方針**
+   - MoCo本体をmulti-GPU化するか、後段だけ並列化するか。
+   - 推奨: MoCoはsingle GPU維持。Base/LoRA feature extractionやProbeの独立jobで複数GPU利用を検討する。異種GPU間の数値差とNAS I/O競合をbenchmarkする。
+
+10. **回帰Gateとrollback**
+    - どのtestをPASSすれば既存機能を壊していないとみなすか。
+    - 推奨: 全existing regression + 新規legacy-vs-optimized equivalence + short ActivityNet smoke + resume equivalence + artifact/Comet契約test。
+    - optimized modeで異常が出た場合に自動的に別条件へ切り替えずfail-fastし、legacy pathへ明示的に戻せる構成にする。
+
+### 推奨する収束方向
+
+最初の高速化specは、変更範囲を **「既存科学条件・loader contract・public CLIを維持したproduction runtime最適化」** に限定するのが安全。
+
+第一段階の主対象は次の2つ。
+- per-step auditの頻度設計とGPU同期削減。
+- その効果を測るprofiling / equivalence infrastructure。
+
+ordered prefetch、downstream multi-GPU、Query/Key model parallelは、第一段階のEvidenceを見て後続scopeへ分ける方が、原因切り分けと回帰検証が容易。
+
+### まだユーザー判断が必要な項目
+
+- legacy/full-auditを当面defaultにするか。
+- optimized auditの具体頻度（例: first 20 / every 100 updates / checkpoint boundaries）。
+- strict-onlineでdecode-only prefetchを許容するか。
+- benchmark採用の最低速度改善率を何%にするか。
+- 第一specにprefetchまで含めるか、audit最適化だけに限定するか。
