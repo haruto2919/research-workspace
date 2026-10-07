@@ -282,3 +282,91 @@ ordered prefetch、downstream multi-GPU、Query/Key model parallelは、第一�
 - strict-onlineでdecode-only prefetchを許容するか。
 - benchmark採用の最低速度改善率を何%にするか。
 - 第一specにprefetchまで含めるか、audit最適化だけに限定するか。
+
+
+## 2026-10-07 14:xx JST 追記: 「現在のrun_full_pipeline.shと同じ実験」を高速化後も成立させる
+
+ユーザー要件を強化し、高速化後も「現在の `run_full_pipeline.sh` を実行した場合と同じ科学実験」とみなせることを最優先とする。
+
+### 同じ実験として固定するScience Contract
+
+高速化前後で少なくとも以下を変更しない。
+
+- ActivityNet split / source集合 / source順。
+- 各動画内のchunk順、`frames_per_chunk`、valid frame。
+- Stage 6B-v2 protocol: `strict_single / gbr_horizontal_flip / all_past`。
+- warm-up位置。
+- Query / Key encoder、LoRA target / rank / alpha / dropout。
+- projector構造。
+- Query / Key forwardへ与えるtensor値と順序。
+- InfoNCE、negative selection、Queue capacity / enqueue順。
+- backward、optimizer class / hyperparameters / optimizer.step回数と順序。
+- EMA式とEMA実行位置。
+- seedとRNG消費順。
+- dtype / precision（初期高速化ではAMP/BF16/TF32等を追加しない）。
+- checkpoint / resume state。
+- final Query LoRA snapshotの定義。
+- manifest、feature definition、Linear Probe条件。
+- artifact内容・schemaとComet上の科学的比較軸。
+
+### 変更してよいOperational Contract
+
+科学結果へ影響しないことをequivalence testで証明する前提で、以下だけを高速化対象候補とする。
+
+- correctness auditの頻度 / 実行タイミング。
+- profiling instrumentation。
+- loggingのbuffering / flush頻度（artifact内容を変えない）。
+- CPU decode / preprocessingのordered prefetch（consumerに渡るsample bytes/order/RNG消費が同一であることが条件）。
+- H2D overlap / pinned memory / non-blocking copy（encoder入力tensor値が同一であることが条件）。
+- MoCo終了後の独立Base/LoRA feature extractionの並列実行（feature artifact bytes/value equivalenceを確認する）。
+
+### 初期scopeから除外
+
+「同じ実験」を最優先するため、初期高速化では以下を採用しない。
+
+- DDP / DataParallelによるMoCo data parallel。
+- 動画 / chunkの分割並列学習。
+- batch size / frames_per_chunk変更。
+- Query / Keyを別GPUに置くmodel parallel。
+- AMP / FP16 / BF16。
+- TF32設定変更。
+- optimizer / fused optimizer変更。
+- `torch.compile`（数値・kernel・再現性を別途検証するまで保留）。
+- augmentation / processor変更。
+- science config / protocol version変更。
+
+### Equivalence Gate
+
+audit schedulingだけの最適化では、同一環境・seed・固定prefixについて、legacyとoptimizedで以下のexact一致を要求する。
+
+- ordered sample identity。
+- per-step loss / logits（可能な範囲でexact）。
+- Query / Key LoRA。
+- Query / Key Projector。
+- optimizer state。
+- Queue key / metadata /順序。
+- counters。
+- resume checkpoint payloadの科学state。
+- final Query LoRA snapshot。
+
+prefetch / transfer overlapを導入する場合も、まず入力sample/tensorをexact比較し、その後training stateまで同等性を確認する。
+
+GPUやdependencyが異なる場合のbitwise一致は別問題なので、「同じ実験」の正式比較は同一hardware / software baseline上のlegacy vs optimizedで判定する。
+
+### Provenanceの扱い
+
+高速化後はcode commitが異なるため、implementation provenanceは異なる値として正直に記録する。一方、science contractのhash / protocol / dataset / seed / hyperparametersは同一に保つ。
+
+つまり「同じ実験」は「同じcommit」という意味ではなく、**科学的入力・状態遷移・出力定義が同じで、違うのは非意味論的runtime実装だけ**と定義する。
+
+### 推奨する第一段階
+
+第一高速化specは次だけを対象にする。
+
+1. profiling instrumentation。
+2. audit scheduling / synchronization削減。
+3. legacy modeを保持。
+4. legacy vs optimized exact-equivalence test。
+5. 固定prefix benchmark。
+
+この段階で十分な速度改善が得られればprefetchは追加しない。改善不足の場合のみ第二段階としてordered prefetchをspec化する。
