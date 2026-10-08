@@ -1,9 +1,9 @@
 ---
 project: sequential-video-lora-analysis
 record_type: implementation-spec-addendum
-status: draft
+status: implemented
 created: 2026-10-07
-last_updated: 2026-10-07
+last_updated: 2026-10-08
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_branch: dev
 implementation_base_commit: 605f2afb95e1dda541208a46d69ce46acd83b335
@@ -20,7 +20,7 @@ sequential_loader_commit: 19a0ed7e4c00300214bc9a2fe12da8c72c0499c0
 ## 1. Statusと目的
 
 本書は、ActivityNet training 10,024動画を固定した既存approved specに対し、
-動画数を設定だけで変更できる縮小版end-to-end pipelineを追加するためのdraft addendumである。
+動画数を設定だけで変更できる縮小版end-to-end pipelineを追加するためのimplementation addendumである。
 
 解決する問題:
 
@@ -37,7 +37,8 @@ sequential_loader_commit: 19a0ed7e4c00300214bc9a2fe12da8c72c0499c0
 - MoCo初期化seedを変えても、selection設定が同じなら動画集合は変わらない。
 - Base ViTとMoCo Query LoRAは同じmanifest、segment、順序で比較する。
 
-本書はdraftであり、研究コードの変更、commit、push、長時間runを許可しない。
+2026-10-07の明示的な実装依頼により、Section 13の推奨案を採用してapproved scopeを実装した。
+commit、push、実ActivityNet end-to-end run、GPU長時間runは本依頼の許可範囲に含めない。
 
 ## 2. Authorityと現在状態
 
@@ -68,9 +69,9 @@ Authority順:
 
 ## 3. Decision Contract
 
-### 3.1 採用候補
+### 3.1 採用決定
 
-本draftでは次を第一候補とする。approved化にはSection 13のblocking判断が必要である。
+本実装では次を採用する。
 
 1. ActivityNet Adapterとfull inventory Gateは変更しない。
 2. Adapterがfull sourcesを返した後、consumer側の共通source-selection helperでsubsetを選ぶ。
@@ -165,7 +166,7 @@ Python random.sample、NumPy RNG、filesystem列挙順だけには依存しな�
 
 ### 4.4 Selection identity
 
-selection identityの必須項目:
+再現可能なstable selection identityの必須項目:
 
 - schema/version。
 - profile id。
@@ -177,9 +178,13 @@ selection identityの必須項目:
 - splitごとのordered selected IDs。
 - Sequential Loader branch/commit。
 - annotation SHA-256。
-- creation timeと実装provenance。
 
-selection identityのcanonical SHA-256をselection_sha256として下流artifactへ伝播する。
+stable selection identityのcanonical SHA-256をselection_sha256として下流artifactへ伝播する。
+同一入力とprofileから同一SHAを再生成するため、wall-clock creation timeはこのhashへ含めない。
+
+selectionを作成した実行の運用記録は、stable identityと分離したselection_recordとして併置する。
+selection_recordの必須項目はschema、creation time、実装provenanceである。
+source selectionを持つmanifestと新規snapshotではselection_recordも必須検証し、feature lineageへ伝播する。
 
 ## 5. MoCo contract
 
@@ -452,11 +457,11 @@ relevant tests
 - legacy max_videos_per_split smokeは必要なら維持するが、新production縮小profileへ自動昇格しない。
 - 現在実行中の既存full runを新コードへ跨いでresumeしない。
 
-## 13. Ambiguity Gate
+## 13. Decision Record
 
-### Blocking
+### Approved decisions
 
-approved化前に次をユーザーが確認する必要がある。
+2026-10-07の明示的な実装依頼を承認として扱い、次の推奨案を採用した。
 
 1. selection policy:
    - 推奨: SHA-256 rankingで集合を選び、Adapter順で処理する。
@@ -486,9 +491,9 @@ approved化前に次をユーザーが確認する必要がある。
 
 ## 14. Execution boundary
 
-本draftの作成で許可されるのはResearch Workspaceへのspec保存だけである。
+2026-10-07の実装依頼により、approved scopeの研究コード変更と次の短時間検証を許可対象とした。
 
-approved後の実装時に許可対象として想定する短時間検証:
+許可対象の短時間検証:
 
 - selection unit tests。
 - synthetic multi-video unit/integration tests。
@@ -499,7 +504,6 @@ approved後の実装時に許可対象として想定する短時間検証:
 
 別途明示承認が必要:
 
-- 研究コードの実装開始。
 - 研究コードのcommit、push、PR。
 - 実ActivityNet縮小end-to-end run。
 - 10,024-video full run。
@@ -508,24 +512,20 @@ approved後の実装時に許可対象として想定する短時間検証:
 
 ## 15. Spec Gate
 
-現在statusはdraft。
+現在statusはimplemented。
 
 理由:
 
-- 目的、現在実装、変更scope、再現性、resume/skip、Comet、artifact、検証条件はdraftとして定義した。
-- 動画数とselection seedを後から設定で変更できるinterfaceは定義した。
-- Section 13のselection policy、Comet scope、protocol identityは研究条件と外部表示を変えるため、ユーザー明示承認が必要である。
-- blocking判断が承認されるまでengineering-taskへ渡さない。
+- 2026-10-07の実装依頼によりSection 13の推奨案が承認された。
+- source-selection profile、deterministic selection identity、resume/skip Gate、artifact lineage、Comet scope、launcher伝播をapproved scopeどおり実装した。
+- relevant unit/integration/CLI testsと既存回帰テストを実施した。
+- 実ActivityNet end-to-end run、10,024-video full run、GPU長時間runは未実施であり、科学的成功判定には含めない。
 
 # Implementation Handoff
 
-- approved spec: pending。draftのため実装不可。
-- 実装目的: version付きdeterministic source selectionにより、動画数を設定で変更できる縮小end-to-end pipelineを追加する。
-- 基準repository/commit: tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev@605f2afb95e1dda541208a46d69ce46acd83b335
-- dependency baseline: tamaki-lab/2026_09_ishikawa_sequential_loader@ActivityNet@19a0ed7e4c00300214bc9a2fe12da8c72c0499c0
-- 変更scope: source-selection config/helper、MoCo selected-source path、manifest/features identity、Comet scope、launcher、tests。
-- 対象外・維持条件: Section 3.2と12。既存10,024-video Stage 6B-v2、Adapter、Loader coreを維持する。
-- success criteria: Section 11。
-- 許可されている短時間検証: Section 14の短時間検証。
-- 長時間runの許可状態: 未許可。
-- 未検証予定: 実ActivityNet class coverage、実行時間、縮小MoCoの表現性能、時間情報獲得。
+- Approval: 2026-10-07のユーザーによる明示的な実装依頼。
+- Implementation: `tamaki-lab/2026_09_ishikawa_sequential-video-lora` の `dev`、base commit `605f2afb95e1dda541208a46d69ce46acd83b335` からのlocal uncommitted changes。
+- Adopted decisions: SHA-256 ranking後にAdapter順を復元、version管理profileのみproduction候補、縮小protocolを`stage6b-subset-v1`として分離。
+- Execution boundary: commit、push、PR、実ActivityNet end-to-end run、full run、GPU長時間runは未許可・未実施。
+- 2026-10-08追加監査: skip preflightをfull inventoryからのexact selection再計算へ強化し、selection record、stop境界、launcher、manifest/feature/result自動ID分離の回帰テストを追加した。
+- 未検証: 実ActivityNet 1,000/1,000 class coverage、実行時間、縮小MoCoの表現性能、10,024-video実run。
