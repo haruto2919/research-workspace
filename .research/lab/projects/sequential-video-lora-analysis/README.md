@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: 共通Streaming MoCoのStage 6A/6Bを実装しCPUテスト242件成功。実装全体の正しさ・表現性能は未確証。
+summary: MoCo+LoRA実験はLinear Probe前の挙動確認中。LoRA単体・MoCo単体を小さなステップで検証してから統合する方針。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-10-06
+last_updated: 2026-10-08
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -43,6 +43,8 @@ last_updated: 2026-10-06
 
 2026-09-28、承認済みspecに従い、Stage 6AとStage 6Bを共通Streaming MoCo engineと3軸protocolへ統合した。Stage 6Bは1動画のstrict-single、valid frameのGBR→horizontal flip、FIFO内のsame-video past negativesを使用する。既存167件・新規75件のCPUテストが成功し、Stage 6A基準loopとの人工10-step数値一致、Stage 6Bの実ViT/PEFT短時間integrationを確認した。実装は未コミット。Stage 6Bの実ActivityNet runと表現性能評価は未実施で、これらのテストは実装全体の正しさや時間情報獲得を保証するものではない。詳細は[共通Streaming MoCo実装・検証記録](experiments/2026-09-28-shared-streaming-moco-verification.md)を参照。
 
+2026-10-08のMTGでは、MoCo lossの振動とQuery LoRA勾配の途中からの急増を確認し、原因が未特定のためLinear Probeの解釈を保留した。Sequential Loader、LoRA、MoCoを一度に統合した状態を見直し、LoRA単体・MoCo単体を小さなステップで検証してから統合する方針とした。現在の出所と挙動を十分に説明できないLoRA実装は基盤として使い続けず、Hugging Face PEFTや研究室内で実績のある簡潔な実装を調査する。研究室紹介では、オフライン学習を前提とした通常のAIからオンライン学習の制約と研究上の必要性へ接続する構成を検討する。詳細は[10月8日の議事録](meetings/2026-10-08-mtg.md)を参照。
+
 実装の正しさと基盤の成立を検証した後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
 ## マイルストーン
@@ -56,6 +58,10 @@ last_updated: 2026-10-06
 - [ ] 画像MAE/ViTの重みをVideoMAEへ移す方法を調査・検証する
 - [ ] 下流タスク・linear probeとLoRAの大きさ・特異値・層別変化による評価条件を定める
 - [ ] 静的・動的情報の分離やLoRAの直交化を検討する
+- [ ] LoRAを単体検証し、採用する実装・ライブラリとQ/V更新の挙動を確認する
+- [ ] MoCoを単体検証し、loss・勾配・positive similarity・Queueの基準挙動を確認する
+- [ ] MoCo loss振動とQuery LoRA勾配急増の原因を切り分け、統合実験の再開条件を定める
+- [ ] 研究室紹介用にオンライン学習の難しさと研究上の必要性を説明するスライドを作成する
 
 ## 更新履歴
 
@@ -76,3 +82,4 @@ last_updated: 2026-10-06
 | 2026-09-25 | ユーザー補足を反映。動作・テストのPASSはAIを用いた確認結果であり、実装が意図どおり正しいかは現段階でも未確証と明記 |
 | 2026-09-28 | Stage 6A/6Bを共通Streaming MoCoへ統合。既存167・新規75テスト、Stage 6A人工10-step数値一致、Stage 6B実ViT/PEFT接続が成功。実データStage 6B・表現性能は未検証 |
 | 2026-10-06 | Full MoCo / Linear Probeの設定をHydraのversion付きpresetへ一元化（未コミット）。記録値と実行値の二重管理を解消し、manifest / feature schemaを更新。全テスト527件成功、失敗36件は既存の環境依存。詳細は[検証記録](experiments/2026-10-06-full-pipeline-hydra-config-verification.md) |
+| 2026-10-08 | MoCo loss振動とQuery LoRA勾配急増のためLinear Probeの解釈を保留。LoRA単体・MoCo単体を小さなステップで検証し、信頼できるLoRA実装を調査してから統合する方針を確認 |
