@@ -40,6 +40,7 @@ description: 研究活動用Markdownワークスペースを作成・管理す�
             │   └── figures/
             ├── materials/
             │   └── figures/
+            ├── code-analysis/
             ├── references/
             └── papers/
 ```
@@ -71,6 +72,7 @@ description: 研究活動用Markdownワークスペースを作成・管理す�
 .research/lab/projects/<project-slug>/materials/figures/
 .research/lab/projects/<project-slug>/references/
 .research/lab/projects/<project-slug>/papers/
+.research/lab/projects/<project-slug>/code-analysis/
 ```
 
 既存ファイルは上書きしない。既に同じslugのプロジェクトがある場合は、ユーザーに別名を確認する。

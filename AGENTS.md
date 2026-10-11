@@ -57,6 +57,7 @@ Codex と Claude Code の入口は、同じ正本を参照するリンクです�
             │   └── figures/    # 実験正本図・実験データ由来の図
             ├── materials/      # MTG前の相談資料・進捗報告資料
             │   └── figures/    # MTG説明用の再構成図・概念図
+            ├── code-analysis/
             ├── references/     # 外部資料・参考資料。原則読み取り専用
             └── papers/         # 論文メモ・原稿関連メモ
 ```
@@ -267,6 +268,7 @@ YYYY-MM-DD-2.md
 - `meeting-materials`: MTG前の相談資料・進捗報告資料作成。
 - `meeting-minutes`: MTG後の議事録作成、TODO候補抽出。
 - `brainstorm`: 研究相談、仮説整理、意思決定に向けた壁打ち。
+- `research-code-insight`: 既存・AI生成の研究コードの説明、数式や研究specとの照合、読み取り専用のコード監査、解析レポートの保存。コードの変更・実験run・README/TODO/spec更新は行わない。
 
 ## コンテンツ保存ルール
 
@@ -275,3 +277,4 @@ YYYY-MM-DD-2.md
 - 重要な変更を記録する場合は、日付付きの履歴やタイムスタンプを残してください。
 - AIが作成する分析、計画、実験メモ、MTG前資料は `specs/`, `experiments/`, `materials/`, `papers/`, `brainstorm/` の適切な場所に保存してください。
 - `references/` には、外部資料・参考資料・ユーザーが置いた資料を保存します。AIが作成する通常の分析や計画は `references/` に保存しないでください。
+- コード理解・コード監査レポートの正本は、対象研究プロジェクトの `code-analysis/` に保存する。対象プロジェクトが不明な場合は、推測で紐付けて保存しない。

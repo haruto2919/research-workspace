@@ -337,8 +337,11 @@ MTGが終わりました。議事録を作ってください。
 │   └── skills/
 │       ├── research-workspace/
 │       ├── brainstorm/
+        ├── research-spec/
+        ├── engineering-task/
 │       ├── meeting-materials/
 │       ├── meeting-minutes/
+        ├── research-code-insight/
 │       └── skill-creator/
 ├── .codex/
 │   └── skills -> ../.agents/skills

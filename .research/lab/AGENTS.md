@@ -24,6 +24,7 @@
 │   └── figures/
 ├── materials/
 │   └── figures/
+├── code-analysis/
 ├── references/
 └── papers/
 ```
@@ -39,6 +40,7 @@
 - `experiments/figures/`: 実験正本図、実験データから生成したグラフ、再利用可能な結果図。
 - `references/`: 外部資料、Notion export、配布資料、参考資料。原則読み取り専用。
 - `papers/`: 論文メモ、原稿関連メモ。
+- `code-analysis/`: コードの教育的解説、静的監査、研究計画・数式・実装の対応を記録する。コードの実行結果そのものは `experiments/` に保存する。
 
 ## スキルの使い分け
 
@@ -46,6 +48,7 @@
 - MTG後議事録は `meeting-minutes` スキルに委ねてください。
 - 研究相談、仮説整理、spec化前の壁打ちは `brainstorm` スキルに委ねてください。
 - プロジェクト作成、TODO、ダッシュボード、README/frontmatter管理は `research-workspace` スキルに委ねてください。
+- 研究コードの説明・読み取り専用監査は `research-code-insight` スキルに委ねる。
 
 ## ルール
 
@@ -55,6 +58,7 @@
 - AIが作成する分析、計画、実験メモ、MTG前資料は `references/` ではなく、`specs/`, `experiments/`, `materials/`, `papers/` の適切な場所に保存してください。
 - 日付ベースのファイルを作成・更新する前に、必ず今日の日付を確認してください。
 - 既存ファイルは丸ごと上書きせず、必要最小限の追記・更新にしてください。
+- `research-code-insight` はコードを編集・実行せず、研究計画やTODOを更新しない。レポートには解析したrepository、commit、対象ファイル、確認できなかった事項を記録する。
 
 ## しないこと
 
