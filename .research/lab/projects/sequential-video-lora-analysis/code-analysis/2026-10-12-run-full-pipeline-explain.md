@@ -152,3 +152,26 @@ find "log/moco/$RUN_ID/evaluation_snapshots" -maxdepth 1 -type d -name '*_final'
 ```
 
 判定: `01_moco.log`に`status=complete`か`Result: {"status": "complete", ...}`がありfinal snapshotが存在すればMoCoは完了。 `02_manifest_audit.log` のGate FAILなら後段停止。 `03_features_*.log`があれば特徴抽出実行を確認。`04_linear_probe.log`中の`probe_result`または`aggregate`でprobe進行・完了を確認する。`start_experiment`失敗などのComet障害はstage logの`Comet: ...`または`Comet metric logging failed`で調べる。
+
+
+## 追補: ユーザー提供ログに基づくManifest Gate停止の確定（2026-10-12）
+
+以下はユーザーがチャットへ貼り付けたSSHサーバ上の読み取りログに基づく観測である。GitHubコネクタからサーバ上のファイル実体を直接検証したものではない。
+
+### ユーザー提供ログから確認された事実
+
+- `log/full_pipeline/activitynet-reduced-v1-seed7/01_moco.log`の末尾: `Result: {"final":true,"global_update_step":209144,"next_source_id":null,"next_video_index":1000,"processed_videos":1000,"queue_count":4096,"status":"complete"}`。MoCo 1000件 single-passは正常終了した。
+- 同じログにComet artifact `haruto2919/activitynet-moco-query-lora:3.0.0` のアップロード成功・delivery確認が表示された。これはMoCo側snapshot artifactのアップロードについてであり、Linear Probe結果ではない。
+- `02_manifest_build.log`の末尾: `{"event":"manifest_built","path":"log/linear_probe/manifest/lp-v1__sel-1f91c280f09a","status":"FAIL","failed":["1_training_labels_200","2_validation_labels_200","3_training_sample_per_class","4_validation_sample_per_class"],"rows":{"training":1480,"validation":1542},"skipped":{"training":14,"validation":16}}`。
+- training / validation各1000本についてsegment manifestを構築したが、200クラス存在・全クラス1件以上という4条件がFAIL。`skipped`は動画数ではなく除外されたannotation segment数を示す（segmentがchunk包含条件を満たさない等）。
+- `02_manifest_audit.log`、`03_features_base_vit.log`、`03_features_moco_query_lora_final.log`、`04_linear_probe.log`が存在しないとユーザーは報告。したがって、当該launcher実行はManifest build失敗直後に停止し、Linear Probeまで到達していないと判断できる。
+- `run_full_pipeline.sh`は `set -Eeuo pipefail` を使用する。Manifest build非0終了で後段を実行しない。Manifest Gateは200クラス網羅性の問題を検出しており、Comet側にLinear Probe結果が見えない直接原因はLinear Probe未実行。
+- `moco/processed_videos=999`、`global_update_step=209100`のComet最終定期記録と`1000/209144`の実際の完了は両立する。最終44 updatesは100-updateごとのメトリクス送信タイミング外。
+- クラスの具体的な欠損一覧・各クラスの実サンプル数は貼付ログにないため未確認。
+
+### 考えられる対応と制約
+
+1. MoCo結果をそのまま保持し、欠損クラスとGate結果の詳細をlocal manifest metadataとmapping、annotation-derived rowsから監査する。既存MoCoは再実行不要。
+2. 現行の200クラス/共通training selectionというapproved実験契約を維持するなら、selection profileの改訂またはtraining/validation選択動画数の増加など、class coverageを満たす新たなsource選択が必要。**training selectionが変われば既存の最終LoRAのselection identityと合わないため、現行lineageのままでdownstreamを流用できない**。新MoCo runと新artifactが必要。
+3. 現在の1,000本・最終LoRAを維持して評価する案は、クラス網羅Gateおよび200-way評価の契約を変更する新たなspec/評価protocolとして検討する。今回の失敗を無視して強制的に`PASS`に書き換えるべきではない。
+4. 単に`run_full_pipeline.sh ... skip activitynet_reduced_v1`を再実行しても、同じscientific config / source selectionのManifestが同じ理由で失敗する。既存のFAIL manifestを自動で書き換えない。
