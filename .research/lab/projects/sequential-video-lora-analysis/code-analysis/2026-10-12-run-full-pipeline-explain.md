@@ -350,3 +350,32 @@ systemctl is-active cluster-smi-node 2>/dev/null || true
 ```
 
 重要: `cluster-smi`でGPU2表示が残っても使用可能とは見なさない。GPU0/1は個別に`nvidia-smi -i`で状況を確認。CUDA 719に加えGPU2ハンドル取得失敗があるので、server adminへkernel Xid/PCIe AER/障害時刻の調査を依頼し、再起動・GPU-reset・driver unload・PCI rescanをユーザー単独で実施しない。MoCo full runのresumeは実行commitとcheckpoint identity/GPU identityが現checkoutと違うため引き続き保留。
+
+
+## 追補: PCIeは列挙・NVMLハンドルだけ取得失敗の確定（2026-10-12）
+
+### 対象、根拠、確実な事実
+
+今回の情報はユーザー提示の`150-740GP-TNRT`上のターミナル出力を解析したもの。ChatGPTがGPUサーバへ接続して検証したものではない。
+
+- SSHホストは`150-740GP-TNRT`。`cluster-smi`と`cluster-smi-local`の実体は`/usr/local/bin/cluster-smi`と`/usr/local/bin/cluster-smi-local`（`type -a`, `readlink -f`）。
+- `nvidia-smi -L`はGPU0/1=`RTX A4500`のUUIDを列挙し、GPU2 `0000:B1:00.0`に対し`Unable to determine the device handle ... Unknown Error`。`nvidia-smi -i 2 --query-gpu=index,name,uuid,pci.bus_id,memory.total --format=csv,noheader`も`No devices were found`。GPU0/1への同個別照会は正常。
+- `lspci -s b1:00.0 -nn`は`b1:00.0 VGA compatible controller [0300]: NVIDIA Corporation Device [10de:2c31] (rev a1)`。**PCIe configurationの列挙には存在する**が、NVML/driver経由でデバイスhandleを取得できない。これだけではPCIe通信全体が健全か、デバイスへのMMIOアクセスが成功するか、kernel driverがbindされているかは保証しない。
+- `systemctl is-active cluster-smi-node`は`active`。これはdaemonのactive stateであり、NVMLによる監視取得の成功やcluster routerへの正しいpublishを保証しない。前画像では`cluster-smi`のGPU2総メモリ`0GB`、`cluster-smi-local`のGPU行無し。監視データが不完全・残存している可能性。
+- upstreamの`PatWie/cluster-smi`公開実装`nvml/nvml.go::GetDevices`はGPUを走査中1枚でもhandle取得に失敗すると`nil,error`で終了。`internal/clusterapp/clusterapp.go::InitNode`が`devices, _ := nvml.GetDevices()`とerrorを捨てる。公開実装とローカル導入binaryのバージョン一致は未確認だが、GPU2障害でlocal一覧が空になる機序として高い整合性。
+- 2026-10-09の全量MoCo停止`CUDA 719`と2026-10-12のGPU2認識障害は同じGPUが原因である疑いが強まるが、障害発生時点や原因の同一性はXidログ等なしに断定できない。
+
+### 次の読み取り専用確認
+
+```bash
+lspci -nnk -s b1:00.0
+ls -l /sys/bus/pci/devices/0000:b1:00.0/driver 2>&1
+systemctl status cluster-smi-node --no-pager -l
+sha256sum log/moco/run1/resume/latest.pt
+```
+
+- `lspci -nnk`の`Kernel driver in use`とsysfs driverのリンクはnvidia driverのバインド状態確認であり、正常動作を保証しない。
+- checksumはユーザーauditの2900-video checkpoint期待値 `4e684a7cc15cc6f676abc5e87854be4546802cf9a354ff4847492ec24549d037`と比較。
+- 管理者に`sudo journalctl -k --since '2026-10-09 17:00' --until '2026-10-09 17:45' --no-pager | grep -Ei 'NVRM|Xid|B1:00|PCIe|AER|fallen'` と10月12日の現在前後のkernel logを調査してもらい、XidやPCIe関連ログとGPU失認時刻を確認。一般ユーザーの`journalctl`は閲覧権限の警告が出ていた。
+- OS/GPUを戻すためのGPU reset、PCIe remove/rescan、driver unload、rebootはshared serverで他ユーザー影響があり、管理者合意まで実施しない。
+- 元のfull-runは`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev@605f2afb95e1dda541208a46d69ce46acd83b335`、現在チェックアウトは`dev@65dedb4ebc26c48d23606b9bc674044f64e64c06`で異なる。`training/moco_checkpoint.py`はcommit/device identity等を一致要求するため、現checkoutでの安易なresumeを避ける。
