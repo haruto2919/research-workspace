@@ -1,0 +1,127 @@
+---
+project: sequential-video-lora-analysis
+date: 2026-10-12
+analysis_mode: explain
+detail: full
+level: mid
+source_repository: https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora
+source_branch: dev
+source_commit: 65dedb4ebc26c48d23606b9bc674044f64e64c06
+source_dirty: false (Comet provenance at the run; current server state unknown)
+targets:
+  - run_full_pipeline.sh
+  - scripts/moco/train_full_streaming_moco.py
+  - training/streaming_moco_full.py
+  - training/streaming_moco.py
+  - scripts/linear_probe/build_manifest.py
+  - scripts/linear_probe/extract_features.py
+  - scripts/linear_probe/run_probe.py
+  - evaluation/linear_probe.py
+related_spec:
+  - specs/2026-10-05-full-dataset-streaming-moco-linear-probe-spec.md (approved)
+  - specs/2026-10-07-configurable-reduced-video-full-pipeline-spec.md (implemented)
+comet_experiment_key: da975c40965747a499aa08465f7546db
+comet_experiment_name: stage6b-subset-v1__moco__activitynet-reduced-v1-seed7
+---
+
+# Code Deep Dive: run_full_pipeline.sh と ActivityNet reduced run
+
+## 対象と解析の範囲
+
+- 目的: `run_full_pipeline.sh` が起動する全パイプラインの実行順、入出力、設定、Cometで観測されたMoCo実験との対応を説明する。
+- 実装の根拠: `tamaki-lab/2026_09_ishikawa_sequential-video-lora` のコミット `65dedb4ebc26c48d23606b9bc674044f64e64c06`。このコミットは指定Comet実験の `provenance.implementation.commit` に一致する。
+- 運用の根拠: Research Workspace `main` の `AGENTS.md`、`research-code-insight/SKILL.md`、対象project README、上記specを確認。
+- 観測の根拠: Comet Research Readerのexperiment summaryおよびmetric history。サーバのローカル出力、完了ログ、running process、checkpoint実体にはアクセスしていない。
+- 対象外: コード変更、学習実行、ローカルcheckpointの検証、Linear Probe の未取得成績を推測すること。
+
+## Overview: What / Why
+
+`run_full_pipeline.sh` は単なるMoCo学習ランチャーではなく、選択したActivityNet動画で単一パスMoCoを実施し、確定したfinal Query LoRAをBase ViTと同じ下流データで比較する、5段階のエンドツーエンド実行入口である。
+
+1. Streaming MoCo: 選択したtrainingソースを時系列順に学習し、Query LoRA final snapshotを作る。
+2. Manifest: training / validationの同じsource-selection profileを使ってannotation segmentを列挙し、class coverageおよび再生成hashのIntegrity Gateを監査する。
+3. Feature extraction: Base ViTとBase ViT + final Query LoRAのpre-projector segment特徴 [768] を、同一manifestに基づいて抽出する。
+4. Linear Probe: 各特徴をfreezeし、200クラス線形分類器をseeds 0/1/2で学習・評価する（計6 runs）。
+5. Aggregate: Top-1 AccuracyとMacro Class Accuracyの平均およびsample stdを比較結果として保存する。
+
+## Key Components and Data Flow
+
+### Launcher, arguments and preflight
+
+`run_full_pipeline.sh` の引数は
+`<activitynet_root> <run_id> <moco_seed> [gpu_id] [moco_mode] [source_selection_profile]`。
+省略時のGPUは0、モードはfresh、profileは`activitynet_full_v1`なので、縮小実験は第6引数に`activitynet_reduced_v1`を明示する必要がある。
+
+- `dev` branchを要求。untrackedを含めGit checkoutのclean stateを要求する。
+- `fresh` は新規run directoryのみ許可し、`resume` は既存の`resume/latest.pt`から厳密照合して再開。`skip` はMoCo学習だけを省略し、final snapshotのvalidationから下流へ進む。
+- エラーでは `set -Eeuo pipefail` により失敗を伝播し、後続Stageを実行しない。
+- 各stageのstdout/stderrを`log/full_pipeline/<run_id>/`に記録する。
+
+### Stage 1: Streaming MoCo
+
+対象ファイル:
+- `scripts/moco/train_full_streaming_moco.py`: Hydra設定、dataset full inventory照合、選択集合の決定、Comet初期化。
+- `training/streaming_moco_full.py`: 逐次動画ループ、初回warm-up、video-boundary resume checkpoint、Query LoRA snapshot、集計ロギング。
+- `training/streaming_moco.py`: 1 chunkの Query / Key encode、InfoNCE、勾配、optimizer、EMA、Key enqueue、監査。
+
+`strict_single` で1動画をアクティブに処理する。chunkサイズは16 frames。最初の動画の最初のchunkはKey-only warm-up、その後のchunkは各1 optimizer step。動画間でQuery/Key、optimizer、EMA、Queueは保持する。Queryは元のview、KeyはRGB→GBR+horizontal flip。負例はold Queueの`all_past`。現行方式はフレーム間の明示的時間融合を持たず、frame-wise ViT CLSをmasked meanで集約したclip特徴を利用する。
+
+順序: 旧Queueを負例としてloss計算 → backward → Query LoRA+Query ProjectorをAdamWで更新 → Key EMA → KeyをQueueへ追加。
+
+resume checkpoint: `log/moco/<run_id>/resume/latest.pt`、100動画ごとの境界とfinalで保存。評価用snapshot: `log/moco/<run_id>/evaluation_snapshots/videos-*_step-*_final/`、final時にQuery LoRAのみをPEFT形式で保存する。finalと1000動画ごとのsnapshotは別タイミング判定。単一プロファイルが1000本なら同じ境界のfinal snapshotを1つ作る。
+
+Cometへの`moco/loss`、`moco/positive_similarity`、`moco/query_lora_grad_norm`は100 updatesの平均、Queue件数と負例件数、processed_videosは記録時の値。`processed_videos`は動画全chunk処理後に加算されるので、最後の定期記録が999でも直後に1000へ到達し得る。
+
+### Stage 2: Manifest and Integrity Gate
+
+`scripts/linear_probe/build_manifest.py`がsource selectionに整合するannotation-segment manifestと200クラスのlabel mappingを構築。さらにauditでSHA-256再生成一致とtrain/validationのclass coverage等を検証する。production manifestに`Gate PASS`が必要。失敗時は後段に進まない。
+
+selected source数はtraining=1000、validation=1000。学習にvalidationは使用しない。training selectionはMoCo学習とProbe training manifestで共用する。`activitynet_reduced_v1`はSHA-256でソース集合を選んでからAdapter順に並べ直す。source selection seed=0とMoCo初期化seed=7は別変数。
+
+### Stage 3: Segment features
+
+`scripts/linear_probe/extract_features.py`では`base_vit`と`moco_query_lora_final`の2条件を同じmanifestで抽出。valid frame CLS [768]をmasked meanでchunk特徴 [768]にし、対象segmentに属するchunk特徴を平均してsegment特徴 [768]にする。いずれもraw pre-projector float32特徴で追加正規化なし。Key encoder / MoCo ProjectorはLinear Probeで使用しない。
+
+### Stages 4 and 5: Linear Probe / Aggregate
+
+`scripts/linear_probe/run_probe.py`、`evaluation/linear_probe.py`。事前抽出した特徴をfreezeし、`Linear(768,200)`の線形headだけを各conditionにつきseed 0/1/2で100 epochs学習（AdamW, LR 1e-3, WD 1e-4, batch=256）。学習中にvalidationによるbest epoch選択をせず、最後のepochでTop-1 / Macro class accuracyを計算する。6 runsの後、conditionごとに平均と標本標準偏差を集計する。
+
+## Comet から直接観測された reduced MoCo実験
+
+- Experiment name: `stage6b-subset-v1__moco__activitynet-reduced-v1-seed7`
+- Experiment key: `da975c40965747a499aa08465f7546db`
+- Tags: `moco`, `production`, `seed-7`, `stage6b-subset-v1`
+- Implementation: `tamaki-lab/2026_09_ishikawa_sequential-video-lora` / `dev` / `65dedb4ebc26c48d23606b9bc674044f64e64c06`; recorded dirty=false.
+- Dataset: ActivityNet v1.3 training、full inventory 10024件、selected 1000件。validation選択は1000件。
+- Source selection: `activitynet-reduced-v1`、`sha256_rank_preserve_adapter_order_v1`、selection seed=0、selection SHA-256=`1f91c280f09a1aa1b6b22a0bc130c2ed19a7888695b0a82f8e22afb793da5217`。
+- MoCo protocol `activitynet-selected-single-pass-streaming-moco/v1`、`strict_single`、`gbr_horizontal_flip`、`all_past`、frame chunk=16。
+- Optimizer: AdamW lr 0.001、WD 0、seed=7。GPU: NVIDIA RTX PRO 4500 Blackwell。
+- Latest recorded point (not necessarily final video boundary): update_step=209100、processed_videos=999、loss=4.5137730038、positive_similarity=0.721314975、Query LoRA grad norm=0.59782618、queue_count=4096、valid_negative_count=4096、unique sequence count=15。
+- Entire reported loss range: min=2.6376058835、max=8.9345104790。
+- Entire 100-update-average Query LoRA gradient norm range: min=0.0000210837、max=5456.4088952 at step 145400。大規模な中途勾配スパイクであり、学習安定性を未検証とする合理的根拠。最大は1 stepの単発grad normではなく100更新の平均。
+- Comet指定プロジェクトの実験一覧として取得できたものは2件のMoCo実験。今回のLinear Probe実験、manifest PASS、feature artifacts、aggregate resultsは直接確認できず。
+
+## Mathematical / Research Context
+
+MoCoのInfoNCEは正例Keyと過去Keyの対照で最適化され、学習時の損失値は下流のaction recognition精度を直接表さない。Sequence chunkは時系列順に学習へ投入されるが、masked mean自体はframe順序に不変である。よって、Linear Probeで改善しても時間情報・動き情報の獲得を単独で証明しない。
+
+2026-10-08 MTGでは、loss振動・Query LoRA勾配急増の原因が未確定として、Linear Probeの解釈を保留し、LoRA単体 / MoCo単体から検証する方針を記録している。現在のscientific statusの記述と本件の観測は区別する。
+
+## Alternatives and Trade-offs
+
+縮小profileは全量実験に比べて学習・特徴抽出の処理量を削減するが、validationを含めた200クラスcoverageは事前には保証されない。正式profileと恣意的なoverrideを分離し、選択identityを全artifactへ伝播することで別条件の取り違えを防止する。resume stateとfinal evaluation snapshotを分離し、再開可能性と評価目的を区別する。
+
+## 次に確認すべきこと
+
+1. サーバ上の`log/full_pipeline/activitynet-reduced-v1-seed7/01_moco.log`末尾で`Result: {"status":"complete", ...}`などの終了イベントを確認。
+2. `log/moco/activitynet-reduced-v1-seed7/evaluation_snapshots/`の`*_final/metadata.json`で`final: true`、`processed_videos: 1000`と selection identityを確認。
+3. `log/full_pipeline/activitynet-reduced-v1-seed7/02_manifest_audit.log`と `log/linear_probe/manifest/<manifest_id>/metadata.json`のGate PASSを確認。
+4. `03_features_*.log`、`04_linear_probe.log`、`log/linear_probe/results/<result_id>/comparison/aggregate_summary.json`から評価実施・成績を確認。
+5. 問題切り分けのため、`log/moco/activitynet-reduced-v1-seed7/audit.jsonl`のstep 145400周辺の勾配とlossの生記録を確認。
+
+## 根拠・未確認事項
+
+- Observed: 上記GitHub固定コミットのbash / Pythonコード、Comet experiment metadataと時系列metricは直接確認した。
+- Aligned: 2026-10-05 approved specと2026-10-07 implemented addendumに対して、選択source、single-pass、final Query LoRA、downstream compareの経路は整合する。
+- Inferred: `processed_videos=999`は最終1000本目の途中で最後の100-update metricが送られた可能性がある。完了の証拠ではない。
+- Unverified: 研究サーバの現在dirty状態、完走・checkpoint実在、final snapshot、manifest gate、Linear Probe出力、表現性能、時系列情報の獲得、勾配スパイクの根本原因。
