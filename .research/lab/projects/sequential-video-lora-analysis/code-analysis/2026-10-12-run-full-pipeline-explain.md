@@ -314,3 +314,39 @@ ls -ld /sys/bus/pci/devices/0000:b1:00.0 2>&1
 - 許可を受けた管理者に、`sudo journalctl -k --since '2026-10-09 17:15:00' --until '2026-10-09 17:40:00' --no-pager | grep -Ei 'NVRM|Xid|B1:00|pcie|aer|nvidia'`と障害現在時点周辺ログの確認を依頼。NVRM Xid、PCIe AER、reset、GPU認識断が記録されているか見る。Xid79以外のコードもありうる。
 - ユーザー所有でないGPU/サーバ資源があるため、`sudo nvidia-smi --gpu-reset`、driver卸し、PCIデバイスremove/rescan、マシンrebootをユーザー単独で試さない。ログ採取・管理者への連絡を優先。
 - GPUの健全性とcheckpointを確認した後、元のcommit、device identity、dataset source ordering、seed等と照合した上で再開計画を立てる。現在の`dev@65dedb4e`からそのまま`run_full_pipeline.sh ... resume`は実行しない。
+
+
+## 追補: cluster-smiは表示・cluster-smi-localは空欄（2026-10-12）
+
+### 提示された実行結果（ユーザー添付画像）
+
+- 日時 2026-10-12 17:42頃、集約監視`cluster-smi`は`150-740GP-TNRT`にGPU0: NVIDIA RTX A4500、GPU1: NVIDIA RTX A4500、GPU2: NVIDIA RTX PRO 4500 Blackwellを掲載。`Last Seen=2026-10-12 17:42:33`（画像の時計より約1分以上前）。
+- GPU0のmemory表示`0.30 / 19 GB`、GPU1の`0.01 / 19 GB`に対し、GPU2の表示は`0.00 / 0 GB`、temperature`55°C`、power`127W`、GPU-Util`52%`。GPU2の総メモリ`0GB`は不正なtelemetryであり、正常動作の証拠ではない。
+- 2026-10-12 17:43:59、`cluster-smi-local`は表ヘッダだけでGPU/Node行なし。同日17:36の`nvidia-smi`はGPU2 PCI `0000:B1:00.0`について`Unable to determine the device handle ... Unknown Error`、GPU0/1は表示できた。
+- 2026-10-09 full MoCo runは、Cometが`NVIDIA RTX PRO 4500 Blackwell`を記録し、CUDA 719で停止している。現在のGPU2 RTX PRO 4500と同一個体である可能性が高いが、UUIDまたはBus IDの厳密な対応は未確認、故障発生時刻も未検証。
+
+### cluster-smi公開実装の静的確認
+
+調査対象（public upstream・ローカル導入binaryとの同一性未確認）: https://github.com/PatWie/cluster-smi
+
+- upstream README: `cluster-smi-local`はNVMLを介してローカルGPUを取得、`cluster-smi`は`cluster-smi-node`が各マシンから`cluster-smi-router`へ送信した複数ホスト分の情報を表示。`Last Seen`は最終受信時間で、リアルタイム健全性保証ではない。
+- `nvml/nvml.go::GetDevices`はGPU全デバイスをループし、`nvmlDeviceGetHandleByIndex`または個別デバイスの`newDevice`取得が1つ失敗すると、`nil,error`を戻す（部分成功リストを返さない）。
+- `internal/clusterapp/clusterapp.go::InitNode`は`devices, _ := nvml.GetDevices()`でエラーを無視し、返ってきたデバイス数だけNode.Deviceを初期化する。GetDevicesの結果nilならGPU0/1が正常でも全体0件のNodeが出来うる。
+- よって一台のGPU（GPU2）のNVML handle errorがローカル表示で全GPUを消す経路がコード構造として存在。接続先binaryの実装バージョンが同一とは確認できていないため、最終判断には`type -a cluster-smi-local`など必要。
+
+### 読み取り専用確認（ローカル実行はユーザー側）
+
+```bash
+hostname -s
+type -a cluster-smi cluster-smi-local
+readlink -f "$(command -v cluster-smi-local)"
+nvidia-smi -L
+for i in 0 1 2; do
+  echo "===== GPU $i ====="
+  nvidia-smi -i "$i" --query-gpu=index,name,uuid,pci.bus_id,memory.total --format=csv,noheader
+done
+lspci -s b1:00.0 -nn
+systemctl is-active cluster-smi-node 2>/dev/null || true
+```
+
+重要: `cluster-smi`でGPU2表示が残っても使用可能とは見なさない。GPU0/1は個別に`nvidia-smi -i`で状況を確認。CUDA 719に加えGPU2ハンドル取得失敗があるので、server adminへkernel Xid/PCIe AER/障害時刻の調査を依頼し、再起動・GPU-reset・driver unload・PCI rescanをユーザー単独で実施しない。MoCo full runのresumeは実行commitとcheckpoint identity/GPU identityが現checkoutと違うため引き続き保留。
