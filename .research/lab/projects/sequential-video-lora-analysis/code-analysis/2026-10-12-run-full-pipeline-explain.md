@@ -175,3 +175,47 @@ find "log/moco/$RUN_ID/evaluation_snapshots" -maxdepth 1 -type d -name '*_final'
 2. 現行の200クラス/共通training selectionというapproved実験契約を維持するなら、selection profileの改訂またはtraining/validation選択動画数の増加など、class coverageを満たす新たなsource選択が必要。**training selectionが変われば既存の最終LoRAのselection identityと合わないため、現行lineageのままでdownstreamを流用できない**。新MoCo runと新artifactが必要。
 3. 現在の1,000本・最終LoRAを維持して評価する案は、クラス網羅Gateおよび200-way評価の契約を変更する新たなspec/評価protocolとして検討する。今回の失敗を無視して強制的に`PASS`に書き換えるべきではない。
 4. 単に`run_full_pipeline.sh ... skip activitynet_reduced_v1`を再実行しても、同じscientific config / source selectionのManifestが同じ理由で失敗する。既存のFAIL manifestを自動で書き換えない。
+
+
+## 追補: 全量Stage 6B-v2と縮小runの停止原因比較（2026-10-12）
+
+### 比較対象・ソース同一性
+
+- Comet full-run key: `e1df2d65b1d64b94b5c80a48473d017f`、name `stage6b-v2__moco__run1`。source code `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev@605f2afb95e1dda541208a46d69ce46acd83b335`、dirty=false（Comet出力）。selected sourceはActivityNet training 10024、MoCo seed=0、stop_after_videos=null、resume=false。
+- Comet reduced-run key: `da975c40965747a499aa08465f7546db`、name `stage6b-subset-v1__moco__activitynet-reduced-v1-seed7`。source code `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev@65dedb4ebc26c48d23606b9bc674044f64e64c06`、dirty=false（Comet出力）。selected training=1000、MoCo seed=7。
+- GitHub compare `605f2afb..65dedb4e`で4 commits ahead。変更対象に`run_full_pipeline.sh`、`scripts/linear_probe/build_manifest.py`、`evaluation/activitynet_manifest.py`、`training/streaming_moco_full.py`、`scripts/moco/train_full_streaming_moco.py`、source selection実装追加などが含まれる。したがって「両runのコードが完全に同じ」とは言えない。
+
+### Cometの直接観測
+
+- Full: 最終定期記録 `global_update_step=605900`、`processed_videos=2910`（期待10024）。最後のmetric timestampは2026-10-09 17:25:54 JST。Comet上のgrad normの最大記録は約`1107159.54`（100-update集計の最大）で、大規模な数値不安定性の兆候がある。ただし停止原因と因果関係は未確証。
+- Reduced: Cometの最後の定期記録は999/1000・209100 step、しかしユーザー提供の`01_moco.log`で1000/1000・209144 step・`status=complete`とfinal snapshotのComet artifactアップロード成功を確認。
+- Reducedの`02_manifest_build.log`で`status=FAIL`、failed=`1_training_labels_200`、`2_validation_labels_200`、`3_training_sample_per_class`、`4_validation_sample_per_class`。後続ログなし。縮小runがManifest Gateで停止した原因は確定。
+- FullはComet記録上まだMoCo途中（2910/10024）に見える。研究サーバのfull-run local completion status、エラー、後続stageは現在未提示。従って「full runもManifest Gateで止まった」と主張できない。Comet実験が終了したか、loggingだけ止まったかをsummaryだけから断定しない。
+
+### 共通障害の可能性と優先順位
+
+1. 第一優先は **full-run `run1` のローカル `01_moco.log`末尾と`audit.jsonl`末尾を確認**し、明示エラー/ユーザー中断/OS kill/突然のログ途絶/正常完了を識別すること。
+2. `training/streaming_moco_full.py`は例外時に`audit.jsonl`へ`event="stopped"`とreasonを記録してraiseするが、OSによるSIGKILL・電源断などではこのeventは残らない場合がある。
+3. 正常完走していればfinal snapshotや`run_metadata`を確認した上で`log/full_pipeline/run1/02_manifest_build.log`を確認する。full runでもmanifest FAILならクラス網羅、chunk包含条件、annotation/timestampの共有部分を追加監査する。
+4. Full runが途中で落ちているならManifest Gateとは別の問題で、データdecode、OOM、nonfinite、数値不安定、OS/プロセス終了等をローカルログと環境証拠で切り分ける。Comet grad spike自体は停止原因を示さない。
+5. `run1`の実行commitと現行commitは異なる。resumeではcommit/provenance/selectionなどのidentity照合があるため、環境を変更して無条件にresumeしない。旧checkpointは保持し、原因調査してから再開方針を決める。
+
+### ローカル診断（読み取り専用）
+
+```bash
+cd /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
+RUN_ID=run1
+for f in 01_moco.log 01_moco_resume.log 02_manifest_build.log 02_manifest_audit.log 03_features_base_vit.log 03_features_moco_query_lora_final.log 04_linear_probe.log; do
+  p="log/full_pipeline/$RUN_ID/$f"
+  echo "===== $p ====="
+  if [[ -f "$p" ]]; then tail -n 25 "$p"; else echo "なし"; fi
+done
+echo '===== local audit tail ====='
+if [[ -f "log/moco/$RUN_ID/audit.jsonl" ]]; then tail -n 8 "log/moco/$RUN_ID/audit.jsonl"; else echo "なし"; fi
+echo '===== snapshots ====='
+if [[ -d "log/moco/$RUN_ID/evaluation_snapshots" ]]; then find "log/moco/$RUN_ID/evaluation_snapshots" -mindepth 1 -maxdepth 1 -type d -name '*_final' -print; else echo "なし"; fi
+echo '===== resume checkpoint presence ====='
+if [[ -f "log/moco/$RUN_ID/resume/latest.pt" ]]; then ls -lh "log/moco/$RUN_ID/resume/latest.pt"; else echo "なし"; fi
+```
+
+判定: `stopped` eventとreasonがあればPython例外の候補、正常完了 `status=complete` + final snapshotがあれば下流の問題を確認、どちらも無くログが途絶していればOS/プロセス側の終了痕跡を追加調査する。ユーザーの手元での追加コマンド実行は提案のみで、ChatGPT側で実行していない。
