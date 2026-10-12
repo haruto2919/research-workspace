@@ -219,3 +219,58 @@ if [[ -f "log/moco/$RUN_ID/resume/latest.pt" ]]; then ls -lh "log/moco/$RUN_ID/r
 ```
 
 判定: `stopped` eventとreasonがあればPython例外の候補、正常完了 `status=complete` + final snapshotがあれば下流の問題を確認、どちらも無くログが途絶していればOS/プロセス側の終了痕跡を追加調査する。ユーザーの手元での追加コマンド実行は提案のみで、ChatGPT側で実行していない。
+
+
+## 追補: 全量runのCUDA 719停止確定とActivityNet split訂正（2026-10-12）
+
+### Source・Authority
+
+- SSHサーバの情報はユーザーがチャットに貼付した`01_moco.log`末尾と`log/moco/run1/audit.jsonl`末尾に基づく。GitHubコネクタからサーバログ実体に直接アクセスしたものではない。
+- 対象コードはCometに記録された`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev@605f2afb95e1dda541208a46d69ce46acd83b335`、dirty=false、ActivityNet AdapterはResearch Workspaceで検証済み`tamaki-lab/2026_09_ishikawa_sequential_loader@ActivityNet@19a0ed7e4c00300214bc9a2fe12da8c72c0499c0`。
+- 参照コード: `conf/activitynet/v1_3.yaml`、`scripts/moco/train_full_streaming_moco.py`、`run_full_pipeline.sh`、`scripts/linear_probe/build_manifest.py`、`training/streaming_moco_full.py`。
+- 承認済みspec `specs/2026-10-05-full-dataset-streaming-moco-linear-probe-spec.md` は**MoCo pretrainingをActivityNet trainingのみ**と定める（validationやtestingは明示的out of scope）。
+
+### 2つの停止原因は別
+
+- **full run `stage6b-v2__moco__run1`**: user-provided local `01_moco.log`に`torch.AcceleratorError: CUDA error: unspecified launch failure`、`CUDA_ERROR_LAUNCH_FAILED`コード`719`、`cuMemcpyHtoDAsync_v2`報告がある。user-provided `audit.jsonl`最終event=`stopped`、UTC `2026-10-09T08:26:09.628491+00:00`（JST同日17:26:09）、`processed_videos=2910`、`next_video_index=2910`（0起算、次に処理中の動画は2911本目）、`global_update_step=605937`、`next_source_id=IGcsVPa34Hc`、`final=false`。エラー発生前の監査step605936の`all_parameters_finite`/`all_queue_keys_finite`はいずれもtrue。MoCo学習中にCUDAが失敗し、ManifestおよびLinear Probeへ到達していないことが確定。
+- **reduced run `stage6b-subset-v1__moco__activitynet-reduced-v1-seed7`**: user local `01_moco.log`で1000本`status=complete`、209144 updatesを確定。その後`02_manifest_build.log`で200 class coverageのIntegrity Gate FAILにより停止。2つのrunsが同じ段階・同じ理由で止まったわけではない。
+- Full runのComet定期記録が605900/2910で切れていたのは、100-update periodic logging中断のため（監査ログでは605937まで到達）。
+
+### 10,024本のsplitの訂正
+
+- `conf/activitynet/v1_3.yaml`: `expected_source_counts.training=10024`、`validation=4926`。
+- Research Workspaceの実データAdapter検証`experiments/2026-09-23-activitynet-adapter-verification.md`では`training=10024`、`validation=4926`、`testing=5044`、**総数19994**。10,024は全splitの合計ではなく**trainingだけ**。
+- `scripts/moco/train_full_streaming_moco.py`は`settings.activitynet.splits['training']`から`ActivityNetAdapter.sequence_sources(split)`を取得し、件数10024を検証してsingle-pass streaming MoCoへ渡す。Comet `config.dataset.split=training`も一致。
+- 同commit `scripts/linear_probe/build_manifest.py`は`SPLITS=('training','validation')`双方からsegment manifestを構築し、Base/LoRA frozen feature/Linear Probeへ引き渡す。testingはこのpipelineでは使用しない。MoCo学習とLinear Probe supervised trainingは役割が異なる。
+
+### CUDA 719をどう読むか / 未検証
+
+- NVIDIA公式CUDA documentation: `CUDA_ERROR_LAUNCH_FAILED (719)`はdevice kernelで例外発生、誤ったデバイスポインタや範囲外メモリアクセス等も候補で、CUDAコンテキストは継続使用できない。同期されないCUDAエラーは`pixel_values.to(device)`など後続APIで初めて報告されることがあるため、stack traceだけで転送操作や特定動画を根本原因に断定しない。
+- データ固有再現、GPUハード/ドライバ、PyTorch/ CUDA kernel、直前の非同期kernel、過負荷等はまだ切り分けられていない。既存loss/gradの大きな変動とCUDA 719の因果は未確認。
+- NVIDIAの公式Xid docsは、Linux kernel logの`NVRM: Xid`を調査するよう案内している。ユーザーのSSHサーバに直結できないため、下記コマンドの実行結果未確認。
+
+### 読み取り専用診断と判断
+
+```bash
+cd /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
+echo '=== 実行環境 ==='
+git branch --show-current
+git rev-parse HEAD
+nvidia-smi
+echo '=== 2026-10-09 17:26 JST前後のGPUドライバログ ==='
+journalctl -k --since '2026-10-09 17:15:00' --until '2026-10-09 17:35:00' --no-pager | grep -Ei 'NVRM|Xid|NVIDIA|GPU|pcie|nvlink' || true
+echo '=== run1のresume checkpoint ==='
+if [[ -f log/moco/run1/resume/latest.pt ]]; then ls -lh log/moco/run1/resume/latest.pt; else echo 'checkpointなし'; fi
+echo '=== 直近checkpoint/snapshotの監査記録 ==='
+grep -E '"event": "(resume_checkpoint|evaluation_snapshot|stopped)"' log/moco/run1/audit.jsonl | tail -n 8
+```
+
+- `journalctl`が権限不足・ログローテーションで表示されない場合は、許可された管理者に同期間のkernel journalやsyslogを確認してもらう。
+- `resume_interval=100 videos`なので、最終保存は正常なら2900 videos地点付近と推定するが、ファイルの内容・mtimeは未検証。動画境界からのresumeであり、2911本目のfailed chunkから厳密に再開するものではない。
+- 全量runはcommit`605f2afb`、後の縮小runはcommit`65dedb4e`で4 commits差がある。resume時のcode identityやprovenance照合があるので**現行チェックアウトのまま無条件resumeを試さない**。研究実装やcheckpointを変更せず、Xidと実際のcheckpoint存在を優先確認する。
+- CUDA fault後に同一Python processで繰り返すのでなく、新しいプロセスでの安全な切り分けが必要。実験継続・コード変更はこのコード解析skillの権限外。
+
+### 補足する設計問題
+
+- Full runで停まった理由を「training完了後validationへ移る段階でのエラー」と説明するのは誤り。MoCoはtrainingのみ10,024本を対象にし、**2910本（約29%）**で停止した。
+- 縮小runのManifest Gate FAILと、全量runのCUDA 719停止は分離して扱い、下流評価方法の変更をCUDA failureの修正手段と混同しない。
