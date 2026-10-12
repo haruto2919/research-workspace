@@ -379,3 +379,46 @@ sha256sum log/moco/run1/resume/latest.pt
 - 管理者に`sudo journalctl -k --since '2026-10-09 17:00' --until '2026-10-09 17:45' --no-pager | grep -Ei 'NVRM|Xid|B1:00|PCIe|AER|fallen'` と10月12日の現在前後のkernel logを調査してもらい、XidやPCIe関連ログとGPU失認時刻を確認。一般ユーザーの`journalctl`は閲覧権限の警告が出ていた。
 - OS/GPUを戻すためのGPU reset、PCIe remove/rescan、driver unload、rebootはshared serverで他ユーザー影響があり、管理者合意まで実施しない。
 - 元のfull-runは`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev@605f2afb95e1dda541208a46d69ce46acd83b335`、現在チェックアウトは`dev@65dedb4ebc26c48d23606b9bc674044f64e64c06`で異なる。`training/moco_checkpoint.py`はcommit/device identity等を一致要求するため、現checkoutでの安易なresumeを避ける。
+
+
+## 追補: GPU2アクセス不能の原因仮説と証拠の評価（2026-10-12）
+
+### 問題
+
+ユーザーは `150-740GP-TNRT` のRTX PRO 4500 (GPU2)について、2026-10-09 MoCo long run停止`CUDA 719`と、2026-10-12 `nvidia-smi`の`GPU2: 0000:B1:00.0 Unknown Error`、`lspci`では`10de:2c31`が見える一方でNVMLハンドル取得不能、`cluster-smi-local`にはデバイスが表示されない、という観測から原因候補の説明を求めた。
+
+### 原因候補（診断上の優先順位。根本原因の断定ではない）
+
+1. **PCIe通信経路の不調**: GPUを認識した後にランタイムのアクセスが失われた/不安定になった。候補はカードとslotの接触、riser、PCIe接続、マザーボード側、AER、リンク電源管理など。Linux `lspci`でconfigurationが列挙されることは、NVIDIA driverがGPUと健全に通信できる証明にはならない。`NVRM: Xid 79`（GPU has fallen off the bus）が代表例だが、ユーザーシステムにXid79が存在する証拠はない。
+2. **GPU自体・GSP firmware・driverの停止**: GPU内部の例外、firmware RPC timeout、driverの状態不整合。NVIDIA Xid119/120 (GSP RPC Timeout/GSP Error) や他のXidに分類されうる。GPU Resetまたはcold power-cycleで回復する場合もあるが、再発時はhard/firmware/driver相性問題の詳細調査を要する。shared GPU serverにつきリセットは管理者のみ。
+3. **電源/補助電源/電源装置の不安定**: 高負荷時の電力変動でGPUがアクセス不能になる可能性。実行時消費電力、PSU容量、補助ケーブルや温度の時系列は未確認であり、確率を決めない。
+4. **物理ハード故障（GPU本体・VRAM等）**: 特定GPUのみ失認、他のA4500は正常、複数日に渡る不具合はこれと整合する。ただし本体の恒久故障と断言するには、管理者によるXid/AER取得・復旧後の再発・ハード診断が必要。
+5. **長時間MoCoのCUDAコード側で初発エラー**: 直前の非同期GPU kernelの失敗、PyTorch/driver相性、アプリケーションの不正アクセスやresource pressure等でも`CUDA 719`は発生しうる。ただし3日後に`nvidia-smi`自体でNVML handleが取れない現象は単なるPythonスクリプト例外だけでは説明しきれず、GPU/driverが不健康な状態になったことが強く示唆される。
+6. **熱問題**: 可能性は否定できないが、cluster-smi画像の2026-10-12時点`55°C`は10/9負荷時温度ではないうえ、device telemetryの総メモリ0GBは不正。熱暴走と断定する根拠なし。
+
+### 重要な区別
+
+- 2026-10-09の`CUDA 719`（CUDA runtime status）と`NVRM: Xid 79`などのNVIDIA kernel側event codeは**異なる番号体系**。`719`からXid79等は推定できない。
+- `lspci -s b1:00.0`が成功したことはPCIe configuration spaceにデバイスが見える証拠であり、DMA転送/GPU MMIO/driverのすべてが正常だという証拠ではない。
+- GPU2とMoCo Comet RTX PRO 4500 Blackwellは同一個体の疑いが強いが、Comet UUID ↔ BusID厳密照合は未完。
+- 勾配ノルムの極端な増大は研究上の数値安定性問題。電源障害、PCIe接触不良、GPUハード故障の直接証拠にはならず、GPUを物理的に壊した根拠ではない。
+- Linuxカーネルログは一般ユーザーからアクセスできなかったため、Xid/AERが不在とは言えない。
+
+### 切り分け
+
+管理者が2026-10-09 17:26 JST前後と現在のkernel journalで`NVRM: Xid`,`GSP`,`AER`,`pcie`,`B1:00`を調べることを優先。Xid79ならPCIe / bus通信用、119/120ならGSP/firmware、43/31ならアプリ/メモリアクセス系も検討、48/64系ならECC系を検討。これは調査の入口であり、Xid単体で故障箇所は確定しない。
+
+読み取り専用補助コマンド:
+
+```bash
+lspci -nnk -s b1:00.0
+ls -l /sys/bus/pci/devices/0000:b1:00.0/driver 2>&1
+sha256sum log/moco/run1/resume/latest.pt
+```
+
+NVIDIA公式資料:
+- https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
+- https://docs.nvidia.com/deploy/gpu-debug-guidelines/gpu-node-triage.html
+- https://docs.nvidia.com/deploy/xid-errors/archive/index.html
+
+障害情報を確保する前のGPU reset、PCIE remove/rescan、driver unloadやサーバ再起動はしない。他ユーザーへ影響するため管理者判断が必要。原因を特定し、安定性を回復してからMoCoのcheckpoint検証とresume可否を検討する。
