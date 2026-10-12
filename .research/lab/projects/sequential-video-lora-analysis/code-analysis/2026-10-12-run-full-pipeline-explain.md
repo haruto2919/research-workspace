@@ -125,3 +125,30 @@ MoCoのInfoNCEは正例Keyと過去Keyの対照で最適化され、学習時の
 - Aligned: 2026-10-05 approved specと2026-10-07 implemented addendumに対して、選択source、single-pass、final Query LoRA、downstream compareの経路は整合する。
 - Inferred: `processed_videos=999`は最終1000本目の途中で最後の100-update metricが送られた可能性がある。完了の証拠ではない。
 - Unverified: 研究サーバの現在dirty状態、完走・checkpoint実在、final snapshot、manifest gate、Linear Probe出力、表現性能、時系列情報の獲得、勾配スパイクの根本原因。
+
+
+## 追補: Linear Probe実行有無の判定（2026-10-12）
+
+### Cometの再確認と結論
+
+- Comet Research Readerを使い、設定済みプロジェクトで全実験（limit=100）と`linear-probe`タグを検索。取得できた全実験はMoCo 2件だけで、`linear-probe`タグ実験は0件。
+- 対象 MoCo 実験 `da975c40965747a499aa08465f7546db` の最終周期metricは 2026-10-09 13:42:38 JST、`global_update_step=209100`、`processed_videos=999`。process duration約32時間23分。
+- `processed_videos`は**動画終了後**に更新されるが、Cometのperiodic metricは**100 updatesごと**に更新される。このため`processed_videos=999`は1000本目の完了を否定する証拠にならない。
+- `scripts/linear_probe/run_probe.py::run_seed`は新規seed結果について`start_experiment`を行い、毎epoch`train/loss`/`train/top1`、最終評価で`val/top1`/`val/macro_class_accuracy`をCometへ送る。aggregateもComet experimentを作る。従ってLinear ProbeがComet無効設計なのではない。
+- `scripts/linear_probe/build_manifest.py::audit`はIntegrity Gate不合格時にComet experimentを作る前にreturnするため、Manifest実験が0件であることはMoCo直後の停止を証明しない。reduced 1000/1000の200-class coverageはGitHub/Cometから未検証。
+- `logger/comet_lineage.py::start_experiment`は通信エラーを捕捉しlocal scientific workを停止させない。`extract_features.py`と`run_probe.py`は一致する既存local artifactを再利用した場合に新規Comet実験を生成しない。したがってComet実験不在だけで「Linear Probeが実行されなかった」と断定してはいけない。
+- **確実な結論:** 現在アクセスできるComet範囲では、今回のLinear Probe成功と成績は確認できない。最も直接的な確認先は研究サーバの`log/full_pipeline/activitynet-reduced-v1-seed7/`、final snapshot metadata、manifest Gate、probe aggregateである。
+
+### ローカル診断コマンド（読み取り専用）
+
+```bash
+cd /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
+RUN_ID=activitynet-reduced-v1-seed7
+for f in 01_moco.log 01_moco_resume.log 02_manifest_build.log 02_manifest_audit.log 03_features_base_vit.log 03_features_moco_query_lora_final.log 04_linear_probe.log; do
+  p="log/full_pipeline/$RUN_ID/$f"
+  if [[ -f "$p" ]]; then echo "===== $p ====="; tail -n 15 "$p"; else echo "MISSING: $p"; fi
+done
+find "log/moco/$RUN_ID/evaluation_snapshots" -maxdepth 1 -type d -name '*_final' -print 2>/dev/null || true
+```
+
+判定: `01_moco.log`に`status=complete`か`Result: {"status": "complete", ...}`がありfinal snapshotが存在すればMoCoは完了。 `02_manifest_audit.log` のGate FAILなら後段停止。 `03_features_*.log`があれば特徴抽出実行を確認。`04_linear_probe.log`中の`probe_result`または`aggregate`でprobe進行・完了を確認する。`start_experiment`失敗などのComet障害はstage logの`Comet: ...`または`Comet metric logging failed`で調べる。
