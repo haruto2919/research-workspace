@@ -274,3 +274,43 @@ grep -E '"event": "(resume_checkpoint|evaluation_snapshot|stopped)"' log/moco/ru
 
 - Full runで停まった理由を「training完了後validationへ移る段階でのエラー」と説明するのは誤り。MoCoはtrainingのみ10,024本を対象にし、**2910本（約29%）**で停止した。
 - 縮小runのManifest Gate FAILと、全量runのCUDA 719停止は分離して扱い、下流評価方法の変更をCUDA failureの修正手段と混同しない。
+
+
+## 追補: GPU2識別障害・2900本checkpoint・診断優先順位（2026-10-12）
+
+### 今回ユーザーが提示したSSHサーバ上の出力
+
+- 現在のローカルGit: `dev@65dedb4ebc26c48d23606b9bc674044f64e64c06`（full-runを実行した `605f2afb95e1dda541208a46d69ce46acd83b335`とは異なる）。
+- `nvidia-smi`が`Unable to determine the device handle for GPU2: 0000:B1:00.0: Unknown Error`と報告。2026-10-12 17:36 JST、driver 580.178.04 / CUDA 13.0。表示できたGPU0,1はともにNVIDIA RTX A4500で、GPU2の正常表示なし。
+- Comet full-run`e1df2d65b1d64b94b5c80a48473d017f`のtraining device identityは`NVIDIA RTX PRO 4500 Blackwell`、UUID`8a059266-7ede-0427-ff30-08ba7a9b5224`、CUDA可視デバイスindex0。現在の正常表示された2枚のA4500とは違う。**物理GPU2がComet記録のBlackwellである可能性は高いが、PCIe bus ID↔UUIDの直接照合はまだなく、確定はしない**。
+- `journalctl -k`を一般ユーザーで実行した結果、`You are currently not seeing messages from other users and the system`と出ており、Xid/PCIeログは見えない。出力が空だからXidが無いとは言えない。
+- `log/moco/run1/resume/latest.pt`は18MBで2026-10-09 17:00 JSTに存在。
+- audit`resume_checkpoint` event: UTC 2026-10-09 08:00:40.247、`processed_videos=2900`、`next_video_index=2900`、`global_update_step=603379`、`next_source_id=IC-Rd7ouQmE`、sha256`4e684a7cc15cc6f676abc5e87854be4546802cf9a354ff4847492ec24549d037`。
+- audit`stopped` event: UTC 2026-10-09 08:26:09.628、CUDA 719、`processed_videos=2910`、`next_video_index=2910`、`global_update_step=605937`、`next_source_id=IGcsVPa34Hc`。checkpointからは2901本目から再処理が必要で、エラー地点のchunkからはresumeできない。
+- ユーザーは`sha256sum`自体はまだ実行していないため、現存する`latest.pt`がaudit SHAと一致するか未検証。ファイルの存在のみからcheckpointの中身の完全性を断定できない。
+- `training/moco_checkpoint.py`の`RESUME_IDENTITY`はrepository/branch/**commit**/**device_identity**/seed/ordered sources/version他を完全一致で要求。`training/streaming_moco_full.py`は`validate_resume_identity`を呼ぶ。現在checkoutのcommitと違うことが確認済みで、GPUも異なりうるため、**現在の状態での`resume`は同一実験再開要件を満たさない**。
+- 縮小runのManifest Gate FAILはGPU2故障と独立し、GPUを復旧しても同じsource選択ならGateが自動解消するわけではない。
+
+### 評価・推論（事実とは区別）
+
+- GPU2ハンドル取得不可と、当該学習の`CUDA_ERROR_LAUNCH_FAILED`には関連が疑われる。GPU・PCIe/電源・ドライバ等の障害を優先して調べるべき。ただしGPU2が失われた時刻や一次障害はまだ未確定で、どちらが先か、GPU2=Blackwellか、原因がハードかソフトかは現段階で断定しない。
+- NVIDIA公式Xid Catalog https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html では、Xid79がPCIe経由でGPUがアクセス不能になった状態を表すと記載。ただしユーザーの今回のシステムでXid79が出たとは証明できない。
+
+### 次の読み取り専用調査
+
+```bash
+cd /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
+echo '=== checkpoint checksum ==='
+sha256sum log/moco/run1/resume/latest.pt
+echo '=== device list ==='
+nvidia-smi -L
+echo '=== PCI device presence ==='
+lspci -s b1:00.0 -nn
+echo '=== PCI sysfs (if available) ==='
+ls -ld /sys/bus/pci/devices/0000:b1:00.0 2>&1
+```
+
+- checksum期待値: `4e684a7cc15cc6f676abc5e87854be4546802cf9a354ff4847492ec24549d037`。合致はraw file integrityの補助証拠だが、resumeとhardware/reproducibility contractは別途検証が必要。
+- 許可を受けた管理者に、`sudo journalctl -k --since '2026-10-09 17:15:00' --until '2026-10-09 17:40:00' --no-pager | grep -Ei 'NVRM|Xid|B1:00|pcie|aer|nvidia'`と障害現在時点周辺ログの確認を依頼。NVRM Xid、PCIe AER、reset、GPU認識断が記録されているか見る。Xid79以外のコードもありうる。
+- ユーザー所有でないGPU/サーバ資源があるため、`sudo nvidia-smi --gpu-reset`、driver卸し、PCIデバイスremove/rescan、マシンrebootをユーザー単独で試さない。ログ採取・管理者への連絡を優先。
+- GPUの健全性とcheckpointを確認した後、元のcommit、device identity、dataset source ordering、seed等と照合した上で再開計画を立てる。現在の`dev@65dedb4e`からそのまま`run_full_pipeline.sh ... resume`は実行しない。
