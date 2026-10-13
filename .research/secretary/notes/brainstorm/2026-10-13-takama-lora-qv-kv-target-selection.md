@@ -217,3 +217,13 @@ Phase III（後続・今回対象外）: 比較実験/本格的性能評価、Se
 - 初回Bゼロ初期化でAの勾配がゼロでも仕様として正常。1 stepで全LoRA tensorの更新は要求しない。
 - 実画像学習のvalidation accuracyがすぐ高くなることはLoRAの技術的成功条件ではない。
 - ここに列挙した未決事項はユーザーへの推奨であり、採用・spec作成・実装・実験runを承認したものではない。
+
+
+---
+
+## 2026-10-13 spec引き継ぎ先（draft）
+
+この探索記録を元に、以下へ**実装specドラフト**を作成した。未決事項B1–B7は同ドラフト§10のAmbiguity Gateに集約し、現時点では実装承認されていない。
+
+- [自作ViT LoRA単体検証・CIFAR-10短時間学習 spec（draft）](https://github.com/haruto2919/research-workspace/blob/main/.research/lab/projects/sequential-video-lora-analysis/specs/2026-10-13-standalone-vit-lora-cifar10-verification-spec.md)
+- 状態: `draft`。ユーザー採用のQ/K/V切替・Bゼロ初期化・実画像による検証方針を仕様へ転記。
