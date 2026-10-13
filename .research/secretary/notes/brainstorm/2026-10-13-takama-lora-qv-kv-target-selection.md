@@ -111,3 +111,48 @@ lora:
 ### spec引き継ぎ範囲
 
 LoRA-onlyのコード導入、configでの対象切替、凍結・勾配・更新・等価性の検証。変更の許可は未取得であり、本記録から仕様承認や実装許可を推定しない。
+
+
+---
+
+## 2026-10-13 追記: wrapper方式の実現可能性再調査、初期化採用、実画像検証採用
+
+### 今回のユーザー指示とAuthority
+
+1. ① `ViT` のQ/K/V線形層をLoRA付きwrapperに置換する案Bが期待どおり実装可能かを疑問視し、具体的な再調査を依頼。**この方式自体はまだユーザー未採用**。
+2. ② **採用**: LoRA Aはランダム初期化、Bはゼロ初期化（ベース出力との初期一致）。
+3. ⑤ **採用**: ダミー画像だけでなく、通常の実画像データセットによる学習の動作を確認する（初回はSequential Loaderを使わない）。
+
+### 実現可能性の静的検証と技術的制約
+
+- 実装対象の根拠: `tamaki-lab/2026_09_ishikawa_sequential-video-lora@b6385d8` の `model/vit/vit_frame_encoder.py`: `ViTModel.from_pretrained("google/vit-base-patch16-224")`、`self.vit.requires_grad_(False)`、`last_hidden_state[:,0,:]`。このコードではまだLoRAなし。ローカルencoder-onlyの未コミット差分はGitHubから確認できない。
+- 実際のTransformers [v5.17.0 ViTAttention](https://github.com/huggingface/transformers/blob/v5.17.0/src/transformers/models/vit/modeling_vit.py#L192-L238) は `self.q_proj/k_proj/v_proj = nn.Linear(...)` とそれらの `forward(hidden_states)` を持つ。したがって、**同じ入出力形状の`nn.Module`で差し替えるのは構造上成立する**。元のAttention全体を再実装する必要はない（ただし未実行）。
+- 推奨構造: `ViTModel.from_pretrained` → 既存pretrained weightをロード → base全体をfreeze → 12個のViTAttentionから指定targetの `nn.Linear` を取得 → `LoRALinear(base_linear, A, B, scaling)` を `setattr` で注入 → 注入完了後のtrainable LoRAでoptimizerを作成。 `LoRALinear.forward(x) = base_linear(x) + (alpha/r) * B(A(dropout(x)))`。元の`base_linear`オブジェクトとbiasを保持し、予期しない形状や非Linear targetは即エラー。
+- `self.vit.requires_grad_(False)` の**適用順**に注意。LoRA注入後に全体へ再適用するとA/Bも凍結される。凍結されたbaseのパラメータでも、`torch.no_grad()`でForward全体を包むとLoRAのgradientも遮断するため、学習時は避ける。
+- optimizerは注入後に作る。元のViT `state_dict` の `q_proj.weight` が `q_proj.base.weight` 等へ変わるので、checkpointは明示した保存・復元方式を設計する。既存の重みは**元モデルで読み込んだ後に**注入。 `LoRA off` / `B=0` 時のbaseline出力一致、全7 target組合せのinject + backward + update + checkpoint roundtripをテストする。初期の比較では同一checkpoint/入力・eval・適切な数値許容差。
+- 参考髙間氏 [LoRA実装](https://github.com/tamaki-lab/2024_10_takama_ProjectedViT/blob/e6d5f8d59a66f869954248cc4427ea7697aed4e9/models/modelings/modeling_projectedvit.py#L30-L67) は独立A/Bと出力加算を実装しているが、A/B双方Xavier。今回の**ユーザー採用**でBゼロへ意図的に変更する。
+- リスク: Hugging Face内部module命名/attention backendのバージョン差、未検証のsave/load互換性、train/evalやdropoutによる等価性差、重複注入、パラメータ登録、手作りwrapperのテスト負担。いずれも**静的に実装不可能な障害ではない**が、実環境でのend-to-end検証は未実施。
+- `ViTFrameEncoder` の既存no-grad CPU smokeは学習検証には流用できない（新しい学習ルートを設計する）。
+
+### 実画像Datasetの具体的候補・条件
+
+- 同一研究コード `b6385d8` では `dataset/cifar10.py`（Torchvision CIFAR10 train/test）、`dataset/dataloader_factory.py`（CIFAR10通常DataLoader）、`conf/dataset/cifar10.yaml`（ルート `./downloaded_data`）が実装済み。Sequential Loaderを使わない**初回の実画像dataset候補にCIFAR-10が最も自然**。 `download=True` なので初回ダウンロードにネットワーク接続が必要。ダウンロード済みなら不要。
+- 既存画像変換 `dataset/transforms.py` は224 cropとImageNet mean `(0.485,0.456,0.406)`、std `(0.229,0.224,0.225)` を使用。**注意**: 既存checkpoint [google/vit-base-patch16-224 preprocessor_config](https://huggingface.co/google/vit-base-patch16-224/blob/main/preprocessor_config.json) はmean/stdどちらも `[0.5,0.5,0.5]`。ViTを用いた単体検証経路ではそのcheckpoint専用normalizeか`AutoImageProcessor`に合わせる。元の他モデルに使うtransformを不用意に変更しない。
+- `ViTFrameEncoder` はCLS `[B,768]`を返すだけで、10クラス分類を学習するには `Linear(768,10)`のheadとCrossEntropyLossが必要。通常の教師ありCIFAR10分類ではtrainable **LoRA + classifier head** が推奨候補。Base frozen、headとLoRAの勾配と更新は別々に記録する。「LoRAのみ更新」の技術検証と「LoRA+headで教師あり分類」を明確に分離する。
+- LoRA単独更新に固執してランダム固定headでCEすると学習信号は通るが性能解釈が難しい。標準のCIFAR10実画像ラベルを使い学習できることまで要求するならclassifier headの学習可否はspec化前に明示して決める。
+- 初回スコープ候補: 224x224にpreprocessしたCIFAR10の少量画像 → ViT frozen + selectable Q/K/V LoRA → CLS → 10-class head → CE → small number of optimizer steps。まず少量のbatchでgradient/parameter checks、同一少量サンプルへのoverfitを追加のsanity testとして検討。短いrunでaccuracy向上は保証されず、モデルが時間情報を得た証拠でもない。
+- 既存 `ViTb` は `ViTForImageClassification` を利用し独自headを内包するが、そちらを全面再利用してBase trainableになるような変更を加えない。今回のCLS encoder路線に沿って小さく分離することが有力。
+
+### さらにspec化前に必要な判断
+
+- (A) wrapper方式は静的に成立する見込み。**ユーザーが採用するかは未決。**
+- (B) **確定: Bをゼロ初期化する。**
+- (C) **確定: 実画像の通常datasetで学習挙動を見る。** 第一候補CIFAR10（過去の既存loaderがある）。
+- (D) **新規重要論点: supervised分類時にheadを追加しLoRA+headをtrainableにするか。** LoRA-onlyの機械的確認は別テストにする方針を推奨。
+- (E) データ前処理のcheckpoint一致、学習対象・class数・短時間runの成功条件、checkpoint roundtripの検証範囲をspecで確定。
+
+### 未確認・境界
+
+- 研究サーバのローカル `encoder-only` branch/dirty stateやdataset実ファイル、モデルcache、GPU状態はGitHubから直接確認していない。
+- wrapperの実動作や実画像学習はまだ実行していない。
+- 本記録はbrainstormであり、spec/実装/runの承認を意味しない。
