@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: approved
 title: 髙間氏方式を参考にしたViT自作LoRAの独立実装とCIFAR-10短時間検証
 created: 2026-10-13
 last_updated: 2026-10-13
@@ -9,19 +9,21 @@ workspace_repository: haruto2919/research-workspace
 workspace_branch: main
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_reference_commit: b6385d87e2e3e82a719d8f4b686b44aa293b1135
+implementation_branch: dev
+implementation_branch_head_at_approval: 8531a2eb6a632791629a41d621a49c260b43cd4f
 implementation_worktree: "user-reported local encoder-only; actual HEAD/dirty unknown"
 hf_checkpoint: google/vit-base-patch16-224
-dataset_candidate: CIFAR-10
-default_targets_candidate: [q, v]
+dataset: CIFAR-10
+default_targets: [q, v]
 initialization: A_random_B_zero
 scope: isolated LoRA mechanism plus ordinary supervised image-learning smoke
 ---
 
-# ViT自作LoRA単体検証（Q/K/V切替・CIFAR-10）実装spec — draft
+# ViT自作LoRA単体検証（Q/K/V切替・CIFAR-10）実装spec — approved
 
-> **Status: draft — 仕様のレビュー用。コード実装・学習実行の許可ではない。**
+> **Status: approved — 2026-10-13、ユーザーがAmbiguity Gate B1–B7の推奨案を一括採用、実装先を`dev`に指定。**
 >
-> 現ユーザーの明示採用事項と、推奨されているが未承認の設計を区別する。§10にblockingな未決事項が残る間はapprovedにしない。
+> コード実装は許可済み。GPU学習・CIFAR-10の自動取得・長時間実験は独立の実行境界とする。
 
 ## 1. 目的と研究上の位置付け
 
@@ -59,13 +61,13 @@ scope: isolated LoRA mechanism plus ordinary supervised image-learning smoke
 - 旧[Stage 4 PEFT spec](./2026-09-23-vit-lora-one-step-smoke-spec.md)は**historical evidence**。今回の自作LoRA/CIFAR-10のapproved仕様にはならない。
 - 2026-10-13の[探索メモ](../../../../secretary/notes/brainstorm/2026-10-13-takama-lora-qv-kv-target-selection.md)および[2026-10-08 MTG](../meetings/2026-10-08-mtg.md)。
 
-### 2.3 実装基準の限界
+### 2.3 実装基準の限界とdevブランチへの変更
 
-SSHサーバ上のローカル作業tree `encoder-only` はユーザーから報告された状態。**実際のbranch HEAD・dirty/untracked差分・venv・CIFAR-10の保存場所はGitHubから確認できない**。このspecで参照する`b6385d8`は、ローカルを確認する際の出発点であり、現在のローカルHEADと断定しない。GitHubの`dev`は別系列の統合変更を含む可能性があるので、便宜的に今回のコード正本へ置き換えない。
+SSHサーバ上のローカル作業tree `encoder-only` はユーザーから報告された状態。**実際のbranch HEAD・dirty/untracked差分・venv・CIFAR-10の保存場所はGitHubから確認できない**。このspecで参照する`b6385d8`は、ローカルを確認する際の出発点であり、現在のローカルHEADと断定しない。今回の明示指示で**実装先はGitHub上の`dev`**に確定した。コード修正時には現在の`dev`のHEAD・フォルダ構成をread-onlyで再確認し、旧`b6385d8`のパスを機械的に流用しない。SSHサーバのローカルdirty変更は依然として未確認であり、GitHubへの変更がローカルcloneへ反映されたとは扱わない。
 
 ## 3. Scope / 非対象
 
-### 3.1 新規作成・変更する対象（提案、承認待ち）
+### 3.1 新規作成・変更する対象（承認済み）
 
 - **自作LoRAモジュール**: 元の`nn.Linear`を保持し、LoRA A/Bの差分を加える小さな`LoRALinear`。
 - **LoRA付きFrame Encoder**: 現行`ViTFrameEncoder`と同じ`forward(pixel_values) -> CLS [B,768]`インターフェースを持ち、凍結ViTへQ/K/V LoRAを挿入する別クラス（仮称`ViTLoRAFrameEncoder`）。
@@ -96,7 +98,7 @@ test/model/test_lora_linear.py
 - 全CIFAR-10の本格的epoch学習、網羅的hyperparameter探索、multi-seed検証、performance claims。
 - GPU長時間run、resume/optimizer state復元、リモートサーバ上のdirtyファイル強制上書き。
 
-## 4. LoRAの振る舞いとインターフェース（提案）
+## 4. LoRAの振る舞いとインターフェース（承認済み）
 
 ### 4.1 数式と構造
 
@@ -117,7 +119,7 @@ output = base_linear(x) + (alpha / rank) * lora_b(lora_a(dropout(x)))
 
 **確定している契約**: Q/K/Vを一つずつ選ぶことも、組み合わせて選ぶこともできる。設定変更だけで切り替え、コード改変は不要。
 
-**提案する初期config**（各値は§10の未決事項でレビュー）:
+**採用した初期config**:
 
 ```yaml
 model:
@@ -160,11 +162,11 @@ logging:
 - 既存`ViTFrameEncoder`を変更しない。必要に応じて新しいLoRA付きモデルのみ`add_pooling_layer=False`とするが、CLS契約の非回帰と事前学習済み重みの読み込みレポートを必須にする。
 - 既存`vision_transformer.ViTb`は分類用モデルとして残し、こちらへ無断でLoRAを注入しない。
 
-## 5. CIFAR-10教師あり短時間学習（提案）
+## 5. CIFAR-10教師あり短時間学習（承認済み）
 
 ### 5.1 データ・変換
 
-- 候補datasetは`torchvision.datasets.CIFAR10`の**train split**。test splitで学習しない。
+- 採用datasetは`torchvision.datasets.CIFAR10`の**train split**。test splitで学習しない。
 - dataset受領・ダウンロードの責任を明示。保存済みCIFAR-10とpretrained ViT cacheがあるかは実行前に確認。自動download=Trueの副作用を把握したうえで作業する。
 - RGB 32×32をViT入力224×224へリサイズ。Normalizeは使用checkpointの`AutoImageProcessor`設定と**同じmean/std**とする。旧`transform_image`（ImageNet形式）を一括変更しない。
 - 固定subset・fixed seedで選択した訓練画像を使用。少量の学習挙動を見る場合、前処理にランダムflip/cropを使わず、同一画像の入力が繰り返し再現されるようにする。
@@ -185,9 +187,9 @@ CIFAR-10 ordinary DataLoader (image, class label)
 
 **重要**: 分類Headを学習する場合、これは`LoRA + classifier head`学習である。工学的なLoRA-only更新確認はHeadなしの独立unit testで実施し、「LoRAのみを学習した」と誤って表現しない。
 
-### 5.3 短時間runの暫定条件
+### 5.3 短時間runの採用条件
 
-| 条件 | 推奨（未承認） | 意味 |
+| 条件 | 採用値 | 意味 |
 | --- | --- | --- |
 | split | CIFAR-10 train | 正解ラベル付き実画像 |
 | subset | 固定64枚 | 小規模・再現性 |
@@ -203,7 +205,7 @@ CIFAR-10 ordinary DataLoader (image, class label)
 - Stage Bは小規模な実画像学習を「実際にrunする」とユーザーが許可したときに実行する。**spec承認やコード実装承認のみから長時間runや自動download許可を推定しない**。
 - ログには最低限、loss、prediction shape、accuracy（診断表示のみ）、LoRA A/BおよびHeadのgradient norm、update norm、Base update norm、対象層数、trainable param数、steps、resolved config、checkpoint id、commit/dirty状況、デバイスを残す。Cometは今回はデフォルトOFFを推奨。ONにする場合は既存projectの命名・タグ規則へ合わせる。
 
-## 6. 保存・再ロード（提案・未承認）
+## 6. 保存・再ロード（承認済み）
 
 - 重いBase ViTを別checkpointとして再保存することは必須にしない。
 - 再現性が必要なら、`LoRA A/B weights`と`classifier head weights`、`checkpoint_id`、`target_modules`、`rank`、`alpha`、`dropout`、seed、データ/前処理条件を関連付けて保存する。
@@ -232,7 +234,7 @@ CIFAR-10 ordinary DataLoader (image, class label)
 4. 実画像で複数stepを行い、少なくとも一つのLoRA B parameterとHead parameterが変更され、Baseは完全不変。Loss/grad/updateにNaN/Infが発生しない。
 5. stepごとのloss、gradient norm、パラメータ更新量、予測accuracyの**観測値**を記録。20stepの単純なtrain-loss単調減少や高いaccuracyはPASS条件にしない。
 6. Stage A/Bのpass/failと実際に実行できた環境・所要範囲を明確に分ける。Stage A passだけでStage B passと言わない。
-7. §6を採用する場合のみ、adapter/head保存・再読込後に数値一致を追加で必須とする。
+7. adapter/head保存・再読込後のeval出力数値一致を必須とする。
 
 ## 8. 非回帰と変更境界
 
@@ -249,29 +251,32 @@ CIFAR-10 ordinary DataLoader (image, class label)
 - CIFAR-10実体・ダウンロード可否、ViT cache、メモリを確認する。画像subsetとseedは実行ログへ残す。
 - Stage Aのunit/mock/短いsmokeと、Stage Bの実画像学習runの承認は別。データdownload、GPUを占有する訓練、本格epoch実験、コミット・pushも個別の操作として扱う。
 
-## 10. Ambiguity Gate / 採用待ち事項
+## 10. Ambiguity Gate：採用決定（2026-10-13）
 
-以下は**ユーザーがまだ採用していない推奨案**。今は`draft`として記録し、approved移行前に決定する。
+ユーザーは、旧ドラフトで提示していた **B1–B7すべての推奨案**を採用し、コードの実装先を **`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`** と明示した。
 
-| ID | 分類 | 未決事項 / 選択肢 | 推奨 | 影響 |
-| --- | --- | --- | --- | --- |
-| B1 | blocking | 注入方法: HF ViT Attention内部クラス継承 or 元のLinearを保持するLoRALinear wrapper | **wrapper方式**。HF v5.17.0の構造から実現可能性高いが実機未検証 | 変更範囲・将来互換性 |
-| B2 | blocking | 実画像検証用の分類Head: LoRAのみtrainable or LoRA+Head trainable | **LoRA+Head**、LoRA-only unit別実施 | 学習対象、Lossの意味 |
-| B3 | blocking | 画像dataset: CIFAR-10 or 別の通常画像dataset | **CIFAR-10**（既存loaderあり） | preprocessing、出力クラス、必要な実データ |
-| B4 | blocking | 今回の実装scope: unit/1-2stepのみ or 実画像短時間学習まで | **Stage A＋Stage B**。本格性能評価は別 | 必須成果物・実行境界 |
-| B5 | blocking | 初回のQ/K/V初期targetsと比較範囲: Q/V開始か、Q/K/V組合せの実学習比較まで含むか | **Q/V開始**、全7組はunit注入検証、K/V等の学習比較は後続 | 実験条件・計算費用 |
-| B6 | blocking | 保存/再読込: 技術検証のみか、LoRA+Head checkpoint roundtripも必須か | **最小のadapter+head保存／読込テスト** | artifactと受入条件 |
-| B7 | blocking | 実画像pilotの規模/optimizerを暫定値で承認するか | **64枚・batch16・20steps・AdamW 1e-3・WD0・seed0** | 学習再現性と計算負荷 |
-| E1 | 実装時preflight | 現ローカル`encoder-only` branch/HEAD/dirty、ViT module path | 実装前にread-only確認し、異なれば移行前に止める | コードをどこへ追加するか |
-| N1 | non-blocking | helper/関数名、YAMLの細かなファイル位置 | 現ローカル構造・命名に合わせる（契約を守る） | 研究結果に直接影響しない |
-| N2 | non-blocking | 統計の表示形式、短時間テストの分割 | 既存pytest等に合わせる | 外部研究契約は変えない |
+| ID | 採用内容 |
+| --- | --- |
+| B1 | 自作`LoRALinear`で既存HF ViT Q/K/V射影の元の`nn.Linear`を保持し、加算するwrapper方式 |
+| B2 | 実CIFAR-10の通常分類学習ではLoRA＋新設した分類Headをtrainableにする。独立テストでLoRA-onlyの勾配・更新を検証 |
+| B3 | Datasetは通常の`CIFAR10 train`。ViTチェックポイントに一致する224×224画像前処理。通常DataLoaderを利用 |
+| B4 | Stage A：synthetic unit/1–2step とStage B：少量実画像の短時間学習までをスコープに含む（大規模runは対象外） |
+| B5 | 初回はQ/V、全12層一律、rank=8 alpha=8 dropout=0。7つのQ/K/V非空組合せをunitで検査。各組合せの実データ性能比較は対象外 |
+| B6 | LoRA A/B＋分類Headの最小checkpointと再読込、eval出力一致を必須とする。Optimizer state/resumeは対象外 |
+| B7 | train 64枚、batch16、最大20step、AdamW LR=1e-3 WD=0、seed=0、schedulerなし。CometはデフォルトOFF |
 
-**draft readiness**: 目的/確定事項/scope外/静的可否/検証指標は整理できた。B1–B7は研究・実装契約を変えるため、ユーザーの採用または修正が必要。E1はGitHubから現在ローカルを読めない環境上のpreflight事項。承認が得られるまで`status: approved`にしない。
+### 実行・GitHub境界
+
+- **Approved**: 上記実装契約。ユーザーはdevブランチをコード保存先として指定。Research Workspace文書は引き続きmainへ保存する。
+- **コード実装**: `engineering-task`のpreflight、最小変更、既存テスト非回帰を守る。
+- **実データのrun/ダウンロード**: 短時間のunit/mock/安全なsmoke以外のGPU利用、ユーザーの実データ資産への副作用、CIFAR-10新規ダウンロード、長時間実験は別指示まで起動しない。
+- **Environment Gate**: GitHubはリモート`dev`のみ確認可能。ローカル`encoder-only`のHEAD/dirtyはGitHubから未確認。ユーザー指定で`dev`を実装正本とするが、SSH cloneとの同期を推定しない。
+- **Non-blocking**: helper命名、test分割、細部の出力先は現`dev`のパターンに合わせ、上記の外部契約を変えない。
 
 ## 11. Spec Gate と実装handoff
 
-- 現在の状態: `draft`。**この文書による実装許可なし、学習run許可なし。**
-- 承認時にはB1–B7の選択とpreflight手順を確定し、承認記録とstatusを更新する。
+- 現在の状態: `approved`。2026-10-13にユーザーがB1–B7採用・dev実装を明示。**科学的検証としての学習run許可は別。**
+- B1–B7は§10の通り承認済み。実装前にdevのHEAD・差分・対象ファイル実体を確認する。
 - approved後のhandoff内容:
   - 基準: ユーザーの実ローカルbranch/HEADを確認した値
   - 差分: 自作LoRALinear、LoRA付きViT、Hydra preset、通常CIFAR10短時間学習entrypoint、unit/smoke
