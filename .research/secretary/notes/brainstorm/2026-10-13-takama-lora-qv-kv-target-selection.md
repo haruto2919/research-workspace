@@ -156,3 +156,10 @@ LoRA-onlyのコード導入、configでの対象切替、凍結・勾配・更�
 - 研究サーバのローカル `encoder-only` branch/dirty stateやdataset実ファイル、モデルcache、GPU状態はGitHubから直接確認していない。
 - wrapperの実動作や実画像学習はまだ実行していない。
 - 本記録はbrainstormであり、spec/実装/runの承認を意味しない。
+
+
+### 追加精査：Transformers v5.17.0 の実際のネスト（重要）
+
+[Transformers v5.17.0 `ViTModel` の実装](https://github.com/huggingface/transformers/blob/v5.17.0/src/transformers/models/vit/modeling_vit.py#L335-L352) では、blockの保持先は **`vit.layers`**（`nn.ModuleList([ViTLayer(...)])`）である。旧版等の `vit.encoder.layer` を前提にした注入コードはこのバージョンでは不適合となる。各blockのAttentionは `block.attention`、投影層は `block.attention.q_proj/k_proj/v_proj`。したがって概念的には `for block in vit.layers: setattr(block.attention, "q_proj", LoRALinear(block.attention.q_proj,...))` のように置換する。今回の再調査はこのネスト差異を直接確認できたことが重要。
+
+上記ネストは静的に確認したもの。実環境で `named_modules()` / `isinstance(nn.Linear)` / 12 block / 対象形状をassertし、差異があればFail fastとする。旧版の `vit.encoder.layer` に関する先行記録は**v5.17.0の現在構造として使わない**。
