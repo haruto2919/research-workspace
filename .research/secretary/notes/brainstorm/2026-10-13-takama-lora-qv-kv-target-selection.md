@@ -61,3 +61,53 @@ tags: [brainstorm, research, lora, vit, target-modules]
 - [2026-10-08 MTG](https://github.com/haruto2919/research-workspace/blob/main/.research/lab/projects/sequential-video-lora-analysis/meetings/2026-10-08-mtg.md)
 - [2026-10-13 参考実装詳細解析](https://github.com/haruto2919/research-workspace/blob/main/.research/lab/projects/sequential-video-lora-analysis/code-analysis/2026-10-13-projectedvit-lora-encoder-only-explain.md)
 - [LoRA 原論文](https://arxiv.org/html/2106.09685)
+
+
+---
+
+## 2026-10-13 14:42 JST 追記: Q/K/Vの独立切替要件とspec前論点
+
+### 今回のユーザー確定事項
+
+- 髙間氏のProjectedViTの自作LoRA（A/Bの低ランク補正を既存Attentionへ加算）を参考にする。
+- **Q、K、VはHy​​dra/YAMLの設定だけで簡単に独立して切り替えられること**。特定のQ/V組み合わせにハードコードしない。
+- 初回はSequential Loader、MoCo、Linear Probeなし。既存encoder-only構成とHydra/YAML管理を維持する。
+
+### 最小案（候補・未採用）
+
+```yaml
+lora:
+  enabled: true
+  target_modules: [q, v]  # [q], [k], [v], [q,k], [q,v], [k,v], [q,k,v]
+  rank: 8
+  alpha: 8
+  dropout: 0.0
+```
+
+- 各targetが現在のモデルに実在するmodule（以前のTransformers 5.17.0では `q_proj/k_proj/v_proj` と報告）へ**完全一致**で解決されるか実装時に検証し、不明な指定、重複、空リスト（enabled時）、未検出の層は例外とする。
+- 12 block全てへの一律適用を初回scopeとする。blockごとのカスタムtarget設定は不要。
+- baseは凍結し、LoRA A/Bだけをoptimizer対象にする。`enabled: false` ではLoRAなしのbaseline経路を維持。
+- Q/V・K/Vなら24 target × rank 8 × (768+768) = 294,912 trainable weights、Q/K/Vなら36 target = 442,368。実際のmodule数・shapeはlive code確認が必要。
+- LoRA moduleを別実装し、元の線形層の出力への加算を最小のwrapper/注入経路で作る方法が第一候補。参照のHugging Face内部クラス全面継承は比較候補、既存の `ViTFrameEncoder` のbaseline APIは維持したい。
+- 技術検証の最小scopes: synthetic tensorのforward [B,768] → engineering-only loss → backward → 1-2 optimizer steps → base不変、選択LoRAだけ勾配・更新、非選択層にLoRAなし。LoRA OFF equivalence、組合せ切替、異常設定のtestも追加。
+- 初期化: 参照先はA/BともXavier。一方でB=0なら初期差分0、初回でA勾配0が正常。初心者に説明しやすくbaseline一致が可能な後者を第一候補とし、参照との差異をspecに明記する。
+- 初回の実験は「LoRAの機械的な学習成立」の確認と、「通常画像データセットを使った意味のある分類学習」を分ける。後者を同specに含めるかは未決。
+- 性能確認や時間情報獲得は対象外。初期入力として人工tensorを使い、必要なら実画像1件のforwardのみを補足する。
+
+### spec前に決めるblocking候補
+
+1. **初期化**: 髙間氏のA/B Xavierをそのまま採用するか、A random/B zeroでbaseline出力同一を優先するか。
+2. **検証スコープ**: unit + 1/2-step engineering-only smokeまでか、実画像datasetによる数step/短時間の supervised learningも含めるか。後者ならdataset/loss/headが追加決定事項。
+3. **組み込み方法**: ViT内部の継承/置換をできるだけ原実装に合わせるか、加算とLoRA定義は踏襲しつつ最小wrapper注入にするか。現行実装・Transformersの互換性を再確認して選択。
+4. baseline repo・branch・commit/dirty state: ローカル `encoder-only` はGitHub上で直接確認できない。GitHub上の `b6385d8` は照会できるが、ローカル差分は不明。
+
+### non-blocking候補（提案初期値）
+
+- rank=8、alpha=8、dropout=0、LoRA biasなし。
+- default targets=[q,v] は初回基準（ユーザーはQ/K/V切替を確定したがdefault Q/V自体は推奨候補）。
+- optimizer=AdamW（LR 1e-3、WD 0）、fixed seed=0、CPU上の最小step、schedulerなし。
+- 既存のencoder-only baselineテスト・Hydra設定の非回帰を維持。
+
+### spec引き継ぎ範囲
+
+LoRA-onlyのコード導入、configでの対象切替、凍結・勾配・更新・等価性の検証。変更の許可は未取得であり、本記録から仕様承認や実装許可を推定しない。
