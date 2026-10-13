@@ -285,3 +285,32 @@ CIFAR-10 ordinary DataLoader (image, class label)
   - 別権限: CIFAR-10 download、実画像run、GPU占有、本格run、コミット/push
 - 保存仕様のapproved化は研究コード変更ではない。ローカルcloneへの`git pull`など同期も別作業。
 
+
+
+## 12. 実装進捗記録（2026-10-13、検証待ち）
+
+**対象コード**: [tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/tree/dev)
+
+ユーザーの採用・dev実装指定に基づき、GitHub上のdevへ以下を作成/更新した。
+
+| 種別 | ファイル | 役割 |
+| --- | --- | --- |
+| 新規 | [`model/vit/lora_linear.py`](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/model/vit/lora_linear.py) | pretrained Linear保持＋ランダムA/ゼロBの補正 |
+| 新規 | [`model/vit/vit_lora_frame_encoder.py`](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/model/vit/vit_lora_frame_encoder.py) | 独立Q/K/V注入・CLS特徴・LoRA重みI/O |
+| 更新 | [`model/vit/__init__.py`](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/model/vit/__init__.py) | 新しいencoderをexport |
+| 新規 | [`conf/lora_standalone.yaml`](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/conf/lora_standalone.yaml) | Hydra独立preset |
+| 新規 | [`scripts/smoke/smoke_vit_lora_cifar10.py`](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/scripts/smoke/smoke_vit_lora_cifar10.py) | 64枚・batch16・20step・AdamWの教師あり確認、保存・再読込 |
+| 新規 | [`test/model/test_lora_linear.py`](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/test/model/test_lora_linear.py) | B=0初期化・base不変・二段階勾配 |
+| 新規 | [`test/model/test_vit_lora_frame_encoder.py`](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/test/model/test_vit_lora_frame_encoder.py) | 全7target組合せ・注入失敗処理・2step・adapter I/O |
+| 新規 | [`test/model/test_vit_lora_checkpoint.py`](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/test/model/test_vit_lora_checkpoint.py) | LoRA＋Head checkpoint roundtrip |
+
+記録時の最終確認コミット: `182919b85e13a1f79d412de5faf79471d36290fd`（この後にコードが変更された場合は現dev HEADを再確認する）。
+
+**Evidence境界**:
+
+- ローカルの手元PyTorch環境により、`nn.Linear + B(A(x))`の計算構造を模した12block・7通りの組合せと、2stepでのA/B更新の**独立・簡易再現**は確認した。
+- **GitHub上の研究repositoryそのもののpytest/CI、Hugging Face本物のViTの実forward、CIFAR-10実画像20step学習、保存・復元の実験は未実行。** そのため`implemented`へは昇格しない。
+- 研究サーバのローカルcloneへの同期・dirty状態は確認していない。GitHubへのdev書込みをSSHサーバ反映済みとはみなさない。
+- 大規模評価、GPU長時間run、CIFAR-10ダウンロードは実行していない。
+
+実環境での検証後にテスト結果・failureと原因・科学的意味の境界を別途記録し、必須検証が完了した時点で`implemented`への昇格を検討する。
