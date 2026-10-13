@@ -163,3 +163,57 @@ LoRA-onlyのコード導入、configでの対象切替、凍結・勾配・更�
 [Transformers v5.17.0 `ViTModel` の実装](https://github.com/huggingface/transformers/blob/v5.17.0/src/transformers/models/vit/modeling_vit.py#L335-L352) では、blockの保持先は **`vit.layers`**（`nn.ModuleList([ViTLayer(...)])`）である。旧版等の `vit.encoder.layer` を前提にした注入コードはこのバージョンでは不適合となる。各blockのAttentionは `block.attention`、投影層は `block.attention.q_proj/k_proj/v_proj`。したがって概念的には `for block in vit.layers: setattr(block.attention, "q_proj", LoRALinear(block.attention.q_proj,...))` のように置換する。今回の再調査はこのネスト差異を直接確認できたことが重要。
 
 上記ネストは静的に確認したもの。実環境で `named_modules()` / `isinstance(nn.Linear)` / 12 block / 対象形状をassertし、差異があればFail fastとする。旧版の `vit.encoder.layer` に関する先行記録は**v5.17.0の現在構造として使わない**。
+
+
+---
+
+## 2026-10-13 追記：新しいLoRA単体検証specの前に決める事項
+
+### 今回の問い
+
+ユーザーはLoRA単体検証用のspecを作成する前に、残る判断項目の整理を依頼した。**spec作成自体はまだ依頼されていない**ため、探索メモとして追記する。過去のStage 4（PEFT＋Sequential Loader）specは新しい仕様として流用しない。
+
+### 確定済み（Authority: 現在のユーザー指示）
+
+- 髙間氏のProjectedViTの独立LoRA A/B補正と既存線形射影出力への加算を参考にする。
+- Q/K/VはHydra/YAMLで独立に切り替え可能。ハードコードせず、許可対象を明示し、対象層検出数を検証する。
+- Aをランダム、Bをゼロ初期化。
+- 通常の**実画像データセット**で学習確認する。CIFAR-10という個別データセットの採用はまだ未確定。
+- Base ViTを凍結。Sequential Loader、MoCo、Linear Probeを初回範囲から除外。既存Hydra/YAMLとencoder-onlyの非回帰を保つ。
+- `encoder-only`はユーザーが報告したローカルの作業ブランチ。GitHubの`tamaki-lab/2026_09_ishikawa_sequential-video-lora@b6385d8`を静的確認できたが、ローカルdirty差分・worktreeは未確認。
+
+### blockingな判断項目（spec approvedより前に確定が必要）
+
+1. **注入方式**: ①元のHF ViT内部クラスを継承しQ/K/V出力に加算する方式 vs ②既存`nn.Linear`オブジェクトを含む`LoRALinear`wrapperでQ/K/V投影層を差し替える方式。第一候補②。HF Transformers v5.17.0は `ViTModel.layers[i].attention.q_proj/k_proj/v_proj` が `nn.Linear`なので実現可能性は高いが実行未検証。元モデルをロードしてからfreeze、adapter挿入後にoptimizerを作ること、重複注入禁止、fail-fastを必須とする。
+2. **実画像学習時のhead**: CLS `[B,768]`に10クラス等の線形headを足し`LoRA+Head`をtrainableにするか、LoRAのみをtrainableにするか。実画像の分類学習成立まで検証するなら前者を推奨。ただし「LoRAだけが更新された」と誤報しない。unit smokeではLoRA-onlyの更新を別に検査する。
+3. **dataset**: CIFAR-10を第一候補とする（既存通常`CIFAR10` DataLoader＋`conf/dataset/cifar10.yaml`あり）。trainの少量サンプルによる短時間学習、testをtrainには混ぜない。dataset存在と`download=True`のネットワーク境界を事前確認。
+4. **検証レベル**: (A) pure gradient/1-2step unit、(B) CIFAR-10実画像の少量batchを用いたCE数十step sanity、(C) 本格的なepoch/validation accuracy。推奨は(A)+(B)、(C)を対象外とする。A/Bの意義と証拠レベルを混同しない。
+5. **Q/K/V対象とhyperparams**: 全12blockに一律適用、default `[q,v]` / rank8 / alpha8 / dropout0、7つの非空組合せで一致検証、未知名・空指定・重複を拒否する設計を推奨。個別blockの指定は対象外。可変rank/alphaの許容値とcheckpoint識別も固定。
+6. **保存/復元**: 分類head込み学習をするならLoRA-only重みとhead重みの保存が必要。元のpretrained baseは再ロード、config/seed/checkpointID/target_modulesを記録し、reloaded modelのeval出力が数値的に再現することを推奨。optimizer/resume/full pipelineは対象外でよい。
+7. **baselineと成功基準**: pretrained baseはstep前後でexact weight一致・Baseへの勾配なし。B=0なら初期LoRA ON/OFFの出力一致、LoRA B初回gradient・更新、2step以降でAにも勾配が届くこと。全QKV設定切替、CLS `[B,768]`、LoRA+headのCEがfinite、限られた固定batchで学習信号が観測できる。学習精度や時間情報の獲得は主張しない。
+8. **環境・CLI/Config/outputs**: live branch/commit/dirty状態、Transformers version、image normalization、seed、batch、steps、optimizer、出力場所、ログとComet利用境界を確定。現在の`main.py`は`configure_model`が`ViTb`（分類モデル）を選び、`assert torch.cuda.is_available()`を持ち、`model.parameters()`でoptimizerを作る。FrozenCLS encoderにはそのまま再利用しにくいので、既存経路に影響しない独立の短時間train/smoke entrypointを第一候補とする。
+
+### コード確認済みの重要点
+
+- [ViTFrameEncoder](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/b6385d8/model/vit/vit_frame_encoder.py): CLS特徴専用、`ViTModel`、`requires_grad_(False)`、headなし。
+- [ViTb](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/b6385d8/model/vit/vision_transformer.py): `ViTForImageClassification`、logits＋optional loss、base freezeの明示なし。
+- [CIFAR10 loader](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/b6385d8/dataset/cifar10.py): 標準`torchvision.datasets.CIFAR10`＋通常DataLoader、train shuffleあり。
+- [Dataset factory](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/b6385d8/dataset/dataloader_factory.py): CIFAR10/ImageFolder/VideoFolder/ZeroImagesから選択、Sequential Loaderとは別。
+- [transform_image](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/b6385d8/dataset/transforms.py): ImageNet mean/std=0.485/0.456/0.406と0.229/0.224/0.225。ViT `google/vit-base-patch16-224` checkpointが指定する正規化との一致を別途検証し、既存ResNet用transformを壊さない。固定batch overfit診断ならrandom crop/flipを一時的に使わず同じ入力を再現する。
+- [main.py](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/b6385d8/main.py): 既存分類訓練ルートはGPU必須assertがあり、frame-encoderの出力を直接消費する想定ではない。
+- [HF ViT v5.17.0](https://github.com/huggingface/transformers/blob/v5.17.0/src/transformers/models/vit/modeling_vit.py#L192-L240): 対象投影が個別`nn.Linear`。Blockネストは`vit.layers`、`vit.encoder.layer`ではない。
+
+### 推奨する最小scope（未採用）
+
+Phase I: adapter module + Q/K/V config switch + unit (shape, initialization equality, freeze, gradients/update)。
+Phase II: 実CIFAR-10 train small subset + ViT correct preprocessing + linear head + CE + limited steps + runtime metrics。
+Phase III（後続・今回対象外）: 比較実験/本格的性能評価、Sequential Loader/MoCo/Linear Probeとの統合。
+
+初期パラメータ提案: `rank=8`, `alpha=8`, `dropout=0`, `targets=[q,v]`, `AdamW lr=1e-3 wd=0`, `seed=0`, `batch_size=16`, `max_steps=20`（本格実験ではない）、schedulerなし。指定値は技術検証用の例であり、性能最適値として扱わない。
+
+### 保留/反例
+
+- 分類headだけがlossを減らしてもLoRAの寄与を証明しない。必要ならhead-only凍結LoRA対照条件を後段に置く。
+- 初回Bゼロ初期化でAの勾配がゼロでも仕様として正常。1 stepで全LoRA tensorの更新は要求しない。
+- 実画像学習のvalidation accuracyがすぐ高くなることはLoRAの技術的成功条件ではない。
+- ここに列挙した未決事項はユーザーへの推奨であり、採用・spec作成・実装・実験runを承認したものではない。
