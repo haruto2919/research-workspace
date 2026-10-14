@@ -91,7 +91,7 @@ python -m scripts.smoke.smoke_moco_cifar10 \
 ### 4.2 Gate C 500step（既存承認spec）
 
 - `report.run_kind=gate_c_pilot500`、`status=completed`、`gates.C.status=PASS`、`completed_steps=500`、全`checks`PASS、checkpoint roundtrip=true。
-- 初期Queueは32stepで完全置換、`500*32=16000`枚消費、500step終了後`real_key_count=1024`,`random_remaining_count=0`,`queue_ptr=(500*32)%1024=128`。
+- 初期Queueは32stepで完全置換、`500*32=16000`枚消費、500step終了後`real_key_count=1024`,`random_remaining_count=0`,`queue_ptr=(500*32)%1024=640`。
 - Cosine LRのスケジュールを確認。**Gate C のengineering PASSは「表現が識別的になった」のPASSではない**。Loss増加、Negative類似度、hard-negativeとpositiveのmargin、pre-normalization norms、variance、gradient/updateを診断し、研究的な解釈は別扱い。
 - NaN/Inf、EMA誤差、Keyへのgradient、Queue不整合、checkpoint復元失敗はFAIL。実験失敗時もreport/history・failure stage/stepを保存して原因を検討。
 - 500stepの成績によらず「MoCoが有益な表現を獲得した」と結論しない。必要なら後日固定評価セット/Linear Probe等の別評価specを設計。
