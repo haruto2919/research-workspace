@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: MoCo+LoRA実験はLinear Probe前の挙動確認中。LoRA単体・MoCo単体を小さなステップで検証してから統合する方針。
+summary: MoCo単体CIFAR-10 64/500stepで工学検証PASS。表現品質とViT/Loader/LoRA統合は未検証。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-15
@@ -47,6 +47,8 @@ last_updated: 2026-10-15
 
 2026-10-15、独立Standalone MoCo v2（CIFAR-10＋ResNet18、LoRA/Sequential Loaderなし）の基本動作を確認した。Meta公式に近いランダム初期Queue／Key-forward直前EMA／logits後・Backward前enqueue方式で、MoCo関連42件・既存LoRA回帰32件のpytestが成功。実CIFAR-10のCPU 20stepはcleanな`dev` commit `8939d7fca7d1cc3367b437c5f6adb48dd8e86f4a`で**Gate B PASS**、全14検証項目PASS、checkpoint復元PASS。**Gate C 500stepは未実施**。Lossが2.53→6.39に増加し、Negative類似度も増えているため、特徴の識別性・長時間安定性は未確認。詳細は[Stage1 Standalone MoCo Gate A/B/D実測確認](experiments/2026-10-15-standalone-moco-cifar10-gate-abd-console-evidence.md)を参照。
 
+2026-10-15、GPUでStandalone MoCoのQueue置換64step診断とGate Cの500step実験を実行したことを、ユーザー提出の自動生成`verification_summary.md`2件から確認した。両runとも実CIFAR-10（ResNet18、LoRA/Sequential Loaderなし）で**全14工学チェックPASS**、checkpoint別インスタンス復元PASS、Git clean/同一dev commit。64stepではstep32でランダムQueue完全置換、500stepは**Gate C（工学）PASS**、EMA/Queue/Query更新は500stepを通じて整合。Lossはstep42に約7.00、step450に6.26、step500に6.64で、PositiveとHardest Negativeの識別性や学習表現品質は未確定。研究的な表現評価は別Gateとして残る。詳細は[GPU 64stepと500stepの実測Evidence](experiments/2026-10-15-standalone-moco-gpu-64step-and-gate-c-500step-evidence.md)を参照。
+
 実装の正しさと基盤の成立を検証した後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
 ## マイルストーン
@@ -85,3 +87,4 @@ last_updated: 2026-10-15
 | 2026-09-28 | Stage 6A/6Bを共通Streaming MoCoへ統合。既存167・新規75テスト、Stage 6A人工10-step数値一致、Stage 6B実ViT/PEFT接続が成功。実データStage 6B・表現性能は未検証 |
 | 2026-10-06 | Full MoCo / Linear Probeの設定をHydraのversion付きpresetへ一元化（未コミット）。記録値と実行値の二重管理を解消し、manifest / feature schemaを更新。全テスト527件成功、失敗36件は既存の環境依存。詳細は[検証記録](experiments/2026-10-06-full-pipeline-hydra-config-verification.md) |
 | 2026-10-08 | MoCo loss振動とQuery LoRA勾配急増のためLinear Probeの解釈を保留。LoRA単体・MoCo単体を小さなステップで検証し、信頼できるLoRA実装を調査してから統合する方針を確認 |
+| 2026-10-15 | Standalone MoCoの実CIFAR-10 GPU Queue置換64stepとGate C 500stepが工学的PASS。特徴表現の識別性・時間情報の学習は未検証。結果はexperimentsのEvidence記録を参照 |
