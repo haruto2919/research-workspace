@@ -130,7 +130,7 @@ python -c 'import torch; print("torch",torch.__version__,"cuda runtime",torch.ve
 ### GPU演算の最小確認
 
 ```bash
-GPU_ID=<利用可能なGPUの物理indexを指定>
+read -r -p "利用可能で使用許可のあるGPUの物理indexを入力: " GPU_ID
 CUDA_VISIBLE_DEVICES="$GPU_ID" python - <<'PY'
 import torch
 assert torch.cuda.is_available(), "CUDA unavailable"
