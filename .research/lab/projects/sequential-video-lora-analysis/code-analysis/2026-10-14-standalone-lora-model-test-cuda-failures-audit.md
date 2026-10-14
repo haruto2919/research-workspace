@@ -167,3 +167,21 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python -m pytest -q -x test/model
 ### 結果報告に必要な証拠
 
 実行時の `git rev-parse HEAD`、`git status --short`、GPU名・CUDA状態、テストコマンド、pytest summaryと最初の失敗stack trace。GitHub `dev` とローカルdirty差分は明示して区別する。研究上のstatus更新・commit・pushは本記録では行わない。
+
+## 追加状況 — 2026-10-14 19時台（ユーザーのGPU診断ログ）
+
+ユーザーのSSHサーバ上での読み取り専用確認結果:
+
+```text
+GPU 0: NVIDIA RTX A4500, 234 / 20470 MiB, utilization 0%
+GPU 1: NVIDIA RTX A4500, 15 / 20470 MiB, utilization 0%
+PyTorch: 2.14.0+cu130
+PyTorch CUDA: 13.0
+CUDA available: True
+GPU count: 2
+```
+
+- **Observed（ユーザー提供ログ）**: NVIDIAデバイス2枚の列挙とPyTorch CUDA認識が成功。以前の `torch.cuda.is_available() == False` による168件の事前assert失敗は、少なくとも診断時点の環境では再実行を試せる状態になった。
+- **未確認**: GPU上での実際のtensor演算、backward、個別GPUの安定性、全168件（model全体220件）のPASS。利用権限やGPU共有状況も未確認。
+- **次段階**: 利用許可があり空いているデバイスを選び `CUDA_VISIBLE_DEVICES` で単一GPUに制限し、簡単なGPU forward/backward → `test_model_factory.py` の最小1件 → `python -m pytest -q -x test/model`。実行結果を確認するまでGPU完全非回帰はPASSとしない。
+- **安全上の注意**: GPU 1は診断時点で使用量15 MiBと少ないが、実際の使用前に再確認する。GPU復旧の根本原因はログから判断不能。
