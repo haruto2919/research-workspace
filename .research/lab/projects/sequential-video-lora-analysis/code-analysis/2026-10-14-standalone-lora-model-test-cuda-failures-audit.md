@@ -196,3 +196,15 @@ GPU count: 2
 **提案：段階的な非回帰の範囲確定**：信頼判断をせずに検証可能な範囲を先に切り分けるため、`CUDA_VISIBLE_DEVICES=1 python -m pytest -q -x test/model -k "not abn_r50 and not x3d"` を実行する。現在の220件のparametrize構造に基づけば、対象164件、除外56件を予測する（実行確認はまだない）。検証対象の全件がPASSした場合でも、ABN 28件とX3D 28件は未検証であり、全220件PASSと扱わない。
 
 **未確認**：ABN/X3Dの外部依存コードの安全性、外部依存先のcommit pinning、今回のローカルHEAD/dirty差分、テスト164件・220件の結果。外部依存先の使用可否はユーザー自身の判断に委ねる。本追記はテストを実行せず、コードも変更していない。
+
+
+## GPU subset status 2026-10-14
+
+User-supplied local test command: `CUDA_VISIBLE_DEVICES=1 python -m pytest -q -x test/model -k "not abn_r50 and not x3d"`.
+
+- Pytest collection output: 220 collected, 56 deselected, 164 selected.
+- The supplied partial log displays 164 pytest success dots (counted from its progress lines), corresponding to all selected cases.
+- The supplied log ends after `test_vit_lora_frame_encoder.py` and contains no final pytest summary or exit status. Completion is therefore not independently confirmed.
+- Excluded scope is ABN and X3D (28 cases each). This is not a full 220-case pass.
+- The local git HEAD and dirty status for this particular run remain unknown.
+- Next evidence needed: final pytest summary/exit status, and separately the ABN/X3D test cases.
