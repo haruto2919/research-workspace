@@ -89,3 +89,57 @@ Metaの公式MoCoリポジトリ `facebookresearch/moco` は2026-02-03 commit `8
 Stage1で最も重要なのは「公式との差分の一覧」と「最終動画MoCoで使う順序をStage2以降で変更しない設計」。参照テスト/数式検証では過去公式commitをbaselineとしつつ、**ユーザー研究の主要実装はempty Queue＋warmup、old Queue→Query optimizer→Key EMA→cached pre-EMA key enqueue**を第一候補とする。参照コードを全量copyしない。公式式との違いを単体テストで可視化し、これを公式MoCo v2の完全再現と呼ばない。逆に完全な公式再現をStage1の主張にするならrandom Queue＋EMA-before-key-forward＋forward時enqueueを採用し、Stage2以降の変更は別の独立Gateで検証する。最終採用は未承認。
 
 新たなspec・コード・学習run・TODOの作成はこの説明の範囲外。
+
+
+## 2026-10-15 00:30 JST 追記：ユーザー採用事項（公式に近いQueue/EMA/enqueue）
+
+### ユーザーの明示的な選択（先行の最有力案より優先）
+
+ユーザーは次のように指定：「Queue初期状態とKey EMA，Queue enqueueは公式に近い手法で行うようにします．そのほかは推奨を採用します」。
+
+以下を**採用方向として固定（brainstorm段階の設計決定）**する。これだけで正式なspec作成/研究コード変更の許可にはならない。
+
+| 論点 | 採用した内容 | 公式との差分または注意 |
+| --- | --- | --- |
+| Stage1目的 | MoCo v2-styleの独立mechanicsとCIFAR10の小規模学習を検証 | ImageNetの公式性能完全再現はしない |
+| MoCo参照 | Meta `facebookresearch/moco` 過去固定commit `a419ef282fc9885015674e77f58c59447206a27f` | 現mainが空であるためcommit固定 |
+| Encoder | LoRAなしResNet18のCIFAR仕様（stem 3x3 stride1、maxpoolなし）、初期pretrainなし | 公式主対象はResNet50/ImageNet、より小規模 |
+| Dataset | CIFAR-10 train、classification labelsはLossに使わない、通常DataLoader | 次段動画Loaderは除外 |
+| 2-view | 同じ画像から独立に生成するMoCo v2寄りの強いaugment（32x32に適応） | 個別transform確率はspecで固定 |
+| Projector | 2層MLP 512→512→128、ReLU、L2 normalize | ViT接続時はfeature input dimが変わる |
+| **Queue初期化** | **公式同様、randn([128,1024])を列L2正規化して初回から満杯** | **空Queue、key-only warm-upは採用しない**。初期要素は実画像由来でなくランダム |
+| Negative | 現stepのQueueを参照してInfoNCE、現在positiveはnegativeに含めない | 後期の同一sample再出現時をsample-IDでmaskするかは別途決定。Meta公式は単純にQueue全体を使用する |
+| **Key EMAタイミング** | **Query forwardの後、Key forwardの直前に `theta_k <- m theta_k + (1-m) theta_q`** | **以前の`optimizer.step→EMA`は採用しない** |
+| **enqueueタイミング** | **旧Queueでlogitsを確定した後、current normalized Keyをenqueueし、その後Backward→Query optimizer.step** | **以前の`optimizer.step→EMA→enqueue`は採用しない**。logitsがQueue mutationから独立している必要あり（`clone().detach()`等） |
+| m, T, K | momentum=0.999、temperature=0.2、K=1024 | 旧動画実験T0.07, K4096と混同しない |
+| batch, seed | batch32、seed0 | 旧CIFAR10 LoRA configは別条件 |
+| Optimizer | SGD+momentum0.9。短い検証と学習pilotは固定条件で比較可能にする | exact LR、weight_decay、scheduleは最終specで要指定（直前の候補`0.03*(32/256)=0.00375`は保証された最適値でない） |
+| 実行Gate | artificial numeric unit → 20step CIFAR smoke → 500step pilot → save/reload/non-regression | GPU実行の可否はハードウェア状況確認が必要。Loss単調減少はGateではない |
+| ログ | loss、pos/neg similarity、hardest neg、pre-normalize norm、feature variance、gradient/update norm、Queue pointer, contents/finite、EMA、state_dict, RNG、config、Git HEAD、report JSON/PNG/Markdown | checkpoint復帰も含める |
+| Comet | opt-in、既定OFF | 旧Stage6bの動画指標と実験タグを区別 |
+| 対象外 | Sequential Loader、ActivityNet、LoRA、strict online、長時間full pretraining、Linear Probe | Stage2以降で1要素ずつ加える |
+
+### 採用した公式に近い1step順序（固定）
+
+0. 新規runでQuery/Key stateを一致させ、Key全パラメータをoptimizer対象外、初期Queueを`randn`→L2 normalize。warm-upは**なし**。
+1. 現在の2-viewからQuery Encoderをforwardして`q`を計算。
+2. `torch.no_grad()`で、**Optimizer更新前のQuery**からKey EncoderのparameterをEMA（`m=0.999`）し、そのKeyでPositive `k`をforward。
+3. 現在の`q`,`k`と**enqueue前Queue**のkeyからpositive/negative logits `/T` を作成して現在stepのLoss graphを確定。全QueueをnegativeとするMeta方式のインターフェースが第一候補。
+4. `k.detach()`をFIFO Queueへenqueue、pointer進める。Queue変異の影響でautograd saved tensor version errorが出ないようNegative参照の`clone().detach()`などを設計する。
+5. InfoNCE backwardを行いQuery/Projectorのみoptimizer.step、Keyにはbackwardしない。
+6. 次stepへ。
+
+この順序はMeta固定commit `moco/builder.py` と対応。参照実装のforwardはlogitsとlabelsを返し、loss/backward/optimizerは外のtrain loopで行う。**公式のランダム初期Queueにはデータ由来のsample metadataがない**。過去の`key-only warmup`方式を混ぜない。
+
+### 正式spec前の限定的な残論点
+
+- ResNet18の**BatchNormのKey側running_mean/running_var/num_batches_tracked**をtrain forwardで追跡するか、Queryからcopy/EMAするか。Meta方式ではKeyは`torch.no_grad()`でforwardするがrunning buffersがtrain modeで更新され得る。DDP用batch-shuffleは単GPUではそのまま移植できないため、single-deviceのbatch handlingを固定。
+- **完全なaugmentation配置**：RandomResizedCrop 32x32、ColorJitter、Grayscale、Blurの有無・パラメータ・probabilities、normalization、seed とDataLoader workerをspecへ明記する。
+- **正確な学習ハイパーパラメータ**：SGD LR / weight decay / cosine scheduleの具体値、20stepと500stepの同一または異なるscheduler policy。過去探索のLR0.00375は候補であり、採用済みの明示値ではない。
+- **Negativeに同じCIFAR画像が再登場した場合のpolicy**：公式の全Queue使用に忠実ならsample-ID maskなし。以前の「別sampleだけ」を守るならmetadataとmaskを実装する必要があり、公式との差が生じる。初回500stepはCIFAR train全50kから無置換でbatch32にすれば16kサンプルで1 epoch未満となるが、将来の周回を含めspecで決める。
+- Queue K=1024 batch32では32バッチ後に完全置換。公式バッファは初期から1,024占有しているため`queue_occupancy=1024`は常時で、`real_key_count`を別に追跡するべき。
+- Meta元コードはmainが現在空、過去固定commitのMITライセンス条件に留意。GitHub remoteコードとの互換性と歴史的PEFT-MoCoの非同一性は従来どおり。
+
+### 次のHandoff候補
+
+`research-spec` に、上記のユーザー採用項目を最新指示として伝える。未固定のBN buffer、augmentation、SGD LR/schedule、same-sample negative policyはspec化Gateの対象。研究コードへの変更や実験実行は別タスク。今回の文書はexploratoryのまま。
