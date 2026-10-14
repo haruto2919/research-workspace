@@ -62,3 +62,30 @@ Metaの公式MoCoリポジトリ `facebookresearch/moco` は2026-02-03 commit `8
 ## Research-specへのHandoff候補
 
 目的：Sequential Loader/LoRA不在のMoCo v2-style mechanicsを説明可能にし、短時間CIFAR10で妥当な更新・再現性・数値監査を証拠付きで残す。実装範囲はMoCo core、tiny/real-image runner、Hydra preset、tests、reportingのみ。以前のPEFT依存MoCoコードは安全な参照として扱い、現在GitHub devにあるとは仮定しない。次の段階でfrozen ViTへ差し替えられるQuery/Key encoder interfaceを明示する。現在は探索記録、spec作成・実装・runの許可ではない。
+
+
+## 2026-10-15追記：公式commit・ResNet18・Queue初期化・EMA/Queue順序の解説と推奨
+
+ユーザーは、Stage1 spec検討の前提として「Meta公式MoCo過去commitの意味」「ResNet18をViTより先に使う理由」「Queue初期のrandom-normalized vs empty+warmup」「EMA・Queueの更新順序」を質問。これは設計の理解・壁打ちであり、正式specの承認ではない。
+
+### 事実と出典
+
+- 公式MoCo `facebookresearch/moco` の2026-02-03 commit `8976944da9c6b94cbd9158d7ebe50912aef807ef` は現mainのファイルが空になった状態。実装とREADMEは過去commit `a419ef282fc9885015674e77f58c59447206a27f` で取得・確認できた。commit pinとはGit履歴中の同一コードスナップショットを指定すること。閲覧するだけならcloneやcheckout操作を強制しない。
+- `moco/builder.py` ではQueue bufferを`torch.randn(dim, K)`で作り列単位でL2 normalizeし、最初からK個のrandom keyをNegativeとして使用。real sample IDとは対応しない。`MoCo.forward` の`with torch.no_grad()`内で `_momentum_update_key_encoder()`→`encoder_k(im_k)`、次に古いQueueでlogitsを計算、`_dequeue_and_enqueue(k)`。train loopのoptimizer.stepはforward/loss後なので、Queueのenqueuingはoptimizerより前。BN DDP batch_shuffleはマルチGPU前提。
+- 2026-09-24歴史的Stage5 specでは`key-only warmup`で実データkeyをFIFOへ投入後、training stepは `query/key forward→旧Queueでloss→backward→Query optimizer→Key EMA→事前計算済みkey enqueue`。これは公式の更新順序とは異なる。過去の動画runはPEFT LoRA＋動画MoCoを含み、現devにMoCo実装が存在するとは扱わない。
+
+### 初学者向け整理
+
+- ResNet18案：MoCo自身のInfoNCE/Queue/EMAが動くかを、比較的軽いCNNで先に検査。Meta公式の主対象は**ResNet50**であって、ResNet18+CIFAR10は公式のImageNet精度再現ではない。後段Frozen ViT+Projectorはencoder全面学習の通常MoCoとも異なる。ResNet18が必須という意味ではない。BNによるextra complexityはある。
+- 初期Queue案A：正規化したrandom Kベクトルを最初から配置。初回からLossとQuery optimizer stepが可能だが初期Negativeは画像から取得したkeyではない。初期損失はwarmup案と数値比較不可。
+- 初期Queue案B：空Queue（占有0）→key-only warmupで少なくとも1個の過去実画像Keyを確保→別sampleでInfoNCE update。warmupではQueryのBackward/optimizerを行わず、Queue要素数と更新回数を別カウント。sample IDによるcurrent positiveとnegative混入防止、同一CIFAR画像の別augmentがqueueに存在してもsampleIDで除外するならofficialとの差を明記。valid negative=0ではfail-fastまたは明示warmup、cross entropy single positive onlyを成功Lossとして使わない。
+- EMA `theta_k <- m theta_k + (1-m) theta_q`。例m=.9、古いkey=1, 更新前query=2, 更新後query=3なら official pre-optimizer EMA=1.1、研究方式 post-optimizer EMA=1.2。m=.999では単step差は小さくても同一とは限らない。
+- 公式タイムライン：Query特徴forward → (KeyパラメータEMA → Key特徴forward) → previous QueueでInfoNCE logits/loss → current key enqueue → backward → Query optimizer step。enqueueはloss計算のあと・optimizerの前。元のQueueでlossを作っているので当step positive keyはNegativeに含まれない。
+- 研究タイムライン：Query/Key forward（その時点でEMAなし）→previous QueueでInfoNCE→backward→Query optimizer→Key EMA（updated Query重みに追従）→**事前に算出したpre-EMA key**をenqueue。後からkeyを再ForwardしてQueueに入れたわけではない。future keyをNegativeに使わないことは両方式に共通。
+- EMAはKey Encoder/Projectorの重みを追従させる処理。FIFO Queueへのenqueueは特徴ベクトルを記憶する別処理であり、EMAはQueueの値そのものには適用しない。BN buffers（running mean/var）をどのように保持・コピー・更新するかは両方式と別に明示決定が必要。
+
+### 現時点の推奨と未決
+
+Stage1で最も重要なのは「公式との差分の一覧」と「最終動画MoCoで使う順序をStage2以降で変更しない設計」。参照テスト/数式検証では過去公式commitをbaselineとしつつ、**ユーザー研究の主要実装はempty Queue＋warmup、old Queue→Query optimizer→Key EMA→cached pre-EMA key enqueue**を第一候補とする。参照コードを全量copyしない。公式式との違いを単体テストで可視化し、これを公式MoCo v2の完全再現と呼ばない。逆に完全な公式再現をStage1の主張にするならrandom Queue＋EMA-before-key-forward＋forward時enqueueを採用し、Stage2以降の変更は別の独立Gateで検証する。最終採用は未承認。
+
+新たなspec・コード・学習run・TODOの作成はこの説明の範囲外。
