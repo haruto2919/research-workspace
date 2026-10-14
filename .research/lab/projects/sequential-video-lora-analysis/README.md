@@ -4,7 +4,7 @@ status: active
 summary: MoCo+LoRA実験はLinear Probe前の挙動確認中。LoRA単体・MoCo単体を小さなステップで検証してから統合する方針。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-10-08
+last_updated: 2026-10-15
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -44,6 +44,8 @@ last_updated: 2026-10-08
 2026-09-28、承認済みspecに従い、Stage 6AとStage 6Bを共通Streaming MoCo engineと3軸protocolへ統合した。Stage 6Bは1動画のstrict-single、valid frameのGBR→horizontal flip、FIFO内のsame-video past negativesを使用する。既存167件・新規75件のCPUテストが成功し、Stage 6A基準loopとの人工10-step数値一致、Stage 6Bの実ViT/PEFT短時間integrationを確認した。実装は未コミット。Stage 6Bの実ActivityNet runと表現性能評価は未実施で、これらのテストは実装全体の正しさや時間情報獲得を保証するものではない。詳細は[共通Streaming MoCo実装・検証記録](experiments/2026-09-28-shared-streaming-moco-verification.md)を参照。
 
 2026-10-08のMTGでは、MoCo lossの振動とQuery LoRA勾配の途中からの急増を確認し、原因が未特定のためLinear Probeの解釈を保留した。Sequential Loader、LoRA、MoCoを一度に統合した状態を見直し、LoRA単体・MoCo単体を小さなステップで検証してから統合する方針とした。現在の出所と挙動を十分に説明できないLoRA実装は基盤として使い続けず、Hugging Face PEFTや研究室内で実績のある簡潔な実装を調査する。研究室紹介では、オフライン学習を前提とした通常のAIからオンライン学習の制約と研究上の必要性へ接続する構成を検討する。詳細は[10月8日の議事録](meetings/2026-10-08-mtg.md)を参照。
+
+2026-10-15、独立Standalone MoCo v2（CIFAR-10＋ResNet18、LoRA/Sequential Loaderなし）の基本動作を確認した。Meta公式に近いランダム初期Queue／Key-forward直前EMA／logits後・Backward前enqueue方式で、MoCo関連42件・既存LoRA回帰32件のpytestが成功。実CIFAR-10のCPU 20stepはcleanな`dev` commit `8939d7fca7d1cc3367b437c5f6adb48dd8e86f4a`で**Gate B PASS**、全14検証項目PASS、checkpoint復元PASS。**Gate C 500stepは未実施**。Lossが2.53→6.39に増加し、Negative類似度も増えているため、特徴の識別性・長時間安定性は未確認。詳細は[Stage1 Standalone MoCo Gate A/B/D実測確認](experiments/2026-10-15-standalone-moco-cifar10-gate-abd-console-evidence.md)を参照。
 
 実装の正しさと基盤の成立を検証した後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
