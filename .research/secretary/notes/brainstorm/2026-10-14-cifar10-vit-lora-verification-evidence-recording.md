@@ -154,3 +154,8 @@ research-specへ引き継げる材料：目的＝LoRA A/B更新とFrozen ViTの�
 ### 現在のAuthority / 次の境界
 
 この追記は**探索的なMTG説明案であり、提案した追加ON/OFFや固定subset再評価を実行済みとは書かない**。現在はユーザー提示ログとGitHub読取で裏付けられる結果に限定。正式なMTG資料を作る依頼が来た場合は、`meeting-materials`スキルへhand-offし、正本資料を`materials/`に保存する。ログ改善の実装が必要な場合はresearch-spec経由とし、コード変更権限をここから推定しない。
+
+
+## 2026-10-14 追加：承認済み自動出力specへの引き継ぎ
+
+ユーザーは教授向けの自動出力4点（既存 `report.json` の拡張、`loss.png`、`lora_grad_norm.png`、`verification_summary.md`）について「これを行いたい」と明示した。この要求についての実装契約は[2026-10-14 Standalone ViT-LoRA 教授報告用Evidence自動出力 spec](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-14-standalone-vit-lora-mtg-evidence-auto-output-spec.md)へ移管済み（status: approved）。このbrainstorm自体のAuthorityはexploratoryのまま。研究サーバ上の未確認dirtyファイルは強制上書きしない。コードリポジトリへのcommit/pushや学習runは別の実行境界。
