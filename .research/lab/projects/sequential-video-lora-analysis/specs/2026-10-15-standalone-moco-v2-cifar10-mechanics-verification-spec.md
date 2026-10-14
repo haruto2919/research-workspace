@@ -269,3 +269,23 @@ log/moco_standalone/<date>/<time>/
 - **Spec Gate**：目的、scope、既存互換性、実装対象、数値条件、Gate A/B/C/Dの観測可能な合否、artifacts、再現性を記載済み。Blocking 0件、Non-blockingは局所実装命名やグラフ装飾のみ。
 - **Implementation handoff**：承認済みspecは本ファイル。対象`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`（調査時HEAD `7dcd194f439c7e28d796e2986857ab0df1982cbe`）。次に実装を明示依頼された場合、最新dev・ローカルdirtyを再確認し、独立MoCo core・CIFAR-10 two-view runner・Hydra・レポート・単体テストを新規実装、Gate A/B/Dを検証。既存ViT/LoRA/Sequential Loader/分類経路は変更しない。
 - **実行境界**：今回の採用は仕様の承認であり、研究コードの変更・commit/push・GPU使用・500step Gate C pilotの実行まで依頼したものではない。実行結果がない段階で`implemented`へ昇格させず、実測値は`experiments/`で別途記録する。
+
+## 12. 実装進捗記録（2026-10-15、Gate C未実施）
+
+ユーザーの実装依頼（2026-10-15）に基づき、ローカルの実装repository（branch `dev`、開始時HEAD `7dcd194`で基準と一致、clean）へ**新規ファイルのみ**で実装した。既存ファイルは変更していない。変更は未コミット。
+
+| ファイル | 役割 |
+| --- | --- |
+| `self_supervised/moco/standalone_moco.py`, `__init__.py` | CIFAR ResNet18 backbone、projector、Q/K・EMA・FIFO Queue・InfoNCE |
+| `conf/moco_standalone.yaml` | 独立Hydra設定（本specの数値。Gate Cは`training.max_steps=500 training.scheduler=cosine`） |
+| `scripts/smoke/smoke_moco_cifar10.py` | entrypoint・2-view・SGD・checkpoint/resume・失敗記録 |
+| `scripts/smoke/moco_verification_reporting.py` | 7章のartifact（JSON・PNG 4枚・Markdown） |
+| `test/model/test_moco_standalone.py`, `test/model/test_moco_cifar10_reporting.py` | Gate A 23件、runner/Gate D 19件 |
+
+- **Gate A**: PASS（CPU、23件）。spec違反を6種類入れるmutationでも、それぞれテストが失敗することを確認した
+- **Gate B**: PASS（実CIFAR-10 50,000枚・20 step・CPU、`log/moco_standalone/2026-10-15/01-47-30-253616/`）
+- **Gate D**: PASS（checkpoint roundtrip、resumeと中断しなかったrunのbit-exact一致、同seedでの再現、LoRA/ViT回帰32件。`pytest test`全体の失敗・エラーID集合も変更前後で一致）
+- **Gate C**: 未実行（別途の実行許可が必要）。GPU・commit/pushも未実施
+- 裁量内の判断・測定値・限界は[実装・検証記録](../experiments/2026-10-15-standalone-moco-v2-cifar10-mechanics-verification.md)に記録した。Comet opt-inは未実装で、`comet_enabled=true`は拒否する
+
+Gate Cが未実施のため、statusは`approved`のままとする。
