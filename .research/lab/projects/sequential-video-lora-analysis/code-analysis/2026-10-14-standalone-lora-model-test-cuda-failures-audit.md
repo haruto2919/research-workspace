@@ -108,3 +108,62 @@ test/model/test_vit_lora_frame_encoder.py       16 passed
 - **Remaining checks**: GPU復旧後の既存モデル168件、本物の事前学習済みViTでのLoRA B=0初期出力等価性（未実施なら）、ローカル差分/commitの固定。今回のspecは動画/時間情報獲得を証明するものではない。
 
 この追記はユーザーが実行した結果の読取監査であり、ChatGPT側でテスト・実験は実行していない。
+
+## GPUを含むモデル非回帰検証の実行プロトコル（2026-10-14）
+
+ユーザーから「GPUを含む完全な非回帰検証を行いたい」との依頼を受け、既存テストを改変せず、SSHサーバで実施するための段階的手順を記録する。**ここに記載したGPUテストは未実行**。研究サーバへのアクセス権がないため、以下は実行指示であり結果ではない。
+
+### Preflight（read-only）
+
+```bash
+git branch --show-current
+git rev-parse HEAD
+git status --short
+nvidia-smi -L
+nvidia-smi --query-gpu=index,name,memory.used,memory.total,utilization.gpu --format=csv,noheader
+python -c 'import torch; print("torch",torch.__version__,"cuda runtime",torch.version.cuda,"available",torch.cuda.is_available(),"count",torch.cuda.device_count())'
+```
+
+- CUDAが使えない場合はGPUテストを起動せず、障害を別途切り分ける。shared GPUでVRAM使用状況と利用許可を確かめる。
+- 以後は空いていて利用可能な物理GPUの番号を `GPU_ID` に入れる。例えばGPUが表示されたこととGPU0が利用可能であることを混同しない。
+
+### GPU演算の最小確認
+
+```bash
+GPU_ID=<利用可能なGPUの物理indexを指定>
+CUDA_VISIBLE_DEVICES="$GPU_ID" python - <<'PY'
+import torch
+assert torch.cuda.is_available(), "CUDA unavailable"
+x = torch.randn(128, 128, device="cuda", requires_grad=True)
+loss = x.square().mean()
+loss.backward()
+torch.cuda.synchronize()
+assert x.grad is not None and torch.isfinite(x.grad).all()
+print("GPU smoke PASS:", torch.cuda.get_device_name(0))
+PY
+```
+
+CUDA_VISIBLE_DEVICESを指定した場合、当該プロセスでは選択されたGPUが `cuda:0` として再番号付けされる。GPUアサーションを外して無理にtestを動かすことはしない。
+
+### 最小testで失敗を早期検出
+
+```bash
+CUDA_VISIBLE_DEVICES="$GPU_ID" python -m pytest -q -x \
+ 'test/model/test_model_factory.py::test_model_factory[False-2-zero_output_dummy]'
+```
+
+### GPUを含むmodel全体の検証
+
+```bash
+CUDA_VISIBLE_DEVICES="$GPU_ID" python -m pytest -q -x test/model
+```
+
+- 過去のテスト構成に基づく期待件数は220（CPUのみで52 PASS、CUDA assertionによる168 FAIL）。現在のローカルtreeが変わっていれば件数を再計数する。
+- 合格基準は全件PASS（skip, xfail, warningは別途区別）、本来のGPU model factory・forward/backward・DataParallelが実行されたこと。
+- `-x` で最初の失敗を停止・解析した後に再実行。既存のpretrained=Trueテストはcache不足で重みの取得を試みることがあるため、許可のないデータダウンロードを想定しない。
+- GPU関連テストが完了すれば、必要に応じrepo全体の `python -m pytest -q` も別の検証scopeとして検討。model全件PASSをproject全件PASSと混同しない。
+- GPUドライバ障害、OOM、checkpointダウンロード失敗、実装回帰を分類し、CUDAがTrueというだけで完成判定しない。
+
+### 結果報告に必要な証拠
+
+実行時の `git rev-parse HEAD`、`git status --short`、GPU名・CUDA状態、テストコマンド、pytest summaryと最初の失敗stack trace。GitHub `dev` とローカルdirty差分は明示して区別する。研究上のstatus更新・commit・pushは本記録では行わない。
