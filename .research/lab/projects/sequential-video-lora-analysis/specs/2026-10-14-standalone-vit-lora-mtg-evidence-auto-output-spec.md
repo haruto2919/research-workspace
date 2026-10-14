@@ -75,3 +75,10 @@ log/lora_standalone/<date>/<time>/
 - Non-blocking: PNGの色・フォントやhelper名は既存styleに従う。
 - Spec Gate: 本件4出力についてユーザーの明示採用・実装依頼があり、`approved` として保存。完了検証まで `implemented` にしない。
 - Implementation handoff: `scripts/smoke/smoke_vit_lora_cifar10.py` の最小変更＋レポート/plot helperと小規模unit test。SSH上のdirty情報が確認できないため、提供するコード差分はGitHub `dev@cbc303c` を基準とし、ローカルへは差分確認後に適用する。コードリポジトリへのcommit/pushは別承認。
+
+## 7. 実装記録（2026-10-14、未コミット・実run未実施）
+
+- 実装先: ローカルclone `dev`、変更前HEAD `cbc303c`（spec基準と一致）、変更前はclean。statusは実CIFAR-10 runが別Gateのため `approved` のまま。
+- 変更: `scripts/smoke/smoke_vit_lora_cifar10.py`（計測・報告部分のみ）。新規: `scripts/smoke/lora_verification_reporting.py`、`test/model/test_vit_lora_reporting.py`。`model/vit/`、config、checkpoint schema、学習経路は変更なし。
+- 検証: 新規7件＋既存LoRA/ViT関連26件の計33件PASS（CPU）。新規テストはFakeViT・偽CIFAR-10で `run()` を実行し、6ファイル生成、A/B勾配とhistoryの一致、step1のA=0描画、1-step・LoRA disabledの`NOT_RUN`、測定値からの`FAIL`を確認した。
+- 未実施: 実ViT・実CIFAR-10 64枚の20-step run（ローカルの `./downloaded_data` にCIFAR-10なし）、GPU依存テスト、commit/push。
