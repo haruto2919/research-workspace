@@ -159,3 +159,24 @@ research-specへ引き継げる材料：目的＝LoRA A/B更新とFrozen ViTの�
 ## 2026-10-14 追加：承認済み自動出力specへの引き継ぎ
 
 ユーザーは教授向けの自動出力4点（既存 `report.json` の拡張、`loss.png`、`lora_grad_norm.png`、`verification_summary.md`）について「これを行いたい」と明示した。この要求についての実装契約は[2026-10-14 Standalone ViT-LoRA 教授報告用Evidence自動出力 spec](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-14-standalone-vit-lora-mtg-evidence-auto-output-spec.md)へ移管済み（status: approved）。このbrainstorm自体のAuthorityはexploratoryのまま。研究サーバ上の未確認dirtyファイルは強制上書きしない。コードリポジトリへのcommit/pushや学習runは別の実行境界。
+
+
+## 2026-10-14 22:31 JST 追記：既存本実装への変更必要性の判断
+
+### ユーザーの問いと調査
+
+承認済みの [教授向け自動出力spec](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-14-standalone-vit-lora-mtg-evidence-auto-output-spec.md) が「既存の本実装コードを書き換える必要があるか」を再検討。GitHub `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` の `scripts/smoke/smoke_vit_lora_cifar10.py`、`model/vit/vit_lora_frame_encoder.py`、`conf/lora_standalone.yaml` と先に提供した適用パッチZIPを読み取り確認。
+
+### 方法の比較と収束
+
+- **案A（推奨・現在spec）**：Standalone CIFAR10 smoke entrypoint `scripts/smoke/smoke_vit_lora_cifar10.py` の計測・報告箇所だけを最小編集し、`scripts/smoke/lora_verification_reporting.py`、`test/model/test_vit_lora_reporting.py` を新規追加。forward/loss/backward/optimizer更新・data/preprocess・checkpoint schema・CLI既定値は維持。必要なA/B別勾配、Base学習前後exact比較・勾配なしの永続化、Optimizer集合、reload出力差分を学習中に正確に測れる。**本体の`model/vit/lora_linear.py`、`model/vit/vit_lora_frame_encoder.py`、`main.py`、MoCo経路、既存ViT pathには変更不要。**
+- **案B（旧コード変更ゼロの後処理）**：既存runの`report.json`だけからLoss PNGや一部Markdownは作れるが、GitHub dev版では勾配はA/B合計で、Base完全一致の数値・reload最大差分も永続化されていない。**既存情報から全証明項目を復元できない**ため、今回の自動証拠収集としては不十分。
+- **案C（旧コード変更ゼロの専用再学習runner）**：独立runnerに学習経路を再実装すれば可能だが元のsmokeと別の挙動となる危険、重複保守・元run自体の証明不十分。非推奨。
+
+### 重要な区別
+
+「既存の学習処理を書き換えない」は「既存のPythonファイルを一切編集しない」とは違う。案Aでは**実行可能コードの一部であるsmoke script自体は編集する**が、モデル・研究アルゴリズムの挙動を変えない設計。計測のオーバーヘッドや追加assertはあり、完全なbit-exact再現性を実機で最終確認したわけではない。先のパッチは現GitHub dev版の対象blob SHAを照合し、ローカルに差分がある場合は停止する。SSHサーバの未コミット版への安全なマージ方法と最終run結果は未確認。
+
+### 結論と境界
+
+**承認済みspecを変更する必要はない。** ただしユーザーの懸念に対応して「本体モデルは編集しない／Standalone検証entrypointだけ変更」を実装レビュー時の明示条件として維持する。今回の壁打ちはコード・spec・experiment結果の更新を意味しない。ローカルへの強制上書きや新しい学習runは実施しない。
