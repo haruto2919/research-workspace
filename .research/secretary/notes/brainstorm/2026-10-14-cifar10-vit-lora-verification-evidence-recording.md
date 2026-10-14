@@ -180,3 +180,29 @@ research-specへ引き継げる材料：目的＝LoRA A/B更新とFrozen ViTの�
 ### 結論と境界
 
 **承認済みspecを変更する必要はない。** ただしユーザーの懸念に対応して「本体モデルは編集しない／Standalone検証entrypointだけ変更」を実装レビュー時の明示条件として維持する。今回の壁打ちはコード・spec・experiment結果の更新を意味しない。ローカルへの強制上書きや新しい学習runは実施しない。
+
+
+## 2026-10-14 23:06 JST 追記：自動記録実装後の検証順序
+
+### 現状の確認と判断対象
+
+ユーザーから「先のspecを実装した。次に何をすればよいか」と相談を受けた。GitHub `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` は閲覧時HEAD `7dcd194f439c7e28d796e2986857ab0df1982cbe`（更新2026-10-14 23:05 JST）。`scripts/smoke/smoke_vit_lora_cifar10.py` が `scripts/smoke/lora_verification_reporting.py` をimportし、`report.json`、`resolved_config.yaml`、`adapter_head.pt`、`loss.png`、`lora_grad_norm.png`、`verification_summary.md` を保存する処理を確認。新規 `test/model/test_vit_lora_reporting.py` は7 testcase（実行していない）。**GitHub上でコードがあることとローカル実行が成功したことは別**。
+
+### 推奨する検証順序（未実行の提案）
+
+1. ローカル実装の`git rev-parse HEAD`と`git status --short`を先に保存し、remote devとの対応を確かめる。リモートを無条件にpullしてdirty差分を失わない。
+2. `python -m pytest -q test/model/test_vit_lora_reporting.py test/model/test_lora_linear.py test/model/test_vit_lora_frame_encoder.py test/model/test_vit_lora_checkpoint.py` を実行。現在のgit版なら合計32件を予想する。結果の総数と失敗traceを保持。
+3. GPU依存の既知問題を回避して `python -m pytest -q test/model --ignore=test/model/test_image_models.py --ignore=test/model/test_model_factory.py --ignore=test/model/test_videomodels.py` を実行。現在のテスト集合なら従来52＋新規7＝59件の成功を目安とする。
+4. CIFAR-10のtrain64枚/seed0/QV rank8 alpha8/20 stepsを既存のHydra entrypointで再実行し、1runに6点のartifactが出力されることを実測する。CPU smokeが最初の安全な経路。configの`training.device=cpu`は現在のデフォルト。
+5. `report.json` に `history` 20ステップ、A/B別gradient（初回A0/B>0、2ステップ目以降A>0の期待）、`verification`と`checks` 8項目すべてPASS（20-step/QV）、Base changed=0/gradient=0、optimizer一致、A/B変更数>0、roundtrip diffと合否があることを照合。2枚のPNGとMarkdown内の数値がreportと一致することを視認する。問題があれば結論をPASSにしない。
+6. 実測runのGit HEAD/dirty、コンフィグ、保存ディレクトリ、主要数値、未検証項目を`experiments/`へ正式なEvidenceとして記録する。教授向けのMTG資料は後に`meeting-materials`へhandoffする。
+
+### 実装静的確認で見えた注意点
+
+- 現行smokeのcheckpoint roundtripでは、**同じencoder/headインスタンスに保存した重みを再ロード**してからlogitsを比較している。これはデータのsave/load経路を通った確認にはなるが、破損させた既存重みを復元したという強い証明や、別インスタンスへの移植ができたことの直接証拠ではない。別途unit `test_vit_lora_checkpoint.py` は重みを変更後に復旧を確認している。教授に説明する際は「同一インスタンスへの再ロード一致」の範囲と区別する。より強い独立復元が必要なら追加検証の提案（既承認specの自動範囲を無断拡張しない）。
+- mini-batch train lossの推移を汎化性能改善の証明と扱わない。分類Headも同時学習している。
+- pytest/GPU全220件の成功は未確定。過去のABN Torch Hub trust gateはLoRA自動記録機能の回帰テストと混同しない。
+
+### 未確認事項と次の責務
+
+研究サーバのローカルdirtyや実行結果はGitHubから確認できない。ローカルrun結果が示されれば`engineering-task`側でspec success criteriaと照合し、正式な実験Evidence記録が必要な場合は実験記録管理の現行スキルを確認する。今回この相談だけで新たな実験実施やspec statusを`implemented`へ昇格したとは主張しない。
