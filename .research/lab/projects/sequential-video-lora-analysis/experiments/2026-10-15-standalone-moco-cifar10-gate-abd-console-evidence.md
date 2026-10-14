@@ -1,16 +1,16 @@
 ---
 project: sequential-video-lora-analysis
 record_type: experiment-evidence-review
-status: partial-verification
+status: gate-abd-passed-gate-c-not-run
 created: 2026-10-15
 last_updated: 2026-10-15
 spec: ../specs/2026-10-15-standalone-moco-v2-cifar10-mechanics-verification-spec.md
 related_analysis: ../code-analysis/2026-10-15-standalone-moco-gate-abd-audit.md
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
-implementation_branch: local-not-confirmed
-implementation_commit: local-not-confirmed
+implementation_branch: dev
+implementation_commit: 8939d7fca7d1cc3367b437c5f6adb48dd8e86f4a
 github_reviewed_dev_commit: 8939d7fca7d1cc3367b437c5f6adb48dd8e86f4a
-evidence_source: user-provided research-server console log
+evidence_source: user-provided research-server console log and generated verification_summary.md text
 dataset: CIFAR-10 train
 gate_c: not-run
 ---
@@ -85,3 +85,51 @@ gate_c: not-run
 - [Gate A/B/DのGitHub静的監査](../code-analysis/2026-10-15-standalone-moco-gate-abd-audit.md)
 - [2026-10-08 MTG](../meetings/2026-10-08-mtg.md)
 - [段階的統合の探索案](../../../../secretary/notes/brainstorm/2026-10-15-moco-loader-lora-staged-causal-debugging.md)
+
+
+## 7. 2026-10-15追加Evidence：verification_summary.mdによるGate B正式PASS
+
+**新たなユーザー提供物は、同じrun `report.json` から生成された `verification_summary.md` の貼付本文**であり、研究サーバ上のファイルをChatGPTが直接開いたわけではない。コンソール先行記録の「Gate B正式PASS未確認」「Git dirty/head未確認」は**この追記により更新された情報**である。元の観測の経緯を保存するため先行節は改変しない。
+
+### 確定したrun provenance
+
+| 項目 | 提示されたverification summaryの値 |
+| --- | --- |
+| `run status` | **completed** |
+| `run kind` | **gate_b_smoke20** |
+| local branch/HEAD | **dev / 8939d7fca7d1cc3367b437c5f6adb48dd8e86f4a** |
+| Git dirty | **false** |
+| Dataset | CIFAR10 train、50,000枚、640枚使用、download false、seed 0 |
+| Model | torchvision ResNet18 weights=None、CIFAR stem、Query/Key projector512→512→128 |
+| MoCo | Queue K1024 random unit-key初期、m0.999、T0.2、全Queue Negative |
+| Optimization | CPU、SGD lr0.00375、momentum0.9、WD1e-4、scheduler none、batch32、20step |
+| Environment | Python3.12.3、PyTorch2.14.0+cu130、torchvision0.29.0+cu130、CUDA13.0（**実行はCPU**） |
+
+### Gateの照合と実測PASS（提供されたファイル本文）
+
+| Gate | 確認結果 | Evidence boundary |
+| --- | --- | --- |
+| A | **42 pytest passed / 42.01s**（別途提供済console） | 自動生成summaryでは`A=NOT_RUN`（単体テストをrun内で実行していないため正常）。両証拠を合わせてA合格 |
+| B | **reportに基づく`Gate B=PASS`**、`status=completed`, `run_kind=gate_b_smoke20` | 提供されたsummaryの「検証結果」は**全14項目PASS**。実ローカル`report.json`のバイト列・checkpointファイルは未受領 |
+| C | **NOT_RUN** | 500stepの安定性・表現品質の主張不可 |
+| D | **report内`Gate D=PASS`**（checkpoint別instance復元）、MoCo suiteがresumeテスト含む42PASS、既存LoRA 32PASS | 実data runの保存復元報告に基づく。研究サーバcheckpointバイナリ自体を外部検査したわけではない |
+
+**全14のPASS項目：** 初期Q/K state一致・独立storage；Key requires_grad=false；optimizer=Queryのみ；20/20step更新；views/Q/K/logits shape一致（`[32,3,32,32]`, `[32,128]`, `[32,1025]`）；history finite；Key grad 0；EMA tolerance；Backbone60/60 tensors changed；Projector4/4 tensors changed；Queue pointer/count一致；Queue unit norm finite；dataset sample order/target=0；checkpoint roundtrip。
+
+**重要な測定値：** `ema_max_abs_error_max=7.61747e-08`（rtol1e-05/atol1e-06）、`queue_ptr=640`、real/random `640/384`、Queue L2 norm max error `4.17233e-07`、checkpoint state/optimizer一致、復元したeval feature max abs diff `0`、Git clean。
+
+### 解釈の更新
+
+- **確定できた主張（工学的）**：固定された`dev`のcleanなcommitにおいて、承認済みspecのGate A/B/Dに対応するCPU実行・テストは**提供された測定Evidence上合格**。MoCo v2型の計算・Query/Key更新境界・FIFO・checkpoint保存復元・既存LoRAの非回帰を支持する。
+- **研究的未解決**：Lossは`2.52748→6.38751`へ19連続増、mean Negative cosineは約`-0.00436→0.52252`、positiveは約`0.91238→0.89265`。初期random Negativeが実画像keyへ置換中であり、損失の単調増だけで欠陥と断定しない。しかしstep2以降hardest-negative平均`~0.94–0.96`がpositive平均`~0.89–0.92`を上回るため、この時点で識別的な特徴学習の成功とは言えない。samplewise判定・Queue置換後の追跡を後段の診断に引き継ぐ。
+- **Gate C無しで次段を検討する場合の境界**：MoCo mechanicsの独立controlとして使うことは可能。ただし500step安定性・collapse無し・CIFAR線形評価精度・動画の時間情報獲得は依然**未検証**。Stage2以降に進む場合も、未解決のMoCo学習挙動を隠さず比較軸を固定する。
+- **specとの残差**：Comet opt-inがコード上`ValueError`で未実装、公式MITライセンスがソースdocstringではCC-BY-NC4.0と誤表記（2026-10-15 audit F01/F02）。A/B/DのPASSはこれらを解消した証拠ではない。
+
+### 次の検証候補
+
+1. **最小・低リスク**：本runの`report.json`、`resolved_config.yaml`、4図の値一致とSHAsをチェックし、検証証拠として保存。今回提供されたMarkdownからGate Bの判定とprovenanceは確認済み。
+2. **学習挙動の原因切り分け**：Queue実画像置換が完成するstep32以後も同じ構成でloss・Positive/Negative cosine・projector varianceを追う**別fresh 40–64step custom pilot**。これを公式Gate C達成とは言わない。
+3. **承認済みGate C（まだ未実施）**：500step fresh cosine runnerと勾配・feature norm・varianceの継続観測。実行するならユーザーの実験運用方針に従う。
+4. **仕様差分**：Comet opt-in実装またはspec上の範囲変更、ライセンス出典表記の修正を別engineering taskで扱う。
+
+本追記は**ユーザーから提示された測定Evidenceの正確な記録**であり、ChatGPTが独自に実験run、code編集、checkpoint取得、GPU/SSH環境検査を行ったわけではない。
