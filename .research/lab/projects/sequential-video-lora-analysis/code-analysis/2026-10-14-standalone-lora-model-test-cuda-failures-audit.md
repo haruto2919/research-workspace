@@ -185,3 +185,14 @@ GPU count: 2
 - **未確認**: GPU上での実際のtensor演算、backward、個別GPUの安定性、全168件（model全体220件）のPASS。利用権限やGPU共有状況も未確認。
 - **次段階**: 利用許可があり空いているデバイスを選び `CUDA_VISIBLE_DEVICES` で単一GPUに制限し、簡単なGPU forward/backward → `test_model_factory.py` の最小1件 → `python -m pytest -q -x test/model`。実行結果を確認するまでGPU完全非回帰はPASSとしない。
 - **安全上の注意**: GPU 1は診断時点で使用量15 MiBと少ないが、実際の使用前に再確認する。GPU復旧の根本原因はログから判断不能。
+
+
+## 追記：GPU実行での外部依存先確認による停止（2026-10-14）
+
+**ユーザー提示ログによる事実**：`CUDA_VISIBLE_DEVICES=1 python -m pytest -q -x test/model` は220件を収集し、`14 passed, 1 failed, 1 warning` で停止した。失敗は `test/model/test_image_models.py::test_image_model_output[224-1-2-True-abn_r50]`。例外は `Exception: Untrusted repository.`。モデル構築が止まったのでこのケースのforward/backwardは未検証であり、残り205件も未実行。失敗をCUDAやLoRAのバグと認定しない。
+
+**GitHubコードの確認**：`model/abn/attention_branch_network.py` の `ABNResNet50Model` が `torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar100_resnet56", pretrained=use_pretrained)` を使用。さらに `model/x3d/x3d.py` は `torch.hub.load("facebookresearch/pytorchvideo", "x3d_m", ...)` を使用。PyTorchによる外部依存モデルの取得・信頼確認は、これらの既存モデル経路から発生する。ログ中のViT分類head mismatchはクラス数変更に伴う表示であり、今回の例外原因ではない。
+
+**提案：段階的な非回帰の範囲確定**：信頼判断をせずに検証可能な範囲を先に切り分けるため、`CUDA_VISIBLE_DEVICES=1 python -m pytest -q -x test/model -k "not abn_r50 and not x3d"` を実行する。現在の220件のparametrize構造に基づけば、対象164件、除外56件を予測する（実行確認はまだない）。検証対象の全件がPASSした場合でも、ABN 28件とX3D 28件は未検証であり、全220件PASSと扱わない。
+
+**未確認**：ABN/X3Dの外部依存コードの安全性、外部依存先のcommit pinning、今回のローカルHEAD/dirty差分、テスト164件・220件の結果。外部依存先の使用可否はユーザー自身の判断に委ねる。本追記はテストを実行せず、コードも変更していない。
