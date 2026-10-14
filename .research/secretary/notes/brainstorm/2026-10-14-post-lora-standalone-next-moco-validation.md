@@ -60,3 +60,25 @@ tags: [brainstorm, research, lora, moco, staged-verification, online-learning]
 - Blocking：参照MoCo実装とdataset/encoder組合せ、既存MoCo実装再利用範囲、実画像pilotのステップ数/compute予算、augmentation/negative policy。
 - 非対象：LoRA統合、strict video stream、Linear Probe、full ActivityNet run、VideoMAE変更。
 - Authority：本書はexploratory。ユーザーの依頼は「次に何をすべきか」の相談であり、新たなspec・コード実装・run・TODO追加を許可するものではない。
+
+
+## 2026-10-14 追加検討：なぜMoCo単体を先としたか、Loader＋自作LoRA先行との比較
+
+### 問いと位置づけ
+
+ユーザーからMoCo単体検証を先に推奨した理由を質問された。根拠は2026-10-08 MTGでの「MoCo loss振動・Query LoRA勾配急増が未解決、コンポーネントを独立に検証してから統合する」との**明示的方針**。ただし、MoCo単体を終えなければ自作LoRAとSequential Loaderを接続できないという**技術依存はない**。先の「MoCoを必ず先に」のニュアンスを修正。
+
+### 選択肢の比較
+
+| 順位候補 | 解消できる疑問 | 解消できない疑問・リスク |
+| --- | --- | --- |
+| MoCo単体先行 | InfoNCE/EMA/Queue、正負例、Projectorの数値挙動が動画順序やLoRAの影響なしに正常か。過去の大きな勾配の原因を切り分ける土台。10/8 MTG方針と一致 | ResNetなどの標準MoCoがPASSしてもViT/自作LoRA/strict-single環境での勾配安定性を証明しない。古いMoCoコードの実体は現在GitHub devで未確認であり準備負担がある |
+| 自作LoRA＋Sequential Loaderのshort smoke先行 | 今回の新しいLoRA実装に、ActivityNet 16 frames→ViT→masked mean→LoRA gradient/updateという動画接続経路が確かに成立するか。CPU 1～2step程度の小さな確認で手戻りを防ぐ | InfoNCE/EMA/Queueの検証はできない。loss振動やQuery LoRA勾配急増の原因究明には直結しない |
+| 全部一度に統合・長時間実行 | End-to-endが動くかを短絡的に確認できる可能性 | 不具合が出ても帰属先が分からず、過去の問題を繰り返すため非推奨 |
+
+### 事実・推論・提案
+
+- **確認済みの歴史的Evidence**：2026-09-24 Stage 4は以前の**PEFT LoRA**でActivityNetをSequential Loaderから読み、16-frame、masked mean、1-step LoRA更新、Base凍結を確認済み。現在の2026-10自作LoRAはCIFAR-10通常DataLoaderで検証されており、両者は別実装。新自作LoRA＋Sequential Loaderの接続は未確認。
+- **推論**：過去の未解決現象がMoCo-specificな原因（Projector正規化、Queue内false negatives、online distribution shiftなど）ならMoCo単体検証は有益。ただし原因を特定できる保証はなく、標準画像MoCoだけでは動画順序由来の異常を再現できない。
+- **更新した推奨**：研究の大きな優先課題はMoCo単体検証を維持しつつ、**直近の工学タスクとしては自作LoRA＋Sequential Loaderの1～2step小規模接続を先に行ってもよい**。双方が独立して合格した後に自作LoRA＋MoCo、最後にstrict Sequential Loader＋ActivityNetに統合する。異常時にはステージごとの差分比較を使う。
+- **境界**：これは探索的順序修正であり、10/8のMTG決定を取り消した事実を意味しない。仕様・コード・TODO・実験runは今回変更しない。
