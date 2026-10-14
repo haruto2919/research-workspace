@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation
-status: draft
+status: approved
 title: Standalone MoCo v2-style CIFAR-10 mechanics and diagnostic pilot
 created: 2026-10-15
 last_updated: 2026-10-15
@@ -15,12 +15,12 @@ reference_commit: a419ef282fc9885015674e77f58c59447206a27f
 dataset: CIFAR-10
 encoder: resnet18-cifar-random-init
 moco_variant: v2-style
-authority: user-adopted research decisions; implementation details below proposed for review
+authority: user-approved MoCo design and B1-B5 details
 ---
 
-# Standalone MoCo v2型・CIFAR-10独立検証 実装spec（draft）
+# Standalone MoCo v2型・CIFAR-10独立検証 実装spec（approved）
 
-> **Status: draft。** 2026-10-15にユーザーが選んだ「Queue random init・Key-forward前EMA・logits後かつoptimizer前enqueue」および残りの先行推奨を反映したレビュー用spec。**正式approvedではないため、この文書だけを根拠に研究コードの実装・commit/push・500step pilotを始めない。** 下記の「Ambiguity Gate」の提案値は承認待ちである。
+> **Status: approved（2026-10-15）。** Queue random初期化・Key-forward前EMA・logits後かつoptimizer前enqueueを含む基本設計、およびB1–B5の全推奨値がユーザーに承認された。**本specは今後の実装基準となるが、研究コード変更の実施依頼、commit/push、500step pilotやGPU実験の実行承認を自動的に意味しない。**
 
 ## 1. 目的・証明したいこと
 
@@ -42,7 +42,7 @@ authority: user-adopted research decisions; implementation details below propose
 - **公式方式へ変更したユーザーの明示指示**：Queueはrandom unit-vectorで満たして開始、warm-upなし。Queryを更新する前にKeyをEMAで更新してからKey forward。Queueへのenqueueは旧Queueによるlogits構築後・Backward/SGD前。
 - 公式のMoCo v2を小規模に適応した**機構検証**であり、ImageNet精度やDDPによる公式pretraining再現を主張しない。
 - 保存はJSON/YAML/グラフ/Markdown/checkpoint、Comet opt-inを第一候補とする。
-- 本文で明示した細部にはspec作成者のレビュー用提案を含み、ユーザーによる全項目承認が済んだとは扱わない。
+- 2026-10-15にユーザーがB1–B5の推奨値を一括採用した。4.2・4.5・4.6の詳細設定、Queue全件Negative、データ実行範囲は承認済みの契約とする。
 
 ### 2.2 調査済み基準
 
@@ -84,7 +84,7 @@ authority: user-adopted research decisions; implementation details below propose
 
 - `torchvision.datasets.CIFAR10(train=True, download=False)`を使う。downloadが必要なら**明示的overrideでのみ**許す。画像ラベルは返る場合もcontrastive loss、positive/negative、train/validation評価に使用しない。
 - 同じsampleから独立random変換で`im_q`と`im_k`を生成。`TwoCropsTransform`相当の小さなwrapperを利用し、同一indexの2viewを対応づける。
-- **レビュー用の固定提案（公式MoCo v2の32×32適応）**：
+- **採用した画像拡張（公式MoCo v2の32×32適応）**：
   `RandomResizedCrop(32,scale=(0.2,1.0),ratio=(0.75,1.3333333))` →
   `RandomApply([ColorJitter(0.4,0.4,0.4,0.1)],p=0.8)` →
   `RandomGrayscale(p=0.2)` →
@@ -117,16 +117,16 @@ authority: user-adopted research decisions; implementation details below propose
 
 **EMAをOptimizer後に移す・enqueueをOptimizer後へ移す・random Queueを空Queueへ置き換えるのは今回のspec違反。** 初回EMAは初期Query/Keyが同一ならparameter値を保つ。BN bufferの更新とbatch shuffleは別契約で扱う。
 
-### 4.5 BatchNorm／batch shuffle（レビュー用詳細決定）
+### 4.5 BatchNorm／batch shuffle（採用済み詳細契約）
 
 - Query/Keyとも`train()`でforwardし、各branchのBatchNormの`running_mean`,`running_var`,`num_batches_tracked`は**各branchのforwardの通常規則でのみ更新する**。KeyのBN parameter `weight/bias`はEMA対象、BN running bufferをQueryからコピー・EMAしない。`torch.no_grad()`はKey側BN running bufferの自動更新を止めない点を明示する。
 - Key側の特定BN bufferをOptimizer/EMA対象として誤更新しない。両branchのBN bufferはstate_dict・checkpoint対象とする。
 - **single-deviceでDDP batch-shuffleを実装しない**。公式のDDP用`_batch_shuffle_ddp`/all-gatherと同等の分散BatchNorm behaviorは主張しない。batch構成の統計効果に注意し、num_workers、batch size、BatchNorm modeを固定する。
 - Key batch input順序はQuery viewとsame sample indexを対応づけて保持。将来DDPを追加するときは別specでBN/shuffleを再検討。
 
-### 4.6 Optimizer / Scheduler（レビュー用固定数値）
+### 4.6 Optimizer / Scheduler（採用済み数値）
 
-- SGD: `momentum=0.9, weight_decay=1e-4, nesterov=false`。初期LR `0.00375` は**公式ImageNetのlr0.03 / batch256をbatch32へ比例換算した初期提案値であって、CIFAR10最適値の根拠ではない**。公式の性能再現は求めない。
+- SGD: `momentum=0.9, weight_decay=1e-4, nesterov=false`。初期LR `0.00375` は**公式ImageNetのlr0.03 / batch256をbatch32へ比例換算した初期候補として採用した値であって、CIFAR10最適値の根拠ではない**。公式の性能再現は求めない。
 - **Gate B 20step smoke**: `max_steps=20`、LR `0.00375`固定、scheduler disabled。乱数seed0、batch32、drop_last。新規run、fresh Query/Key/Queue。forward/backward/step/EMA/Queue/ログとcheckpointの成立を確認。
 - **Gate C 500step pilot**: `max_steps=500`、LR `0.00375`開始、stepに応じたcosine decay（`lr(t)=0.00375*0.5*(1+cos(pi*t/500))`, tは完了済みoptimizer steps、最後のstepに向けて0へ近づく）。**20step smokeから重みを引き継がず新規run**。20stepと500stepのloss曲線は学習率履歴が違うため無条件に数値比較しない。
 - Gradient accumulationなし、mixed precisionなし、gradient clippingは既定OFF。NaN/Inf検出時はfail-fastしてfailed artifactを残す。比較のためloss、grad、実parameter update（SGD後）とLRを全step記録。
@@ -134,7 +134,7 @@ authority: user-adopted research decisions; implementation details below propose
 
 ## 5. 変更対象・ファイル配置案
 
-既存構成を維持し、新規だけで完結させる。実装前に最新dev/head/dirtyと既存類似ファイルを再確認し、二重実装を防ぐ。**名称・配置はレビュー用候補**。
+既存構成を維持し、新規だけで完結させる。実装前に最新dev/head/dirtyと既存類似ファイルを再確認し、二重実装を防ぐ。**名称・配置は局所的な実装候補であり、役割・挙動・artifact契約は固定**。
 
 ```text
 self_supervised/
@@ -239,9 +239,9 @@ log/moco_standalone/<date>/<time>/
 - MoCo v2型＋CIFAR10＋ResNet18単体検証、K1024・m0.999・T0.2、batch32/seed0、SGD momentum、20stepと500step段階、JSON/PNG/Markdown/checkpoint、独立Hydra・Comet OFF、現在のViT/LoRA/Loaderを変更しない。
 - **公式準拠でrandom Queue、Key forward前EMA、logits後/optimizer前enqueue**。warm-up、optimizer後EMAを選ばない。
 
-### Spec作者が詳細化したため、approved移行前に確認を要する設定（blocking for approval）
+### B1–B5：2026-10-15にユーザーが推奨値を一括採用（blockingなし）
 
-| ID | 論点 | 本draftの推奨固定値 | 別案・影響 |
+| ID | 論点 | 承認済み固定値 | 別案・影響（今回非採用） |
 | --- | --- | --- | --- |
 | B1 | ResNet18 Key BatchNorm | Query/Key `train()`、Key forwardでBN buffersを独立更新、parameterのみEMA。single GPU batch shuffleなし | buffers copy/EMA、Key eval、batch shuffle導入は数値結果が変わる |
 | B2 | CIFAR10用augmentation | 上記4.2のcrop/color/gray/blur3/flip、ImageNet normalize、seed0 | blurなし、CIFAR normalize、別crop範囲でPositive難度が変わる |
@@ -249,7 +249,7 @@ log/moco_standalone/<date>/<time>/
 | B4 | Queue Negativeのsample-id mask | 公式同様、全K keyをNegativeに採用しID maskingなし | 同じsampleの過去keyをmaskするならメタデータQueueが必要になり、公式との差も生じる |
 | B5 | dataset execution scope | 50k trainから初回500step以内、同seedのfresh pilot、num_workers0、drop_last | 固定subset/複数epochで再登場頻度やQueue対照が変化 |
 
-上のB1–B5には**推奨値を記入済み**。今回の「spec作成」依頼自体をB1–B5の明示採用やコード実装指示と解釈しない。レビュー時にまとめて採用できればblockingなしに移行可能。
+**2026-10-15のユーザー発言「採用します」によりB1–B5の推奨値は全件採用済み。Blocking ambiguity: なし。** 実行環境のGPU・データcacheやローカルdirtyはコード実装・実行前に確認する運用事項であり、未決の研究設定ではない。
 
 ### Non-blocking
 
@@ -258,6 +258,14 @@ log/moco_standalone/<date>/<time>/
 
 ## 10. Approval / engineering handoff
 
-- **現在のspec status: draft**。ユーザーが本specとB1–B5を明示承認したらstatusをapprovedに変更できる。approval前の実装は不可。実装・短時間検証も別依頼に従う。
+- **現在のspec status: approved（2026-10-15）**。ユーザーによるB1–B5の一括採用でblocking ambiguityは解消。**status=approvedと、実際のコード実装・短時間smoke・長時間pilot・pushの作業指示は区別する。**
 - Handoff候補：`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`の最新HEAD/dirty確認 → 新規MoCo core・CIFAR10 two-view runner・Hydra・reporting・unit tests → Gate A/B/D → 観測結果をユーザーへ報告。500step Gate C、GPU pilot、pushは別途明示許可が必要。
 - 成功時も「MoCo mechanics/CIFAR10 short controlled learning engineering verification」と明記し、時間順序・表現学習性能の証明には拡大しない。
+
+
+## 11. Approval record（2026-10-15）
+
+- **ユーザーによる明示承認**：直前のレビューで提示された5項目すべての推奨値について「採用します」。B1 Key BatchNorm、B2 CIFAR10 augmentation、B3 SGD LR/weight decay/scheduler、B4 Queue全件Negative、B5 dataset/seed/batch/500step fresh-run設定を承認。既に採用済みのランダムQueue初期化、Key forward前EMA、logits構築後・backward/optimizer前enqueueは変更しない。
+- **Spec Gate**：目的、scope、既存互換性、実装対象、数値条件、Gate A/B/C/Dの観測可能な合否、artifacts、再現性を記載済み。Blocking 0件、Non-blockingは局所実装命名やグラフ装飾のみ。
+- **Implementation handoff**：承認済みspecは本ファイル。対象`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`（調査時HEAD `7dcd194f439c7e28d796e2986857ab0df1982cbe`）。次に実装を明示依頼された場合、最新dev・ローカルdirtyを再確認し、独立MoCo core・CIFAR-10 two-view runner・Hydra・レポート・単体テストを新規実装、Gate A/B/Dを検証。既存ViT/LoRA/Sequential Loader/分類経路は変更しない。
+- **実行境界**：今回の採用は仕様の承認であり、研究コードの変更・commit/push・GPU使用・500step Gate C pilotの実行まで依頼したものではない。実行結果がない段階で`implemented`へ昇格させず、実測値は`experiments/`で別途記録する。
