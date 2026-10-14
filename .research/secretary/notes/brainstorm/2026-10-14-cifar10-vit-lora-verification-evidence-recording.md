@@ -115,3 +115,42 @@ research-specへ引き継げる材料：目的＝LoRA A/B更新とFrozen ViTの�
 ### 次段階・Authority
 
 これは記録範囲の**推奨案（exploratory）**。現在の `approved` CIFAR10 LoRA実装specを変更・採用・完了扱いせず、研究コードも編集しない。ユーザーが採用し、実装を要請するなら `research-spec` のGateでログ項目と成否判定を確定し `engineering-task`へhandoffする。既存の2026-10-13ログから取得できない証拠を後付けで捏造しない。
+
+
+## 2026-10-14 22:00 JST 追記：教授への実装根拠説明に必要なEvidenceと資料構成
+
+### 今回の問い
+
+ユーザーは「実装できたことの根拠を教授とのMTGで説明したい」と目的を明確化。目的は、汎化性能・動画の時間理解を主張することではなく、10月8日MTGで要求された「LoRAを独立して正しく挿入、更新し、Base ViTを凍結できるか」の検証結果を誤解なく報告すること。
+
+### 比較した説明案と推奨
+
+- **案A: train lossとaccuracyだけ提示**。画面では分かりやすいがHeadも更新するためLoRA自体の証拠として不十分。単独採用しない。
+- **案B: 設計図＋勾配曲線＋学習前後の変更数＋Base凍結表＋単体テスト（推奨）**。spec Stage A/Bとの対応を提示でき、短いMTGに向く。
+- **案C: 案B＋同一学習済みHead固定のLoRA ON/OFF対比＋同一固定64枚の初期/終了時評価（有力追加案）**。更新したLoRAがforward出力に寄与することを示せ、Headによる説明との区別が明確になる。一方、同じHeadでのON/OFFは性能優位の因果的証明ではない。
+- **案D: Head-only比較、未知画像・複数seedの評価**。将来「LoRAが有益」の性能主張まで行う段階用。今回の「実装が動く」検証の必須条件にはしない。
+
+### 教授へ示す4点の主証拠
+
+1. **構造・初期値**：Q/Vへ12層×2=24 wrapper、rank8 alpha8、LoRA trainable 294912、Head7690、frozen Base 85798656。B初期0、同一事前学習済みViTのLoRA OFF/ON初期CLS等価性をassert（FakeViT unitは存在、real ViTでの初期等価性の実行記録は今の情報では未確認）。
+2. **勾配と更新**：2026-10-13ユーザー提示ローカルrunではstep1 A grad=0, B grad=0.1188、step2 A grad=0.0170, B grad=0.1312、終了時A/B各24/24 tensors変更。全20stepのA/B gradient曲線＋最終の重み差分を図表化。全stepのA/B updateを1つずつグラフ化することは不要。
+3. **Base凍結**：全Base `requires_grad=False`、Base gradientなし、学習前後`torch.equal`で0変更をassertとレポートに残す。変更数が0でも、全Baseを実際に比較した対象数・検証対象・手法を明記する。OptimizerはLoRA A/B+Headだけ。
+4. **学習・保存・回帰**：20stepのミニバッチlossは2.502499→0.117905（異なるミニバッチ間のため同一標本loss差とみなさない）、train accuracyは診断に限る。eval出力save/load最大差0（ユーザーローカルrun）。関連unit 25件PASS、CPUモデル52件PASS。GPU164選択分の途中成功表示はあるが最終summaryがなく、56件除外されており、220件PASSと書かない。
+
+### 追加の最優先診断（未実行、提案）
+
+- **固定同一入力での学習前後評価**：64枚の全CIFAR10 subsetを同じeval前処理で初期/学習済みに通し、mean CEとaccuracyを比較し初期・終了値を保存。既存loss線はstepごとにミニバッチが違うことを資料に注記。
+- **学習済みLoRA ON/OFF**：同一Base、同一学習済みHead、同一CIFAR10固定batch、eval modeでLoRA contributionのみゼロにしてCLS/logitsの`max_abs_diff`を測定。差分非ゼロをもって「学習済みLoRAが推論出力に影響」の確認とする。ただしHead固定ON/OFFでは性能向上を証明しない。
+- **機械可読検証表**：`base_changed_tensors`、`base_grad_count`、`optimizer_matches_trainables`、`lora_a/b_changed_tensors`、`lora_a/b_update_norm`、`reload_logits_max_abs_diff`を出す。欠落する項目は推測せず未確認。
+- **実験provenance**：現ローカルHEAD・dirty/差分、seed、subset indices、配置、CPU/GPU、checkpoint idと保存物を対応付ける。旧runとGitHub dev現行コードの違いを明示。
+
+### 発表の構成候補（3～4枚）
+
+1. **目的・モデル図**：ViT凍結＋Q/V LoRA＋新規Head、更新対象・人数。
+2. **学習挙動**：loss曲線とA/B gradient曲線（初期A=0の意味を注記）。
+3. **更新・凍結検証**：LoRA A/B changed 24/24、Head2/2、Base0、optimizer集合・checkpoint reload。
+4. **追加ON/OFF比較・tests・限界**：実測できれば固定Headのlogits/CLS差、25件のLoRA testsとGPU subsetの扱い、汎化と動画時間情報は未評価。
+
+### 現在のAuthority / 次の境界
+
+この追記は**探索的なMTG説明案であり、提案した追加ON/OFFや固定subset再評価を実行済みとは書かない**。現在はユーザー提示ログとGitHub読取で裏付けられる結果に限定。正式なMTG資料を作る依頼が来た場合は、`meeting-materials`スキルへhand-offし、正本資料を`materials/`に保存する。ログ改善の実装が必要な場合はresearch-spec経由とし、コード変更権限をここから推定しない。
