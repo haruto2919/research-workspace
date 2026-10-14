@@ -41,11 +41,11 @@ execution_status: not-run-by-ChatGPT
 | Fresh / resume | fresh | **fresh、resume null** | **fresh、resume null** |
 | Step | 20 | **64** | **500** |
 | Scheduler | none（固定LR） | **none（固定LR）** | **cosine（承認済みGate C）** |
-| device | CPU | CPU推奨（20stepと揃える） | CPUまたはhealth確認済みCUDA、deviceをreport記載 |
+| device | CPU | **GPU（ユーザー指定、健全性確認後）** | **GPU（ユーザー指定、健全性確認後）** |
 | run kind | `gate_b_smoke20` | **`custom`が正常** | **`gate_c_pilot500`** |
 | Gate | B PASS | B/CともNOT_RUNが正常 | Cのengineering checks判定が得られる |
 
-`64*32=2048`画像、`500*32=16000`画像でCIFAR train 50,000以内。バッチ間のsample indexは同じseedのshuffle順の先頭から再使用なく消費。異なる新規runなので**同一sample/初期seedの計算を比較**できるが、500stepは学習率履歴が違い途中からパラメータ値が変わり得る。step1～20のCPU floating差は同じライブラリ・deviceなら比較可能だが、GPUとのbitwise一致を要求しない。
+`64*32=2048`画像、`500*32=16000`画像でCIFAR train 50,000以内。バッチ間のsample indexは同じseedのshuffle順の先頭から再使用なく消費。異なる新規runなので**同一sample/初期seed・GPU設定を保持**して比較する。ただし500stepはcosineのため学習率履歴が違い途中からパラメータ値が変わり得る。**既存20step runはCPU**なので、今回のGPU 64/500stepとは同一seed・設定でも演算の微小差があり、bitwise一致を合格条件にしない。GPU間の違いも追跡する。
 
 ## 3. 実行コマンド（リモート研究サーバ）
 
@@ -55,27 +55,34 @@ git branch --show-current
 git rev-parse HEAD
 git status --short
 
-# 64step: Queueが全置換されるstep32を跨いで観測する。CPU/SGD固定LR。
-CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=4 \
+# nvidia-smi等で物理GPUの正常性・メモリの空き・競合を確認し、実機の番号を選択。
+# GPU_ID=0 は例。異常なGPUを選ばず、使用対象を明示する。
+GPU_ID=0
+nvidia-smi -i "$GPU_ID"
+CUDA_VISIBLE_DEVICES="$GPU_ID" python - <<'PY'
+import torch
+assert torch.cuda.is_available(), "CUDA unavailable on selected GPU"
+x = torch.randn(512, 512, device="cuda")
+torch.cuda.synchronize()
+print(torch.cuda.get_device_name(0), "CUDA sanity: PASS")
+PY
+
+# 64step: step32のQueue完全置換を跨いで観測。SGD固定LR。
+CUDA_VISIBLE_DEVICES="$GPU_ID" OMP_NUM_THREADS=4 \
 python -m scripts.smoke.smoke_moco_cifar10 \
   data.root=/mnt/NAS-TVS872XT/dataset/CIFAR10 \
-  data.download=false training.device=cpu \
+  data.download=false training.device=cuda \
   training.max_steps=64 training.scheduler=none
 
-# 上記の結果・プロセス終了状態・reportを確認してから、別fresh runとしてGate C。
-# CPUで実行するとき（GPU未確認の環境でも実行可能）:
-CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=4 \
+# 64step runのreportとGPU状態を確認後、別fresh runとしてGate C。
+CUDA_VISIBLE_DEVICES="$GPU_ID" OMP_NUM_THREADS=4 \
 python -m scripts.smoke.smoke_moco_cifar10 \
   data.root=/mnt/NAS-TVS872XT/dataset/CIFAR10 \
-  data.download=false training.device=cpu \
+  data.download=false training.device=cuda \
   training.max_steps=500 training.scheduler=cosine
-
-# GPUで実行したい場合は上記CPUコマンドの代わりに、
-# nvidia-smi等で指定deviceの健全性確認後、
-# CUDA_VISIBLE_DEVICES=<実際に使うGPU> と training.device=cuda を明示する。
 ```
 
-出力は既存Hydra規則によりそれぞれ一意の`log/moco_standalone/YYYY-MM-DD/HH-MM-SS-ffffff/`。既存20step成果物は上書きしない。64stepが終わる前に500stepを同時起動しない。CPUやGPUのrun完了はこの文書の記載だけでは証明しない。
+出力は既存Hydra規則によりそれぞれ一意の`log/moco_standalone/YYYY-MM-DD/HH-MM-SS-ffffff/`。既存20step成果物は上書きしない。64stepが終わる前に500stepを同時起動しない。CUDA availabilityだけでなく短いGPU行列演算をsanityとして実施し、`nvidia-smi`にGPU Unknown Error・device不在が出る場合は実験を中断し、別GPUへの暗黙fallbackをしない。今回選んだ物理GPU index、環境変数`CUDA_VISIBLE_DEVICES`、device nameをreportに残す。**コマンドは実行手順であり実験実施済みを意味しない。**
 
 ## 4. 成功・異常判定
 
@@ -110,3 +117,13 @@ python -m scripts.smoke.smoke_moco_cifar10 \
 ## 7. Stage2 handoff
 
 64→500の診断結果から、MoCo mechanicsの問題と表現学習上の懸念を分離したうえで[ViT導入spec draft](./2026-10-15-frozen-vit-moco-cifar10-stage2-integration-spec.md)の未決項目を確定する。**Stage2の新コードはこの実験planだけでは承認されない。**
+
+
+## 8. 2026-10-15追加指示：64step・500stepともGPUで実行
+
+- ユーザーは直近で「gpuを使って行いたいです」と明示。**前節のCPU推奨より現在指示を優先**し、64step・500stepとも単一GPU上で実行する方針に変更。Stage1のMoCoモデル・Queue/EMA/InfoNCE・seed・データ・Optimizer・schedule・fresh-runの設定は変更しない。
+- 研究サーバの物理GPU選択は`nvidia-smi -L`、`nvidia-smi --query-gpu=index,name,memory.total,memory.used,utilization.gpu --format=csv`で正常性と競合を調べたうえ、`GPU_ID`へ選択して明示する。**事例中の`GPU_ID=0`は仮例であり、GitHubから現時点の物理GPU番号・空きVRAM・driver健全性は確認不能**。
+- `CUDA_VISIBLE_DEVICES=\"$GPU_ID\"`によりPyTorchでは選択されたGPUが`cuda:0`となる。既存run codeは`training.device=cuda`のみでCUDAを選ぶ。ユーザーから報告された過去のGPU driver/PCIe応答異常があるため、`nvidia-smi`異常・`torch.cuda.is_available()` false・単純行列CUDA演算異常の場合は起動しない。
+- 同じGPUで64step終了後にreport status/checksを確認し、続いて独立fresh 500step。**64step実験のFAILやGPU異常時はGate Cを自動連続実行しない**。
+- 以前の20step実測はCPU、今回64/500はGPU。CIFAR shuffle順、seed、データ、Modelはそろえるが、異なるdevice間の演算完全一致は要求しない。結果はreportのdevice/provenanceをセットで提示する。
+- 本追記は**GPU実施方針・実行コマンドの承認記録**である。ChatGPTはSSH環境にアクセスできず、実際のCUDA起動、GPU選択、checkpoint生成を実施したとは主張しない。
