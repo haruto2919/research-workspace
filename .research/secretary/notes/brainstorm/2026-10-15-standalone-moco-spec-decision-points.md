@@ -143,3 +143,8 @@ Stage1で最も重要なのは「公式との差分の一覧」と「最終動�
 ### 次のHandoff候補
 
 `research-spec` に、上記のユーザー採用項目を最新指示として伝える。未固定のBN buffer、augmentation、SGD LR/schedule、same-sample negative policyはspec化Gateの対象。研究コードへの変更や実験実行は別タスク。今回の文書はexploratoryのまま。
+
+
+## 2026-10-15 追記：draft specへのhandoff
+
+2026-10-15にユーザーが「specを作成してください」と明示したため、選択済み方針に基づいて[Standalone MoCo v2型・CIFAR-10独立検証spec（draft）](../../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-15-standalone-moco-v2-cifar10-mechanics-verification-spec.md)へ移行した。**本メモは探索記録のまま**であり、正式な実装Authorityはspecがapprovedになってから生じる。特に、ユーザーが今回明示採用したのは**random normalized Queue、Key-forward前EMA、logits後/backward前enqueue**である。specに提案として具体化したBN・画像拡張・SGD LR/WD/scheduler・Negative masking・dataset stream条件（B1–B5）はユーザーのレビュー・採用待ち。研究コード変更と500step runは未着手。
