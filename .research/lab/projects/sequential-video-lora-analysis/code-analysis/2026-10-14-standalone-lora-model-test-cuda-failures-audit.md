@@ -85,3 +85,26 @@ python -c "import torch; print('CUDA available:', torch.cuda.is_available()); pr
 - CPU可能な範囲は上記コマンドで確認し、その合否を記録する。
 - GPUの接続／ドライバ回復後、元の `python -m pytest -q test/model` を再実行してGPU含む非回帰判定を完成させる。
 - この監査はコード/テスト/spec/README/experiment logを書き換えない。
+
+## 追加検証記録 — 2026-10-14（ユーザー報告）
+
+ユーザーが、上記で推奨したGPU必須3ファイルの除外コマンドをローカルで実行した結果を報告した。
+
+```text
+collected 52 items
+test/model/test_50salads_vit_bridge.py          1 passed
+test/model/test_activitynet_vit_clip_feature.py 10 passed
+test/model/test_lora_linear.py                   8 passed
+test/model/test_masked_mean_clip_aggregator.py  15 passed
+test/model/test_vit_frame_encoder.py            1 passed
+test/model/test_vit_lora_checkpoint.py          1 passed
+test/model/test_vit_lora_frame_encoder.py       16 passed
+52 passed, 3 warnings in 8.84s
+```
+
+- **Observed（ユーザーの提示ログ）**: GPU必須3ファイルを除いた `test/model` 52件がすべて成功。25件のLoRA関連テストはこの52件に含まれており、別枠で加算しない。残り27件は既存のframe/clip/aggregator経路などの検証。
+- **Observed（ユーザーの提示ログ）**: warningは `CUDA initialization: CUDA unknown error` と `Can't initialize NVML` の計3件。CPUテストのPASS判定自体を覆さないが、GPU環境の正常性は確認できない。
+- **Assessment**: 現在のローカル作業treeの**CPUで実行可能なmodelテスト範囲では回帰を検出しなかった**。ただしGPU必須の168件は依然として未検証である。ローカル作業treeの今回のHEAD・dirty状態も報告されていないため、GitHub `dev` のコミットと完全同一の再現実行とは断定しない。
+- **Remaining checks**: GPU復旧後の既存モデル168件、本物の事前学習済みViTでのLoRA B=0初期出力等価性（未実施なら）、ローカル差分/commitの固定。今回のspecは動画/時間情報獲得を証明するものではない。
+
+この追記はユーザーが実行した結果の読取監査であり、ChatGPT側でテスト・実験は実行していない。
