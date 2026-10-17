@@ -74,3 +74,37 @@ tags: [brainstorm, moco, reference-implementation, parity, baseline, evaluation]
 - Out of scope：Video/Sequential Loader、ViT、LoRA統合、実証前の表現獲得主張。
 - 未決：公式runの忠実度とハードウェア条件、CIFARの比較adapter方式、評価指標、数値許容誤差とseed数、予算／学習期間。
 - Authority：本記録はexploratoryな提案であり、MTG採用済みspec・コード実装許可ではない。
+
+---
+
+## 追記 2026-10-17T13:29:58+09:00：ImageNet-1K／ResNet／DDP＋Shuffle-BN／10epoch／Queue縮小案
+
+### ユーザーからの追加方針（暫定）
+- ImageNet-1Kを公式と自作の共通データセットとする。
+- BackboneはResNet系にする（実装同等性検証では同一アーキテクチャ、ResNet50推奨）。
+- Queue容量65,536では研究環境に乗らない可能性を考慮し、縮小を検討する。
+- 学習期間は両者とも10epochに揃える。
+- DDPおよびShuffle-BNを両者で有効化する。
+- 意図する成功は公式論文の200epoch性能再現ではなく、**同一変更を入れた公式MoCo v2と自作MoCoの数値同等性・短期学習挙動の再現**である。
+
+### 根拠と解釈
+- 公式MoCo v2は `--moco-k` でQueue変更可能。Kを同じ値に減らした比較はできるが、負例数と保持期間が変わり、65,536の場合とLoss絶対値や表現品質は一致しない。
+- FP32 dim128のQueue本体はK=65,536でも128×65,536×4=33,554,432 bytes=32MiB/GPU。QueueのみがVRAMの主因とは限らない。ResNet50 224x224のactivation、local minibatch、DDP buffers/optimizerと実測を確認して縮小要否を判断する。K=16,384（8MiB）、K=4,096（2MiB）が暫定縮小候補。
+- MoCo公式builderではglobal/all-gather batchでenqueueし `K % gathered_batch == 0` を要求する。例：global batch256ならK=16384は64step、K=4096は16step、K=65536は256stepで一巡。グローバルbatchとGPU数、rankごとのbatchを同一にする。
+- 10epochは初期の機構・短期学習比較に適切だが、公式ImageNet-1K ResNet50の200epoch Linear Probe結果を再現したと主張しない。10epochのcosine完走は200epochの先頭10epochとは別のLR曲線である。比較には `--epochs 10 --cos` を両者に使うか、200epoch scheduleを保って10epochで中断するかを実験契約として明確化。
+- 公式DDP Shuffle-BNを参考に、self実装は現状のsingle-device/no Shuffle-BNから拡張が必要（コード確認：`self_supervised/moco/standalone_moco.py`, `scripts/smoke/smoke_moco_cifar10.py` on tamaki-lab@dev）。`SyncBatchNorm`と`Shuffle-BN`を混同しない。all_gather、batch shuffle/unshuffle、Queue同期、BN buffers、DDP broadcast設定、sampler set_epoch、view RNG、init weight/queue、fp precisionを照合する。
+- 公式・自作を両方同じImageNet/ResNet50/K/epoch/DDP/Shuffle-BN/augmentation/optimizer/total batch/seedで試すのは妥当。**ただし、独立ランダムrunのloss値を厳密一致させることは数値同等性を証明しない**。固定state/fixed augmented views/Queueのone-step＆multistep parityと、10epochの傾向・固定評価指標の比較をGate分離する。
+- 試験例：公式忠実版のK65,536・200epochは参考条件として記録、比較用の公式変更版K16384・10epochと自作変更版K16384・10epochの2本を揃える。具体KはGPUの実測を待ち、未決定の候補に留める。
+
+### 次の判断事項・反証条件
+1. 選択するResNetのvariant（公平比較のためResNet50推奨）、global batch/GPU数と使用可能VRAM、ImageNet storage/preprocessingの確認。
+2. Queueを削減する理由がQueue本体のVRAMかlogit計算かGPU総VRAMかを測定し、K=65,536維持の可能性を再確認する。
+3. 10epochでCosineを完了させる短期pilotと、200epoch schedule最初10epochの比較のどちらかを決定。
+4. DDP下のfixed batch／BN shuffle permutationを含めた一段階・Queue一巡の比較の許容誤差と、10epoch時の学習評価指標の定義。
+5. 10epochで両者が似た挙動でも特征品質は未保証。損失差があれば先にdata order, Aug, DDP ranks, BN, queue parityを調査。
+6. 次のspec作成・コード変更・GPU runは別依頼とGateを経る。本文はexploratoryであり実装許可ではない。
+
+### 参照先
+- 公式：https://github.com/facebookresearch/moco
+- v2論文：https://arxiv.org/abs/2003.04297
+- 現行コード：https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/self_supervised/moco/standalone_moco.py
