@@ -194,3 +194,18 @@ tags: [brainstorm, moco, reference-implementation, parity, baseline, evaluation]
 5. **実行予算・GPU test**：local batch32のVRAM/速度を計測して採否、ImageNet rootは実サーバ側で確認。
 
 **Authority:** 本追記はbrainstorm exploratoryであり、正式spec、実装承認、GPU長時間run承認ではない。
+
+---
+
+## 2026-10-17 採用決定：Spec A/B・10epoch・FP32 parity・固定評価
+
+ユーザーは2026-10-17に、次の4つの推奨を明示的に採用した。既存の検討記録で「未採用」と記した該当箇所よりこの決定を優先する。
+
+1. **Spec A/B分割**：Spec Aは公式対自作の実装・数値一致検証、Spec Bは両者の10epoch比較学習。別々にspec化する。
+2. **学習期間**：両者を独立したfresh 10epoch runとし、Cosine Schedulerも10epochで完了する。より長い学習は別設定の実験とする。
+3. **数値検証**：FP32で同じ入力・状態から1stepと複数stepの数値一致を必須とする。許容誤差とDDP下での状態固定・比較範囲は別途確定する。
+4. **特徴評価**：固定検証集合の特徴評価を必須とし、Linear Probeは別Gateとする。
+
+**未決のまま**：ResNet50の正式採用、公式参照commitの最終確定、DDP/Shuffle-BN実装差、Queue K65536とbatch32/GPUの実機適合、learning rate、許容誤差、比較用データの固定方法、Comet/checkpointの保存契約、長時間GPU実験の実行承認。
+
+次はSpec Aのblocking事項を確定させる。ここでの採用は実装、GPU run、spec approvedへの許可を意味しない。
