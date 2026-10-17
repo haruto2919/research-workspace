@@ -100,3 +100,23 @@ Step1は24/3910 tensor比較がfloat閾値を超過。その内訳は2rank×6個
 Meta対Metaのfull trace全項目が候補閾値内なら、公式対自作に固有のstep1 backward差の可能性が上がる。次に同一q/k/Queueで公式einsumと自作sum/matmulのlogits・loss・dLoss/dqを局所比較し、DDPとGPU非決定性も切り分ける。暫定閾値を根拠なく緩めず、A2は保留する。
 
 本追記はユーザーのログとGitHubコードに基づく解釈であり、研究サーバでの再実行・コード変更は行っていない。Spec A status draftを変更しない。
+
+---
+
+## 2026-10-17 A1 official rerunの完全比較範囲が確認済み
+
+### ユーザーが提示したresolved configおよびparity_reportの実測値
+
+- `meta_reference_a1`、`meta_reference_a1_rerun`、`self_a1`のすべて：Queue K64、local batch4、image_size64、max_steps16、full trace step `[1,8,9,16]`、Comet OFF。過去記録にあった「再実行時にoverride省略のため設定がデフォルトへ戻った可能性」は**今回の報告によって否定**された。
+- Meta→Metaの比較：preconditions=`[]`、steps_compared=`[1..16]`、full_tensor_steps=`[1,8,9,16]`、judged=16000、exact_failures=0、close_failures=0、**bitwise_equal=16000**、first_failure=null。したがって比較した全16,000項目はbitwise一致（このrun、環境、測定点での主張に限定）。status=BLOCKEDは閾値がprovisionalであるためのみ。
+- Meta→Selfの比較：同一steps・trace・judged=16000、exact_failures=0、close_failures=9398、bitwise_equal=5167、first_failureはstep1 rank0 phase=after_backward group=query_grads tensor=encoder_q.conv1.weight（shape `[64,3,7,7]`、max_abs_error=1.5497207641601562e-5、mean_abs_error=2.8021318432526524e-6、9408要素中852が候補閾値超過、max_rel_error=0.02007は微小分母の影響に注意）。結果はprovisionalのためBLOCKEDだが、現在の候補閾値を正式化すればMeta→SelfはFAIL。
+
+### 更新後の原因切り分けと提案
+
+1. **公式自身の非決定性が今回の9,398項目不一致を説明する可能性は低下**。Meta vs Metaのfull traceもbitwise一致しており、以前のtrace範囲の懸念は解消。ただしSelf側の非決定性・実装差は未検証。
+2. 次は**Self→Self**の全16step同fixture再実行（別dir）で再現性を確認（GPU実行には許可を要する）。
+3. Self自身もbitwise一致するなら、固定q/k/Queueで公式の`einsum`対自作の`sum+matmul`＋除算形式に限定したForwardと`dLoss/dq`のCUDA局所テストを優先。差が再現すれば算術表記による勾配差の仮説を強められる。さらに単一GPUでの勾配を比較してDDP allreduce要因を切り分ける。
+4. Self→Self不一致なら、まず同一実装内のCUDA/cuDNN/DDP、hook、permutation/RNG、保存時点などの非決定性を調査する。
+5. 現在の比較目的は**公式vs自作の数値パリティ**。数値許容差を事後的に広げること、原因不明のままA2/A3/Spec Bに進むことを避ける。公式ソースは変更せず、自作計算差を実証してから必要な変更の承認を判断。
+
+**Evidence境界：** 16,000項目一致はユーザー提供したレポート内容に基づく。GitHubソースでは両者のlogits演算表記差を確認したが、その演算差がconv1勾配差の根本原因であることは未実証。研究サーバの実プロセスはChatGPTから操作していない。
