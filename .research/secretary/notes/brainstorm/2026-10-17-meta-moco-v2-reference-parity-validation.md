@@ -139,3 +139,58 @@ tags: [brainstorm, moco, reference-implementation, parity, baseline, evaluation]
 - ImageNet-1Kが研究環境で適法に入手・読み出し可能であるか、I/Oパス・デコード速度未確認。
 - 学習期間のprimary objectiveが「自作vs公式のparity」か「特徴品質の充分な向上」かで10epoch成功Gateが違う。前者は10epochで有意義、後者は最終Linear Probe込みで別Gate。
 - 次回は100〜300 stepの`images_per_second`、`step_time`、`max_memory_reserved`、`nvidia-smi`（both rank）、local batch、AMP有無から実行時間を再推定する。現在は設計探索であり実験run未実施。
+
+---
+
+## 追記 2026-10-17T14:03:05+09:00：spec準備：公式MoCo v2と自作MoCoの比較実験に必要な判断契約
+
+### 相談の位置付け
+ユーザーは、実験仕様の確定に着手し、spec作成に先立って決めるべきことの洗い出しを依頼。今回の依頼は**spec本文の作成や実装・GPU runの承認ではない**。以下は探索段階のDecision Contract候補。
+
+### 確認済み（Authority区別）
+- 現在のユーザー指示：共通データImageNet-1K、ResNet系、2-GPU DDP＋Shuffle-BN、10epochを第一目標に検討。Queueを削減する当初案は、10/17提示のA4500×2のidleメモリから65,536を維持する案に更新されつつある（**未実測の推奨候補**）。
+- 2026-10-15 MTG：公式実装を参照し、標準条件との比較でMoCo mechanicsと学習の成立を区別する。完成後、ResNet→ViT→ViT＋LoRA→Sequential Loaderへ進む。
+- 現在コードGitHub `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` の `self_supervised/moco/standalone_moco.py` はCIFAR用ResNet18、single deviceで`all_gather`は恒等、DDP Shuffle-BNなし。`scripts/smoke/smoke_moco_cifar10.py` はCIFAR専用、single epoch内max_step、Comet ONを未実装のため拒否。`conf/moco_standalone.yaml`もCIFAR条件。既存CIFAR仕様とテストを非回帰で残す必要。
+- 既存2026-10-15承認済みCIFAR standalone specはImageNet/DDPをscope外とするため、今回用の**新規specが必要**。
+- 既存承認済みspecには、`facebookresearch/moco`の現在`main`で学習コードが取得できず、歴史的参照`a419ef282fc9885015674e77f58c59447206a27f`を使用すると記載。今回のspecでは`git checkout`するcommitと固定対象ファイルおよびSHAを記録する。公式v2用flagsは `--mlp --moco-t 0.2 --aug-plus --cos`。
+- 既存EvidenceはCIFAR 64/500step工学PASSであり表現品質やDDPの動作についての証拠ではない。
+- 実サーバのGPU training throughput、ピークVRAM、ImageNet-1Kのデータ所在・I/Oは未確認。
+
+### spec作成前に必要なDecision Contract（推薦・未採用）
+| 優先 | 項目 | 推奨・選択肢 | 影響 |
+|---|---|---|---|
+| blocking | specのscopeと実行境界 | まずimplementation+parityと10epoch training experimentを別specとして扱い、長時間runは別実行許可 | 既存baseline変更、実装権限と長時間runを混同しない |
+| blocking | 「再現」の定義 | 固定入力・初期状態・2GPU通信までのnumerical parityと、10epoch behavioral/representation evaluationを別Gate | Loss値だけでの誤判定回避 |
+| blocking | 参照実装のauthority | Meta固定commit、公式ロジックは変えず可観測性のみ最小追加。単体公式ベースラインと共通条件版を明記 | provenanceと再現比較 |
+| blocking | model/data/augmentation | ImageNet1K train(SSLラベル不使用)・val、ResNet50 random-init、同じ224px/aug+/sampler、実際のImageNet rootとmanifestをpreflightで確認 | 直接比較可能性 |
+| blocking | GPU/optimizer/AMP | 2×A4500、world_size2、local B32/global64を第一試験、SGD lr0.0075 momentum0.9 wd1e-4。最初のparityはFP32; AMPが必要なら共通変更版として別Gate | 数値差と性能/VRAM |
+| blocking | Queue・MoCo | K65536を第一候補、m0.999、T0.2、128-d、MLP、初期random keys・enqueue順序・全rank同期の契約 | 負例・Loss・数値一致 |
+| blocking | Scheduler / epoch | 10epochでcosine終える独立pilot **または** 30/50epochのcosineを定義し10epで途中観測するrun。後者の途中変更は別実験になる | 学習結果と延長可能性 |
+| blocking | DDP / Shuffle-BN semantics | original同様のshuffle/unshuffle、all_gather、rank別batch、queue同一性、BN buffers、sampler.set_epoch、step計数 | 通信・モデル状態 |
+| blocking | Parity tolerances | 同じview・weight・Queue・BN・Optimizer・shuffle順で1stepおよびQueue full cycle以上（K/globalB=1024）のforward/logits/gradient/EMA/SGD/buffersを明示rtol/atolで比較。FP32暫定1e-5/1e-6は事前試験で検証 | 工学合格の客観化 |
+| blocking | Training evaluation | 同条件2 runs、10epochのepoch-mean loss, pos/neg separation、fixed eval, feature statistics; label-free probeかheld-out linear probeの扱いを選択。1seed pilotと追加seedの必要性を分離 | 表現品質を別Gate判定 |
+| blocking | Artifacts, checkpoint/resume | Both Comet + local loss/similarity/grad/update/LR/Queue/throughput/maxVRAM/DDP rank logs, config, code SHA, dataset manifest, weights, resume integrity, failure reports | 証拠と比較・再実行 |
+| non-blocking unless it affects results | logging cadence/worker count, visual style/path | officialに合わせ比較契約で具体化。worker数はI/Oと乱数再現性を事前確認 | 計測負荷と性能、可用性 |
+
+### 推奨Gateと成功条件（未承認）
+- Gate0: pinned reference checkout・Dataset preflight・CIFAR既存テスト非回帰・DDP起動／rankログ／VRAM確認。
+- Gate1: deterministic first-step parity（固定view／init state／rank割当）、q,k, logits, CE loss, grads, Optimizer momentum, EMA, BN buffers, Queueの誤差保存と閾値判定。
+- Gate2: 複数step・Queue循環・checkpoint resume。global batch64・K65536なら1024stepで一巡。
+- Gate3: 実ImageNet 100〜300step benchmark、最初のwarmupを除いたstep time・I/O・max VRAMで10epoch時間を再計算。Queue縮小を最初の解として選ばない。
+- Gate4: 参照版＋自作版を同一条件で10epochの独立run、固定評価で表現学習の比較。Loss単調減少や相互のbitwise一致は必要条件ではない。
+- Gate5（将来）：必要に応じて30〜50epoch、Linear Probeや追加seeds。学習結果の外挿ではない。
+
+### 対案・反例
+- 公式ImageNet200epochの精度と自作10epochを照合する案は評価目的が異なり棄却。
+- Kを先に縮小するとメモリ節約は僅少、負例とLoss条件が変わるため今回の目的には劣後。ただし実測OOMや計算負担が発生した場合は修正可能。
+- seedだけ揃えて独立runのLossが似ても実装数値一致の証拠にならない。共有した重み、サンプル順、augmented views、DDP permutation、Queueを固定する。
+- 10epochでは表現品質が十分とは言えない可能性。特徴品質の定量基準とparity工学基準を混同しない。
+
+### 次に確認すべき最小の未決事項
+1. **specを二分するか**：先に公式+自作のDDP/parity implementation spec、次に10epoch experiment spec（推奨）。
+2. **10epochの意味**：独立した10epoch cosine run／30〜50epochの途中観測（推奨は初回の独立10epoch、追加runは別fresh）。
+3. **学習評価**：10epochは固定validation similarity+feature統計まで必須にするか、軽量Linear Probeまで必須にするか（推奨は前者必須・後者別Gate）。
+4. **数値一致の対象と許容差**：FP32の固定1step+Queue1周を原則にするか、最初からAMPを含めるか（推奨FP32）。
+5. **実行予算・GPU test**：local batch32のVRAM/速度を計測して採否、ImageNet rootは実サーバ側で確認。
+
+**Authority:** 本追記はbrainstorm exploratoryであり、正式spec、実装承認、GPU長時間run承認ではない。
