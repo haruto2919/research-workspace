@@ -1,0 +1,76 @@
+---
+date: 2026-10-17
+project: sequential-video-lora-analysis
+source_todo: "2026-10-15 MTG: Meta MoCo v2参照実装の再現・比較と学習条件の検証"
+topic: meta-moco-v2-reference-parity-validation
+status: exploratory
+tags: [brainstorm, moco, reference-implementation, parity, baseline, evaluation]
+---
+
+# Meta MoCo v2公式実装との比較によるStandalone MoCo検証の方針相談
+
+## 出発点・中心となる問い
+ユーザー提案：「Meta MoCo v2をcloneして実行した結果と、自分のMoCo単体実験の結果が同じになることを目標に、MoCo単体実装がうまくいっていることを確認したい。この方針はよいか」。
+
+中心の問いは、Meta公式実装を独立基準として自作MoCoの **(1) 数学・状態更新の同等性** と **(2) 学習挙動・特徴品質の再現性** をどのように検証するか。「同じ」を無条件に全stepのloss完全一致とは定義しない。
+
+## 既存文脈と確認できた根拠
+- 2026-10-15 MTG決定：Meta MoCo v2／研究室内実装の標準条件調査、参照実装clone、なるべく挙動を変えずにComet保存追加、基準曲線作成後にLR・学習期間見直し、その後ResNet→ViT→ViT+LoRA→Sequential Loader。
+- Standalone CIFAR-10 MoCoは64-step／500-stepとも工学GateでPASS。EMA、Queue、checkpointの機構検証であり、識別的特徴の獲得は未検証。500step cosineで終盤LRほぼゼロ、step500 Loss約6.64。
+- 2026-10-17時点にGitHubの `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` から直接確認した `self_supervised/moco/standalone_moco.py` はCIFAR仕様ResNet18、別Projector（512→512→128）、Random unit queue、EMA（Key-forward直前）、old queueでlogits、enqueue、backward/SGD、単一device。 `scripts/smoke/smoke_moco_cifar10.py` と `conf/moco_standalone.yaml` はCIFAR-10、batch32、K1024、m0.999、T0.2、SGD LR0.00375、20step固定 / 500step cosine、公式aug-plusの32x32適応。Comet enabled=true は現在 `ValueError` になる。各ソースの内容はGitHub上の確認に限る。
+- Meta `facebookresearch/moco` の公式MoCo v2はImageNet、ResNet50、DDP、global batch256、K65536、200epoch、SGD LR0.03などを基準とし、公式READMEでv2には `--mlp --moco-t 0.2 --aug-plus --cos` を明記。v1の既定引数のままではv2再現にならない。参考の固定commitは現行Standaloneコード内 `a419ef282fc9885015674e77f58c59447206a27f` と記録。
+- 関連資料： 
+  - https://github.com/facebookresearch/moco
+  - https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/self_supervised/moco/standalone_moco.py
+  - https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/scripts/smoke/smoke_moco_cifar10.py
+  - https://github.com/haruto2919/research-workspace/blob/main/.research/lab/projects/sequential-video-lora-analysis/meetings/2026-10-15-mtg.md
+  - https://github.com/haruto2919/research-workspace/blob/main/.research/lab/projects/sequential-video-lora-analysis/experiments/2026-10-15-standalone-moco-gpu-64step-and-gate-c-500step-evidence.md
+
+## 仮説、評価軸、反例
+### 最有力方針：検証を二層に分離
+1. **実装数値同等性（mechanics parity）**：公式 `moco/builder.py` を参照し、共通条件・固定された二つのview、初期Query/Key/projector/Queue・BN buffers、RNG、Optimizerを揃えて、1stepおよび複数stepのQuery/Key特徴、positive/negative logits、InfoNCE loss、勾配、Optimizer更新、EMA、Queue内容とpointer、BN buffersを許容誤差で比較する。公式ロジックは原則無変更。バックボーンを揃えるための外部adapter／state_dict変換、単一rank-DDPなど、同等性に影響し得る層を切り分ける。
+2. **学習・表現同等性（behavioral reproduction）**：同じdataset split、Backbone、Augmentation、data order、seed、batch、Queue、EMA、T、optimizerとLR scheduleの全期間を一致させ、固定eval setでのloss／positive rank／margin／retrieval、特徴variance/effective rank、可能ならheld-out linear probeを比較。複数seedで差を確認。全stepのtrain lossがビット単位で同じことではなく、学習挙動・評価性能が測定誤差とrun間変動の範囲で同等かをみる。
+
+### 参照実験の運用
+- **A: 公式忠実run**：指定commitの公式実装を独立cloneし、標準条件（MoCo v2 flagsを明示）で参考曲線を得る。正式再現の追跡性確保のため学習意味論の変更を避け、Comet計測はloss／設定／stepの非侵襲loggingとして導入。公式フルImageNet 200epochは計算資源・データ availabilityに依存するため、最初から必須にはしない。
+- **B: 比較制御run**：公式実装のMoCoロジックを保持しつつ、研究比較用の外部harness／データアダプタで自作版と同じCIFAR-10・CIFAR-ResNet18・一律batch/Kに揃える。これを「公式ImageNet再現」と混同しない。
+- **C: 自作run**：Bの完全同一条件で学習・評価する。
+- 公式忠実Aと自作Cのloss絶対値をそのまま比較することは不適切。
+
+## 比較方式の候補と判断
+| 候補 | メリット | 弱点・評価 |
+|---|---|---|
+| 公式/ImageNet/ResNet50 と自作/CIFAR/ResNet18 のloss曲線をそのまま一致判定 | 追加作業小 | dataset/model/optimizer schedule/BN/DDP/Queueが異なり、**棄却寄り** |
+| 固定入力・同一初期状態のstep-wise parity | 数学・更新差分を最も直接的に絞る | DDP shuffle-BN、numercial precision、state_dict変換が必要；**強く推奨** |
+| 同条件の複数epoch・複数seed、固定評価集合の曲線と性能比較 | 学習再現性の検証に強い | 計算費用。epoch設計と評価条件を確定する必要；**推奨** |
+| 公式ImageNet 200epochのみを先に丸ごと再現 | 公式性能と接続しやすい | 計算資源・データ費用、CIFAR自作版の正しさは直接判定できない；**保留／別目的** |
+
+## 成功条件（spec化前の提案）
+- Gate 0: 公式version/commit、実装diff、データと入力条件、MoCo v2 flags、GPU/世界サイズ、環境、Checkpoint、dataset indices、Comet logging有無が追跡可能。
+- Gate 1: 固定view・共通初期stateに対する1-step forward/logits/loss、backward gradients、EMA・Queue・SGD・BN stateの整合を `torch.testing.assert_close` 等で確認。許容誤差（例えばFP32のrtol/atol）やGPU determinismはspecで測定・固定する。
+- Gate 2: 2step以上〜Queue一周の複数step比較で状態遷移とOptimizer momentum bufferを照合し、相違があれば最初の不一致pointと原因を記録。
+- Gate 3: 同一条件で短時間、次に複数epochのreference/self学習を比較。固定評価集合と複数seedの結果で「表現品質」を判定。学習lossの単調減少は必須条件ではない。定量的な同等許容幅はpilot結果前に決める。
+- Gate 4 (任意): 公式ImageNet実験の既報Linear Probe Top-1（200epoch 67.5±0.1%など）を再現するのは別の、計算費用の大きなGate。
+
+## 不確実性／反例
+- BNのshuffle、distributed all_gather、global/per-rank batch、RNGの消費順序、torchvision preprocessing、DDP optimizer/scheduler step timingの差が厳密一致を妨げ得る。公式に準拠した差を不用意に改変しない。
+- 初期seed一致でも重み・Queue・augmentとsample順が一致するとは限らない。値を明示的に移植する。
+- referenceと自作のLossが偶然近くても、誤ったQueueやfeature collapseの可能性を除けない。fixed eval＋内部状態照合が必須。
+- 学習Lossが違ってもBN/DDP/別GPU/AMPなどの差に起因し得るので、即バグと断定しない。
+- 公式の値と自作値が同等でも、ActivityNet逐次LoaderやLoRAの動作の正しさ・時間情報獲得は未検証。
+
+## 結論・次アクション候補
+**採用候補：Meta公式を独立基準としてクローンし、A) 固定状態の機構数値一致 → B) 同一条件での学習・特徴評価 → C) ViT→LoRA→逐次Loaderへ進む。** 公式忠実runと自作同条件比較runを別物として運用する。
+
+次アクション候補（TODO未反映）：
+1. 公式commitの確定、DDP single rank／使用可能GPUの確認、Comet計測の非侵襲性の方針確定。
+2. Official/CIFAR parity harness のscopeとBackbone/state_dict/BN compatibility方針を決める。
+3. 差分表・同条件のデータ/augmentation/LR horizon等の比較契約、Gate/判定許容差、artifact/log designをspec化する（ユーザーから明示依頼された場合のみresearch-specへ）。
+4. 制御された短期parity後に必要epoch・sample数と固定評価方法を決める。
+
+## Research Spec Handoff候補（未承認）
+- 目的：自作Standalone MoCoの公式MoCo v2に対する機構同等性と学習再現性を分離して検証。
+- Scope：公式clone baseline / adaptation harness / comparison reports、Comet及びローカルraw artifacts。
+- Out of scope：Video/Sequential Loader、ViT、LoRA統合、実証前の表現獲得主張。
+- 未決：公式runの忠実度とハードウェア条件、CIFARの比較adapter方式、評価指標、数値許容誤差とseed数、予算／学習期間。
+- Authority：本記録はexploratoryな提案であり、MTG採用済みspec・コード実装許可ではない。
