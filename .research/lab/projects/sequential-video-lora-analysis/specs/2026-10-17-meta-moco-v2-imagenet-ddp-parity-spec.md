@@ -188,20 +188,30 @@ ImageNet実機preflightはsplitの存在とクラス・画像数・読み込み/
 
 ## 11. Ambiguity Gate・approvedへの条件
 
-### Blocking：未解消のためdraft
+### 11.1 2026-10-17 B1〜B6 推奨方針をユーザーが明示採用
 
-| ID | 決める/検証すべきこと | 推奨・承認条件 |
+ユーザーは本日、従来B1〜B6で提案した方針を**すべて採用**した。以下は採用済みDecision Contractであり、未採用案ではない。一方、**設計方針の採用と研究サーバでの検証PASSは異なる**。実測結果がない項目を「確認済み」としない。
+
+| ID | 採用済みの決定方針 | 実機・実装時の検証Gate／不成立時の扱い |
 |---|---|---|
-| B1 | **Meta固定commitのimport・ライセンス差異** | 外部shim/パス設定など非侵襲手段を優先。source import patchが必要なら変更diffを明示し別承認 |
-| B2 | **FP32許容差** | rtol1e-5/atol1e-6は候補。同じ公式fixture再演との誤差実測を踏まえ、判定run前に閾値固定 |
-| B3 | **2GPUの同一fixture再生方法** | 全rankの入力、初期state、Shuffle perm、DDP BN broadcast時点を固定できる比較器設計を確認 |
-| B4 | **VRAMとbatch設定** | local32/K65536の実測。OOM時は勝手に変更せず代案を両実装同一条件で承認 |
-| B5 | **checkpoint・artifact details** | 元Meta保存契約を維持し、RNG/sampler sidecar、再開可否、記録頻度を確定 |
-| B6 | **ImageNet root実体** | 提供パス以下のtrain/val、画像件数、ImageFolder構造、読み出しを実サーバで確認 |
+| **B1** | 公式固定commitの学習ロジックを変更せず、まず外部shim/環境・Pythonパス設定など非侵襲的手段でimportを解決する。原ライセンス表示を保持し、Metaコードを自作repoにコピーしない。 | 固定commitのclone/importと原LICENSE/READMEの差を記録する。**source import patchが必要な場合のみ**変更diffを示し、適用前に追加承認。アルゴリズム改変は不可。 |
+| **B2** | FP32 tensorの初期許容誤差候補に `rtol=1e-5, atol=1e-6` を採用し、公式fixture再演・公式対自作の診断差分を測って、**合否判定用runより前**に閾値を固定する。 | この数値が妥当であることは**未検証**。基準を満たさなければfirst-failureを記録し、必要な変更は理由を添えて再承認。shape/index/Queue ptr等は完全一致。run結果を見て都合よく閾値を緩めない。 |
+| **B3** | 公式・自作へ固定2-view tensor、全query/key/optimizer/Queue/BN初期状態、全rankのdata order、Shuffle-BN permutationとDDP buffer broadcastの時点を共通に与えるcanonical fixture＋専用比較器を設ける。 | 2GPUで同一fixtureを確実に再演できるか実装・テストで確認。同じrank/同じphaseのBN bufferを比較。seedのみの一致は成功条件にしない。 |
+| **B4** | 最初はFP32、local batch32×2（global64）、K65536で短時間ベンチマークし、VRAM・step time・DataLoader待ち時間を実測する。 | **まだVRAM peakは未計測**。OOM等があれば自動でK/precision/batchを変えず停止・報告。batch16等は両実装の比較条件を改めて提案してユーザー承認後に採用。**100〜300stepのGPU実験は別途実行許可が必要**。 |
+| **B5** | Meta標準checkpoint形式は維持し、足りないrank別RNG/Sampler等の再現状態をsidecar等へ保存する。固定fixtureで保存→別プロセス復元→次step一致を試験する。Cometとローカルartifactのmetric定義・step単位を揃える。 | 公式checkpointだけで完全再開可能と主張しない。Sampler/DataLoader worker乱数やGPU rank別stateの復元可否を測定し、再現不能なら未対応として記録。ログ頻度・保存場所は既存実装との整合をレビューして最終決定。 |
+| **B6** | ユーザー提供の `/mnt/NAS-TVS872XT/dataset/ImageNet` は**読み取り専用**でinventory・構造・サンプルdecode・I/Oを監査する。 | `train/`、`val/`、ImageFolder class構造、画像件数・欠損・読取権限の結果を保存。構造不適合なら停止し、データ移動・再編成・downloadは自動で行わない。GitHub経由でNAS実体を確認したとは主張しない。 |
 
-**Non-blocking**：コード規則に従うファイル命名、図のレイアウト、初期worker数等。ただし乱数消費やデータ順に影響する設定は比較前に共通で固定し、必要ならblockingへ移す。
+### 11.2 承認状態の区別
 
-**Authority**：上記4方針＋8項目の採用済み事実は維持。B1〜B6の実機確認・閾値決定・source修正の是非は推測で埋めない。ユーザーのSpec A本文承認をもってapprovedへ昇格し、コード変更や長時間runは別途許可境界を確認する。
+- **確定済み（Decision）**：上表のB1〜B6の方針、元の4つの基本方針、Spec Aの8項目。改めて同じ判断を質問しない。
+- **実装・実機検証待ち（Evidence）**：B1のimport、B2の基準誤差、B3のDDP fixture、B4のVRAM、B5のcheckpoint resume、B6のNAS inventory。Gate A0〜A5の必要なrunの結果が得られるまでPASS/FAILは未確定。
+- **条件付きの追加意思決定**：Meta source import patch、数値閾値の変更、VRAM不足による学習batch・precision・Kの変更、データセット構造の変更が必要になった場合は、承認済み条件を無断変更せずユーザーへ再提示する。
+- **Spec本文の承認**：今回はB1〜B6の推奨案採用であり、**Spec A全文をapprovedにする明示承認と同一視しない**。このファイルは引き続き `status: draft`。Spec A本文のレビュー・承認が完了したらstatus更新する。
+- **実行権限**：承認済みspecでも、研究コード変更、commit/push、短いテスト、Queue一巡、100〜300step実験、10 epoch本学習は別々の行為として扱う。特にA3長めのrunとA5のGPU benchは別途許可を必要とする。
+
+### 11.3 Non-blocking
+
+コードの局所命名、reportの視覚表現、既存形式に合わせた保存先の細部は既存規則に従う。ただし変化すると入力順や比較条件に影響するDataLoader workers、rank別seed、logging side effects等は記録し、比較の前に両実装で条件を一致させる。
 
 ## 12. 関連文書・コード
 
