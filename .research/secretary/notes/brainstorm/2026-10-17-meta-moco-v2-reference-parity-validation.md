@@ -108,3 +108,34 @@ tags: [brainstorm, moco, reference-implementation, parity, baseline, evaluation]
 - 公式：https://github.com/facebookresearch/moco
 - v2論文：https://arxiv.org/abs/2003.04297
 - 現行コード：https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/self_supervised/moco/standalone_moco.py
+
+---
+
+## 追記 2026-10-17 13:33 JST：実測クラスタ資源からのQueue・実行時間評価
+
+### ユーザーから提示された現環境・証拠
+- 2026-10-17 13:29 JSTの`cluster-smi`画像：node `150-740GP-TNRT`、RTX A4500×2、各GPU表示19GB、GPU0使用約0.23GB・GPU1約0.01GB、両者GPU Util 0%、driver615.71.09、CUDA13.4。計測時点はアイドルで学習peakではない。
+- `cluster-top`画像：64 CPU cores、物理RAM251GiB、使用5GiB、CPU待ち時間低い。データセット保存先やSSD/NAS I/Oは未確認。
+- DDPではVRAMは各GPU19GBの独立空間。19+19GBを単一rankモデル用38GBとして足し合わせてはならない。
+
+### Queue容量についての判断
+- MoCo v2におけるFP32 dim128 Queue本体のメモリ占有はK=65536で32MiB／rank、K32768で16MiB、K16384で8MiB、K4096で2MiB。加えてlogitsや演算一時領域は必要だが、ResNet50 224^2のactivations、局所batch・DDP/BN等がより大きい制約になり得る。
+- 現環境なら**K65536維持が第一候補**。Kを縮める前に2GPUでbatch32／rankを試し、`torch.cuda.max_memory_reserved()`/`max_memory_allocated()`、`nvidia-smi`、OOM、処理速度を確認。必要なら局所batch縮小や、比較上の影響を明示したAMPの検討。公式と自作は同じdtype/AMPを揃える。
+- Kを変えると負例の数・特徴の保持時間・lossが変わり、元の公式200ep性能との一致は主張できない。両実装で同Kなら機構比較は可能。global batch64の場合K65536一周1024steps、K16384なら256steps。
+
+### Batch／LR／DDPの暫定方針
+- 推奨候補は同一ResNet50/ImageNet-1K/224px/2GPU-DDP/ShuffleBN、**local batch32×2=global64**、SGD initial lr=`0.03*64/256=0.0075`、K65536、m0.999、T0.2、MLP・aug+、weight_decay1e-4。これは測定前の候補でありbatch32が19GBに収まることはまだ実行確認されていない。
+- global64ならImageNet-1K train約128万枚で1epoch約20,018step、10epoch約200,180step。global128（local64/rank）なら約10,009step／epoch、ただし局所VRAMを実測して採否判断する。
+- DDP shuffle/unshuffle、all_gather、sampler/set_epoch、global/local batch、drop_last、BN buffer、seed/transform/Queue state/optimizer/evalの照合が必要。
+
+### 学習期間と推定実行時間：測定値ではなくモデル仮定
+- Meta公式READMEでImageNet ResNet50 MoCoの200epochがV100×8で約53hという公開基準。これをGPU台数のみ単純換算すると、10epoch・2GPUで約10.6h（**V100とA4500が同等速度と仮定**）。実測データではなく機種・CPU/I/O/precisionの差を考慮できない。
+- 2×A4500・local batch32(global64)、約20,018step/epochに対し、**定常1step 0.20 / 0.35 / 0.60秒**という明示的な仮定を置くと、1epoch=約1.1 / 1.95 / 3.34h、10epoch=約11.1 / 19.5 / 33.4h、30epoch=約33.4 / 58.4 / 100.1h、50epoch=約55.6 / 97.3 / 166.8h／1 run。epoch起動、I/O、checkpoint、eval、2 runを考えれば上振れ。過去のCIFAR 500stepからImageNet ResNet50の速度を直接推定しない。
+- **推奨**：100〜300step実画像warmup/bench（特にI/O込）→1epoch実測→両実装の10epoch比較→必要なら30〜50epoch。10epochのLoss一致だけでは表現品質の証明にならない。固定validation positive rank/similarity/features/effective rank、可能ならLinear Probe等を併用。
+- Cosineの総epoch10と50は別学習設定。resumeで30〜50epochへ延長したい場合、**初めから長期total epochsを同一に設定してepoch10でcheckpoint停止→再開**するか、10epoch独立pilotと30〜50epochは別fresh-runとして区別。実装のsave/resumeがschedulerとRNG、DDP data orderを保つか別途検証する。
+
+### 未確認・次の判断
+- A4500×2でResNet50 MoCo DDP local batch32 FP32がVRAM19GBに収まるか未確認。
+- ImageNet-1Kが研究環境で適法に入手・読み出し可能であるか、I/Oパス・デコード速度未確認。
+- 学習期間のprimary objectiveが「自作vs公式のparity」か「特徴品質の充分な向上」かで10epoch成功Gateが違う。前者は10epochで有意義、後者は最終Linear Probe込みで別Gate。
+- 次回は100〜300 stepの`images_per_second`、`step_time`、`max_memory_reserved`、`nvidia-smi`（both rank）、local batch、AMP有無から実行時間を再推定する。現在は設計探索であり実験run未実施。
