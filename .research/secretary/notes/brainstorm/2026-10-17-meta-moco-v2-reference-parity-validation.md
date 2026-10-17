@@ -264,3 +264,11 @@ Spec Aの具体パラメータ・データ固定方法・verification Gate・art
 - ローカルartifact／checkpoint／Cometの正規schema・記録頻度・再開契約。
 
 **Authority:** 8項目の採用と画像データの提示パスはユーザー指示として確認済み。研究サーバ内の実体、実装、long run完了は未確認。今回はbrainstorm保存のみで、新規spec作成、コード変更、clone・GPU runの許可とは扱わない。
+
+---
+
+### 2026-10-17 Spec A draft作成先
+
+[Spec A：Meta公式MoCo v2と自作MoCoのImageNet-1K 2GPU DDP数値一致検証（status: draft）](../../lab/projects/sequential-video-lora-analysis/specs/2026-10-17-meta-moco-v2-imagenet-ddp-parity-spec.md)
+
+本文に含まれるblocking事項を確認し、spec本文をユーザー承認後にapprovedへ昇格する。ここではspec作成だけで実装・GPU runを許可していない。
