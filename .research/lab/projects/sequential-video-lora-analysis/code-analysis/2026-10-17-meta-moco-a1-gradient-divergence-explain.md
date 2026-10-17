@@ -144,3 +144,29 @@ Meta vs Metaは前の比較で16,000/16,000項目bitwise一致。Self vs Selfも
 4. rtol/atolを合格のため緩めない。A2・A3・A5・Spec Bはこの段階では保留。
 
 **Authority**：ユーザーが提示したコンソール出力・既報JSON・GitHubコードを根拠とする解析であり、GPU実験の独立再実行ではない。元研究コード、spec、README、実験ログは変更していない。
+
+---
+
+## 2026-10-17 追加Evidence：Self→Self bitwise 16000/16000 の確定
+
+ユーザーは研究サーバ上で3種類のA1 comparison reportを確認して共有した。以下は**ユーザー提供レポート上の測定値**であり、ChatGPTが研究サーバで実測した数値ではない。
+
+| 比較 | preconditions | steps | full_tensor_steps | judged | exact_failures | close_failures | bitwise_equal |
+|---|---|---|---|---:|---:|---:|---:|
+| Meta vs Meta | [] | 1–16 | 1,8,9,16 | 16000 | 0 | 0 | 16000 |
+| Self vs Self | [] | 1–16 | 1,8,9,16 | 16000 | 0 | 0 | 16000 |
+| Meta vs Self | [] | 1–16 | 1,8,9,16 | 16000 | 0 | 9398 | 5167 |
+
+従来の『Self rerunのbitwise一致が未確認』『Self側のtrace条件が違う可能性』は本報告により解消。**公式・自作それぞれで16,000項目の完全なbitwise再実行性が示された**。一方、公式対自作の最初の不一致はstep1 rank0のafter_backward/query_grads/encoder_q.conv1.weightで継続。公式対自作に特有の差をランダムな同一実装のrunゆらぎで説明する可能性は低い。
+
+statusの全てがBLOCKEDなのは判定閾値がまだprovisionalであるためであり、公式対自作には暫定閾値を超える比較が9398件存在する。現閾値を単にfixedにすれば公式対自作はFAILとなる。
+
+### 次に検証すべき最小の切り分け
+
+GitHubのMeta固定builderはpositiveをtorch.einsum、negativeをtorch.einsumで計算する。一方、selfのstandalone_moco.pyはpositiveを(q*k).sum、negativeをq @ queueで計算する。これらは同じ数式だがFP32 CUDA上の演算とautograd経路は必ずしも同一でない。**原因はまだ未立証**。
+
+元A1 step1 rank0のmeta/self traceを読み、small.q、small.k、small.targetsとphases.after_logits_before_enqueue.full.queue_used_for_logits.queueがbitwise一致するか確認する。共通q/k/Queue/targetsから公式einsum方式と自作sum/matmul方式でlogits、CrossEntropy、autograd.grad(loss,q)を計算しmax_abs_errorとthreshold超過数を計測する。ログが信頼できるローカル生成物である場合のみtorch.load(weights_only=True)を用いる。
+
+局所のdLoss/dqが異なればBackward初出差に寄与する仮説が強まるが、conv1.weight.gradの差を全て説明したことにはならない。局所差が出なければL2 normalizeとResNet50 backward、DDP勾配all-reduce、計測hookの順に調べる。閾値緩和やA2/A3/A5へ進む判断はしない。
+
+Spec A draft・README・コード・実験ログはこの解析追記では更新しない。コード本体の差分改修は別許可・別workflowに引き継ぐ。
