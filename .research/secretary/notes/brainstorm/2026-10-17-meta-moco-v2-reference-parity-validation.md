@@ -209,3 +209,21 @@ tags: [brainstorm, moco, reference-implementation, parity, baseline, evaluation]
 **未決のまま**：ResNet50の正式採用、公式参照commitの最終確定、DDP/Shuffle-BN実装差、Queue K65536とbatch32/GPUの実機適合、learning rate、許容誤差、比較用データの固定方法、Comet/checkpointの保存契約、長時間GPU実験の実行承認。
 
 次はSpec Aのblocking事項を確定させる。ここでの採用は実装、GPU run、spec approvedへの許可を意味しない。
+
+---
+
+## 2026-10-17 公式MoCo cloneと変更範囲の採用
+
+### 現在のユーザーによる採用事項
+Meta公式MoCo v2のソースコードを自作MoCoと**別ディレクトリに独立してclone**し、固定した参照commitを比較の基準にする。公式コードを自作実装へコピー・上書きしない。公式MoCoの学習アルゴリズム（Query/Key, EMA, InfoNCE, Queue, Shuffle-BN, DDP）は原則変更しない。Cometと比較検証に必要な最小限の記録・計測のみ追加し、差分とcommit/環境を追跡する。公式・自作の10epochやglobal batchなどの実験設定は同じに揃える。公式コードのclone操作そのものはまだ実行していない。
+
+### これからSpec Aへ引き継ぐ未決事項（採用事項と混同しない）
+- 公式参照commitの最終固定：既存CIFARの承認済みspec記載の歴史的commit `a419ef282fc9885015674e77f58c59447206a27f` を第一候補。取得可能性、ソース内容、patchをpreflightで確認する。ローカルclone先は既存研究コードの外を推奨、実パスは未承認。
+- 自作コードは `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` の独立Standalone MoCoを基準とし、CIFAR既存config/smokeを非回帰とする。ResNet50、224px ImageNet、DDP/Shuffle-BNを分離した新runnerとするか最小拡張かは設計時決定。
+- 同一条件の具体値：ResNet50(random init)・2×A4500・global batch64(local32×2)・Queue65536・SGD LR0.0075/momentum0.9/weight decay1e-4、EMA0.999、T0.2、2層MLP128、aug+は**推奨候補であってユーザー未採用**。VRAMと処理速度は実機でbenchmarkする。
+- 許容誤差と基準：固定したmodel/optimizer/BN buffer/Queue state、各rankの2viewとShuffle permutationを公式・自作で共有する。FP32の1step parityと複数step/Queue full cycle、DDP queue all_gather、optimizer更新、BN buffer、checkpoint/resumeを確認。FP32 `rtol=1e-5,atol=1e-6` は初期候補であり実機の最小誤差を監査してspecで固定。
+- 保存と合否：config+code hash+dataset manifest/seed+per-rank GPU/queue+loss/logits/grad/update/EMA/BN差分+checkpoint+Comet。専用比較レポートで数値差と閾値を可視化する。10epochと固定validation feature評価はSpec B、Linear Probeは別Gate。
+- 実行権限：spec作成や本追記はコード変更、commit/push、clone、長時間runへの実行許可ではない。
+
+### 次の一歩
+Spec Aの具体パラメータ・データ固定方法・verification Gate・artifact contractを確定した後、research-specでドラフト作成と承認Gateへ進む。
