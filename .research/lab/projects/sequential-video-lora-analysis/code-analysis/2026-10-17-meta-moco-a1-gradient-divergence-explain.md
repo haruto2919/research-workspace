@@ -170,3 +170,29 @@ GitHubのMeta固定builderはpositiveをtorch.einsum、negativeをtorch.einsum�
 局所のdLoss/dqが異なればBackward初出差に寄与する仮説が強まるが、conv1.weight.gradの差を全て説明したことにはならない。局所差が出なければL2 normalizeとResNet50 backward、DDP勾配all-reduce、計測hookの順に調べる。閾値緩和やA2/A3/A5へ進む判断はしない。
 
 Spec A draft・README・コード・実験ログはこの解析追記では更新しない。コード本体の差分改修は別許可・別workflowに引き継ぐ。
+
+---
+
+## 局所InfoNCE dLoss/dq測定結果（2026-10-17）
+
+### ユーザー提供の局所GPU診断
+
+既存A1のstep1/rank0から`small.q`, `small.k`, `small.targets`, `after_logits_before_enqueue.full.queue_used_for_logits.queue`を読み、q,k,targets,queueがそれぞれ**bitwise一致**することを確認した。その同一Tensorを使って次を計算した。
+
+| 対象 | bitwise_equal | max_abs_error | 暫定rtol1e-5/atol1e-6超過スカラー要素 |
+|---|---|---:|---:|
+| logits | false | 9.5367431640625e-7 | 0 |
+| CrossEntropy loss | false | 1.7881393432617188e-7 | 0 |
+| dLoss/dq | false | 8.940696716308594e-8 | 0 |
+
+公式方式の`torch.einsum`と自作方式の`(q*k).sum`および`q @ queue`の数値経路は**bitwise非一致**だが、固定qへの損失勾配まで含め**全スカラーが候補許容差内**だった。したがってこの局所結果だけでは、step1の`encoder_q.conv1.weight`勾配（max_abs_error1.55e-5、852/9408要素が候補閾値超過）の原因をこの演算表記差と断定できない。ネットワークBackpropで小さな差が増幅される可能性、正規化・backbone計算勾配、DDP all_reduce等は未検証。
+
+### 次の最小診断：正規化層を含めたdLoss/dz_q
+
+保存した`small.z_q`（projector最終出力、normalize前）をMetaとSelfでbitwise照合し、同じz_qから`q=F.normalize(z_q,dim=1)`を再構成、共通k/Queue/targetsでそれぞれのlogits/CEを計算し、`torch.autograd.grad(loss,z_q)`を比較する。`F.normalize(z_q)`と保存`small.q`の一致も確認する。これで`dLoss/dq`から`dLoss/dz_q`への差の増幅度を測る。**既存trace readのみ、train run/コード変更不要**。出力差分をmax_abs_error/平均/相対/超過要素/ベクトルnormで記録する。
+
+この診断で差が見えても、ResNet全体の差を説明することにはならない。追加で必要ならprojector/backboneの各層のgrad、単一GPU vs DDPのall_reduce、CUDA kernelなどを個別に測定し、原因箇所を特定する。既存のspecの`rtol/atol`はprovisionalを維持し、A2/長時間runは保留。
+
+### Evidence境界
+
+結果数値はユーザー提示ログに基づく。Github上の`standalone_moco.py`と`moco_imagenet_parity.py`から保存Traceと計算方式を確認した。研究サーバでの実行や未コミット状態の確認はChatGPTから行っていない。Meta固定ソース、自作研究コード、Spec/README、実験ログはいずれも変更していない。
