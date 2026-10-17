@@ -227,3 +227,40 @@ Meta公式MoCo v2のソースコードを自作MoCoと**別ディレクトリに
 
 ### 次の一歩
 Spec Aの具体パラメータ・データ固定方法・verification Gate・artifact contractを確定した後、research-specでドラフト作成と承認Gateへ進む。
+
+---
+
+## 2026-10-17 追加採用：Spec Aの8項目とImageNet-1K指定パス
+
+### ユーザー明示採用
+ユーザーはSpec Aの追加の推奨8項目を採用し、ImageNet-1Kの研究サーバ上のパスを明示した。これ以前の記録の「未採用」表現より優先して扱う。
+
+| 決定事項 | 採用内容 | 実測依存・未確認事項 |
+|---|---|---|
+| 1 参照commit | Meta公式MoCo v2過去固定commit `a419ef282fc9885015674e77f58c59447206a27f`を比較の第一基準とする | clone実体の取得・内容・ライセンス表記・実行確認は未実施 |
+| 2 Backbone | 両方でランダム初期化ResNet50を使う | Query/KeyとMLP state_dict対応の実装方式は未確定 |
+| 3 Batch/Queue | 2GPU DDP、local batch32/global64、Queue K65536を初期検証候補として採用。VRAM/処理速度は100-300stepで測定 | 実機でOOM等があれば設定見直し。測定前に実行可能と断言しない |
+| 4 最適化 | SGD initial lr0.0075、momentum0.9、weight_decay1e-4（Nesterovなしを既存公式準拠候補） | SGD以外の細目やscheduler stepタイミングは実装照合で確定 |
+| 5 入力・初期状態 | 両実装のモデル重み、BN buffers、projector、Queue、Optimizer、データindex・2view、rank割当て、shuffle-BN順を共通化する | seed単独では一致を保証しない。共有手順の実装は未確定 |
+| 6 FP32判定 | 1step・複数stepで許容誤差内一致を必須にする。初期候補はrtol1e-5/atol1e-6 | 閾値そのものは実機のdeterministic testsを踏まえて固定する |
+| 7 DDP | all_gatherされたキー・全rankのQueue内容とpointer、shuffle/unshuffle、勾配・BN buffer・Optimizer整合を検証 | 各rankの同期とcheckpoint再開の細部は設計時に確定 |
+| 8 記録 | Comet、ローカルの構造化メトリクス、解決済みconfig、checkpoint、比較レポート、provenance・failure evidenceを残す | log cadence、output directory、checkpointの詳細schemaはspec化時に確定 |
+
+### 追加のユーザー提供情報：ImageNet-1Kの保存先
+`/mnt/NAS-TVS872XT/dataset/ImageNet`
+
+このパスは**ユーザーから提供された研究サーバ上のパス**であり、ChatGPTからディレクトリの存在、ImageNet-1Kのtrain/val構造、クラス/画像数、アクセス権、解凍状態、読み出し速度を直接確認したわけではない。preflightで実機検証する。自動ダウンロードやデータの移動は無断実行しない。
+
+### 既承認事項との接続
+- Spec A＝公式と自作の独立clone／実装・FP32数値一致検証。Meta MoCo v2の学習アルゴリズムは不変更とし、公式側への追加は非侵襲的な記録処理だけ。
+- Spec B＝両者fresh 10epoch・Cosine 10epoch完了の比較学習。固定validation集合の特徴評価を必須、Linear Probeは別Gate。
+- Spec Aにより既存のCIFAR-10/ResNet18 standalone MoCo smoke・test・configを破壊しない。
+
+### spec引き継ぎ時点の残る未確定事項
+- 公式参照commitから実際にcheckoutできるか、元ソースの学習ロジックを一切変えずにDDP+ShuffleBN parity harnessをどう設計するか。
+- ImageNet train/valの実在・クラス形式と各rankの固定入力・View・seed・sampler設計。
+- GPU短時間ベンチでlocal batch32/Queue65536が収まるかと、代替設定への切替Gate。
+- 数値許容差の確定方法、DDP固定状態・最小step数・Queue1周テストの実行境界。
+- ローカルartifact／checkpoint／Cometの正規schema・記録頻度・再開契約。
+
+**Authority:** 8項目の採用と画像データの提示パスはユーザー指示として確認済み。研究サーバ内の実体、実装、long run完了は未確認。今回はbrainstorm保存のみで、新規spec作成、コード変更、clone・GPU runの許可とは扱わない。
