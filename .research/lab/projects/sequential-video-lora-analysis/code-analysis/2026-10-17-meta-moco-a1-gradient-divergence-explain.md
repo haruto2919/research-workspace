@@ -84,3 +84,19 @@ Step1は24/3910 tensor比較がfloat閾値を超過。その内訳は2rank×6個
 - https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/c50ab79cbce1738a571daf6e018e31bb870cae24/self_supervised/moco/standalone_moco.py
 - https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/c50ab79cbce1738a571daf6e018e31bb870cae24/self_supervised/moco/ddp_moco.py
 - https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/c50ab79cbce1738a571daf6e018e31bb870cae24/scripts/parity/compare_moco_parity.py
+
+---
+
+## 2026-10-17 19:21 JST：公式A1の再実行（追記）
+
+ユーザー提供の研究サーバ実行ログによると、Meta公式の新しいA1 run（meta_reference_a1_rerun）は16/16 stepを完了し、queue_ptrは各stepで8進んでstep8と16で0へ戻った。Meta公式の再実行比較（pair_kind=rerun、threshold_status=provisional）は、**候補誤差rtol=1e-5/atol=1e-6を超えるfloat tensorが0件**と報告された。正式status=BLOCKEDは閾値がまだprovisionalだからである。これは公式の再現性に関する有益なEvidenceだが、bitwise一致や全詳細Tensorの照合までは意味しない。
+
+### 重要な比較範囲の確認待ち
+
+今回の再実行コマンドは最初のA1のoverride（queue_size=64、local_batch_size=4、image_size=64、max_steps=16、trace.full_steps=[1,8,9,16]、logging.comet_enabled=false）を省略している。GitHub devの設定既定はQueue65536、local32、224px、1step、full_steps=[1]、Comet ON。一方、実ログは16stepかつqueue_ptrが8ずつ進むため、ローカルの実行コードまたは設定がGitHub版と異なる可能性があり、現況不明。比較器のpreconditionsにはtrace.full_stepsが含まれないので、比較statusに前提不一致が出なくても、step8/9/16の詳細Tensorが省略されている可能性がある。
+
+次に双方のresolved_config.yamlにおける queue_size、local_batch_size、image_size、max_steps、trace.full_steps、logging.comet_enabled を調べ、compare_meta_rerun_a1/parity_report.jsonのpreconditions、steps_compared、full_tensor_steps、counts.judged/exact_failures/close_failures/bitwise_equal、within_run_checksを確認する。元の公式対自作レポートはjudged=16000、full_tensor_steps=[1,8,9,16]。同範囲で比較できていなければ、元runと同じoverrideでMeta公式を新run directoryに再実行する。
+
+Meta対Metaのfull trace全項目が候補閾値内なら、公式対自作に固有のstep1 backward差の可能性が上がる。次に同一q/k/Queueで公式einsumと自作sum/matmulのlogits・loss・dLoss/dqを局所比較し、DDPとGPU非決定性も切り分ける。暫定閾値を根拠なく緩めず、A2は保留する。
+
+本追記はユーザーのログとGitHubコードに基づく解釈であり、研究サーバでの再実行・コード変更は行っていない。Spec A status draftを変更しない。
