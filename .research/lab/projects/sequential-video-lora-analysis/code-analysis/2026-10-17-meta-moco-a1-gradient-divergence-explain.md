@@ -196,3 +196,32 @@ Spec A draft・README・コード・実験ログはこの解析追記では更�
 ### Evidence境界
 
 結果数値はユーザー提示ログに基づく。Github上の`standalone_moco.py`と`moco_imagenet_parity.py`から保存Traceと計算方式を確認した。研究サーバでの実行や未コミット状態の確認はChatGPTから行っていない。Meta固定ソース、自作研究コード、Spec/README、実験ログはいずれも変更していない。
+
+---
+
+## 2026-10-17 L2正規化前の勾配 dLoss/dz_q 局所診断
+
+### 実測：ユーザー提供のGPU局所テスト
+
+元A1のstep1・rank0 traceを読み込み、`small.z_q`、`small.q`、`small.k`、`small.targets`、enqueue前Queueが公式・自作でbitwise同一であることをassertで確認した。保存済みz_qから再度`F.normalize(z_q)`したqもtrace上の保存済みqとbitwise一致した。
+
+| 対象 | Meta方式 vs Self方式の最大絶対誤差 | 暫定rtol1e-5 / atol1e-6を超えるscalar要素数 |
+|---|---:|---:|
+| logits（前回測定） | 9.5367431640625e-7 | 0 |
+| Loss（前回測定） | 1.7881393432617188e-7 | 0 |
+| dLoss/dq（前回測定） | 8.940696716308594e-8 | 0 |
+| **dLoss/dz_q（今回）** | **1.30385160446167e-8** | **0** |
+
+追加情報：`dLoss/dz_q` mean_abs_error=1.3450289770844392e-9、meta_grad_norm=0.17830537259578705、self_grad_norm=0.17830540239810944、bitwise_equal=False。これはsaved z_q をleafにして再構成した**局所Autograd**の結果であり、元の全モデルforward/backward中の実際の境界勾配を計測したものではない。
+
+### 解釈と次の確認方法
+
+Input・normalized q、Logits、Loss、dLoss/dq、dLoss/dz_qまでの局所経路では**候補誤差を超える不一致がなく**、従来の初回step1 `encoder_q.conv1.weight.grad` max_abs_error=1.5497207641601562e-5（852/9408要素超過）と対照的。『L2正規化Backward自身で誤差が許容差外まで増幅』という説明は今回の局所fixtureに対して支持されない。ただしMLP/ResNetのBackpropでの増幅や、それらの内部演算自体の差、DDPのgrad reduction等を区別できていない。
+
+**最小の次手順**：追加GPU実験やコード変更の前に、すでに保存されたstep1・rank0/1の `trace/rank*/step_000001.pt` にある `phases.after_backward.full.query_grads` の全canonicalパラメータ名とshapeを突き合わせ、**出力層（encoder_q.fc.2）から入力層（conv1）へ逆順**で `max_abs_error`、比較した誤差閾値超過要素数、`||grad_meta-grad_self||/||grad_meta||` を並べる。Projector最終層からすでに相違があるか、backbone側で急に大きくなるかを観察。**各parameterのgradを下流から比較しても「最初に演算誤差が発生したレイヤー」が数学的に証明されるわけではない**点に注意。
+
+もし最終Projector層から差がある場合は実学習時の`dL/dz_q`をretain_grad等で捕捉する診断を次に検討。Projector層がほぼ一致し、backboneに差があるならResNet block・DDP allreduce以前/以後の勾配比較を追加する。公式コードのロジック変更は引き続き禁止。研究コードへの新規計測を組み込む必要があればengineering-taskへ移管し、ユーザー承認境界を守る。
+
+### 未確認の事項
+
+原因確定、実学習全Graphでの `dL/dz_q`、gradient amplification の説明、A1公式自作Parity PASS、A2の実施、rtol/atolの固定は未確認。元のSpec Aはdraft。今回の測定値はユーザー提供出力に基づき、ChatGPTは研究サーバのGPUを操作していない。
