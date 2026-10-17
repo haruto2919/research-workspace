@@ -272,3 +272,38 @@ Spec Aの具体パラメータ・データ固定方法・verification Gate・art
 [Spec A：Meta公式MoCo v2と自作MoCoのImageNet-1K 2GPU DDP数値一致検証（status: draft）](../../lab/projects/sequential-video-lora-analysis/specs/2026-10-17-meta-moco-v2-imagenet-ddp-parity-spec.md)
 
 本文に含まれるblocking事項を確認し、spec本文をユーザー承認後にapprovedへ昇格する。ここではspec作成だけで実装・GPU runを許可していない。
+
+---
+
+## 2026-10-17 実装報告後のGPU Gate優先順位（報告とGitHub確認の区別）
+
+### ユーザーからの報告（実機の出力ファイル未閲覧／未独立検証）
+- 研究サーバ側：`dev @ 8939d7f` の未コミット実装としてImageNet ResNet50 `DistributedMoCo`、2rank Shuffle-BN、公式外部clone（`/mnt/HDD12TB-1/ishikawa/facebookresearch-moco`、`a419ef2`）、shim、parity fixture、comparison/trace/checkpoint sidecar/Comet/A5/preflightを実装。
+- CPU independent DDP 6/6、harness 18/18、旧CIFAR/LoRA/MoCo回帰98 PASS、全suite 368 PASS/36 FAIL（36件はclean旧HEADでも発生と報告）。
+- ImageNet train 1,281,167/val 50,000、320/320 decode・imports等がPASS、A0のNCCLは未許可につきBLOCKEDと報告。
+- fixture：small-K A1、synthetic full、ImageNet実画像1stepを作成と報告。
+- モデル内float64数式の診断許容差を入力項規模に対する相対判定へ改修。**公式vs自作の比較器は標準`|c-r|<=atol+rtol|r|`のまま**（GitHubコードから確認）。
+- 公称のFP32 `rtol1e-5/atol1e-6` はprovisionalで、`--threshold-status fixed`がないと比較はBLOCKED。NAS cold read ~64 images/sという観測は実学習のglobal throughputではない。
+- Research Workspaceの実装報告Markdownは「experiments/2026-10-17-…-implementation-verification.md」へ保存したとの報告だが、2026-10-17現在GitHub `research-workspace@main` の`experiments/`一覧に10/17のファイルがなく、**研究サーバローカルのみの可能性**。アップロード同期を確認する。GitHubからローカル報告値を検証したとは主張しない。
+
+### GitHubで直接確認（2026-10-17）
+- `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` が現在 `c50ab79cbce1738a571daf6e018e31bb870cae24`。これはユーザー報告のbaseline `8939d7f` より先で、MoCo DDP本体と`scripts/parity/`に複数のcommitがある。**研究サーバのlocal HEAD/dirtyがこのGitHub HEADと一致するかは未確認**。
+- `self_supervised/moco/ddp_moco.py`、`scripts/parity/moco_imagenet_parity.py`、`compare_moco_parity.py`、`preflight_moco_imagenet.py`、`conf/moco_imagenet_parity.yaml`を確認。config既定`logging.comet_enabled: true`。
+- `preflight_moco_imagenet.py --nccl-check`が2GPU NCCL collectiveを実行し、全項目のPASSには必要。
+- `moco_imagenet_parity.py` A1（小K/batch）、A2（full設定のsynthetic/real1step）、A3 1025steps、A5 bench 100〜300steps。公式クローンをCUDA経由で動かすため、A1も実2GPUで確認したい。
+- `compare_moco_parity.py`はMeta再実行 `--pair-kind rerun`を扱い、許容差`--threshold-status fixed`まではfloat比較のPASSでなくBLOCKEDと記録する。
+- `research-workspace`のSpec A §13とREADMEはGitHub現況を反映しておらず「未実装」相当の記載が残る。
+
+### 推奨する次の確認順（**提案でありGPU実行のユーザー許可ではない**）
+1. 研究サーバの`git rev-parse HEAD`、`git status --short`、追跡状態、Meta固定clone clean、実験ログの保存先を照合。**最新devへのblind pullは避ける**。実験EvidenceのGitHub Workspace `main` への同期を別作業で検討。
+2. Spec A本文のレビューと承認状態整理。ただし未測定GateをPASSに昇格させない。§13を「CPU実装・回帰報告あり、2GPU検証未完了」に更新する案、READMEへ証拠階層付きで追記する案に賛成（ユーザー判断待ち、brainstormスキルではREADME/specを直接更新しない）。
+3. GPU短時間Gateのみを明示的に許可してもらう：A0 `--nccl-check`→A1 small-K公式・自作比較→公式同一fixture再演でGPU再現性・許容誤差を診断→**判定run前に閾値固定**→A2 synthetic/real 1stepの公式・自作比較。異常やOOM時は停止、原因/VRAM/rank/phaseを記録。A3(1025steps)、A5(100-300steps)、Spec B10epochは**別承認**。
+4. 初回A0〜A2は `logging.comet_enabled=false` に上書きする推奨（diagnosticをCometへ誤って送信しないため）。Cometは有用な本検証runやA5/Spec Bで`true`へ明示切替する提案。これはまだユーザー未承認。
+5. 36 baseline failuresの根拠コマンド・環境・差分を記録する。既存回帰failと新規failを混同しない。
+6. NAS cold read 64 images/sは実運用throughputを代表するとは限らない。A5のwarmup除外値、data_waitとGPU throughputが確定するまで10epoch完了時間を断定しない。
+
+### 未決・次の意思決定
+- **短時間GPU**のA0/A1/A2を実際に走らせる許可（GPU台数2、時間枠と停止条件）。
+- 最初の短時間診断Comet **OFF**／後続の比較・実験ではONとする方針の採否。
+- 証拠記録をResearch Workspace mainへ同期、Spec A §13・READMEの現状更新（status draft維持）を行うか。
+- A3/A5/Spec Bをいま実行することは提案しない。
