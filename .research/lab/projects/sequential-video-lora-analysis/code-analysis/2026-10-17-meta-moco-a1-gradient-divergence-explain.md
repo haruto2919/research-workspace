@@ -225,3 +225,39 @@ Input・normalized q、Logits、Loss、dLoss/dq、dLoss/dz_qまでの局所経�
 ### 未確認の事項
 
 原因確定、実学習全Graphでの `dL/dz_q`、gradient amplification の説明、A1公式自作Parity PASS、A2の実施、rtol/atolの固定は未確認。元のSpec Aはdraft。今回の測定値はユーザー提供出力に基づき、ChatGPTは研究サーバのGPUを操作していない。
+
+---
+
+## 2026-10-17 層別勾配比較：入力側の要素別閾値超過
+
+### ユーザー提供のレイヤ別勾配比較（元A1 step1 after_backward）
+
+同一fixture、公式と自作のrank0/1の勾配Tensorを比較。rank0/1の出力は各行同一である。これは現行ハーネスのDDP同期**後**のgrad比較であり、同期前のgradは未確認。
+
+| Canonical parameter | max_abs_error | 参考許容差を超える要素数 | relative L2 diff |
+|---|---:|---:|---:|
+| encoder_q.fc.2.weight | 1.676e-8 | 0 | 2.289e-7 |
+| encoder_q.layer4.2.conv3.weight | 1.863e-9 | 0 | 3.029e-7 |
+| encoder_q.layer1.2.conv2.weight | 1.520e-6 | 6 | 2.757e-6 |
+| encoder_q.layer1.1.conv2.weight | 2.295e-6 | 14 | 2.591e-6 |
+| encoder_q.layer1.0.downsample.0.weight | 1.214e-6 | 1 | 2.193e-6 |
+| encoder_q.layer1.0.conv2.weight | 3.815e-6 | 86 | 2.581e-6 |
+| encoder_q.layer1.0.conv1.weight | 1.788e-6 | 2 | 2.167e-6 |
+| encoder_q.conv1.weight | 1.550e-5 | 852 | 2.134e-6 |
+
+### 事実・解釈
+
+- **直接観測**：MLP final層にもbitwise差が存在（相対L2約2.3e-7）するが参考閾値内。初めて要素別参考閾値を超えるのは出力側から表示した一覧上`layer1.2.conv2.weight`で、`conv1`で最大差・超過要素数が最も目立つ。`layer1`が実際に丸め差を作り始める『発生源』とは断定できない。
+- **絶対値に比べrelative L2 diffが小さい**：`conv1`のrelative L2差約2.134e-6、0.0002134%。1e-6という絶対閾値が勾配要素（特に分母が小さい要素）に対して厳しいことと、深いBackwardで差が伝播・増幅することが候補。要素別超過852件を大きなアルゴリズムバグの証拠と誤認しない。
+- **DDP後の一致**：rank0/1に同じ差が出るのはallreduce済みgradが同じだから期待通り。通信非決定性・局所Backward差の混入を完全排除したわけではない。
+- **注意**：A1の16step公式対自作は9398/16000 tensor比較に候補閾値超過があり、単純に『丸め差だからA1 PASS』とは言えない。短い16stepでも対比する軌道は離れる。特にlocalB4/K64の強い非線形学習・BN条件への数値感度の可能性は未検証。
+
+### 次の推奨診断（公式ソース変更なし）
+
+追加の層別ログ列挙より、**原因が変数一つに起因するかを切り分ける1step制御実験**を優先する。自作MoCoの診断専用実行で、`moco_logits`の算術式だけをMetaと同一`einsum`＋`logits /= T`方式へ切替え（本番の既存standalone/CIFAR経路のデフォルトは不変）、同一A1 fixture初期stateでstep1を実行し、`after_backward.query_grads`/`after_sgd`を元Meta step1と比較する。実行・本番コード変更はengineering-task Gate/ユーザー実行許可の対象で、既存コードを勝手に書き換えない。算術式のみの変更で差が消えれば強い因果証拠。差が残れば同一lossのdL/dz_q伝播・DDP allreduce前後・ResNet backwardを次に検証。
+
+別ルート：同一fixture/初期stateで下流から得る**共通の実学習時dL/dz_q**をMetaとSelf encoderへ入れるVJP比較。損失演算差を切り離してencoder/backprop同等性を検証する（局所計算だけを実行しても元の2rank DDP平均と完全一致するとは限らない）。
+
+**採否待ち**：現spec§5.3のFP32 rtol1e-5/atol1e-6はprovisional。tensor全体のrelative L2指標は診断として追加する価値があるが、要素別参照閾値や正式Gateを事後的に書換えてPASSにすることはしない。長時間A2/A3/A5にはまだ進まない。
+
+**Evidence境界**：上表はユーザー提供の研究サーバ出力。GitHub上の既存コード実装は確認済み。研究サーバのlocal dirty状態は未確認。今回の作業はこのcode-analysis Markdownのみ追記し、研究コード、spec、README、実験ログは編集していない。
