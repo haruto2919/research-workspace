@@ -120,3 +120,27 @@ Meta対Metaのfull trace全項目が候補閾値内なら、公式対自作に�
 5. 現在の比較目的は**公式vs自作の数値パリティ**。数値許容差を事後的に広げること、原因不明のままA2/A3/Spec Bに進むことを避ける。公式ソースは変更せず、自作計算差を実証してから必要な変更の承認を判断。
 
 **Evidence境界：** 16,000項目一致はユーザー提供したレポート内容に基づく。GitHubソースでは両者のlogits演算表記差を確認したが、その演算差がconv1勾配差の根本原因であることは未実証。研究サーバの実プロセスはChatGPTから操作していない。
+
+---
+
+## 2026-10-17 A1 Self→Self rerunの暫定許容差内一致
+
+### ユーザー提供の追加実測
+
+- 自作MoCo `implementation=self gate=A1` を既存fixture `manual_20261017_191704/fixture_a1/fixture.pt` で再実行し、1〜16step完走（queue_ptrはstep8/16で0、1stepごと8進む）。run出力：`.../manual_20261017_191704/self_a1_rerun`。
+- `compare_moco_parity --pair-kind rerun --reference self_a1 --candidate self_a1_rerun --threshold-status provisional` のコンソール結果は `BLOCKED: threshold is provisional ... 0 float tensors outside the provisional tolerance`。少なくとも候補閾値では自作同士のfloat不一致は0件である。
+- **まだ未提示**：`compare_self_rerun_a1/parity_report.json`の`counts.judged`、`counts.bitwise_equal`、`counts.exact_failures`、`preconditions`、`steps_compared`、`full_tensor_steps`、`first_failure`。consoleの0件だけでself-selfのbitwise一致や比較範囲の完全同一を断定しない。
+- 再実行コマンドは明示的な`trace.full_steps`等のoverrideを省略したが、実行ログは16stepでK64/globalB8の動き。**configのresolved値を確認するまで同一traceとは断定しない**。`logging.comet_enabled`も確認する。
+
+### 更新した診断仮説
+
+Meta vs Metaは前の比較で16,000/16,000項目bitwise一致。Self vs Selfもprovisionalの許容差を超えるfloat tensor0件。Meta vs Selfの16,000比較中9,398件超過は、両実装の独立したrun再現性だけでは説明しにくい。最初の差はstep1 `after_backward/query_grads/encoder_q.conv1.weight`（max_abs_error1.55e-5）。公式と自作は数学的に同等のInfoNCE logitsを異なる`einsum`／`mul.sum`・`matmul`で実装しているため、浮動小数点とAutograd差を第一候補として調査する。ただし**根本原因は未証明**。
+
+### 次に推奨する最小確認
+
+1. Self rerunの`parity_report.json`にある`preconditions`, `steps_compared`, `full_tensor_steps`, `counts`, `first_failure`およびSelf2runの`resolved_config.yaml`を確認し、16,000件の完全比較・bitwise同値か検証する。
+2. データが揃っていれば、元A1のstep1 rank0 traceに保存された同一 `q`、`k`、enqueue前Queueを読み出し、**Metaのeinsum版**と**Selfのsum/matmul版**で`logits`, `loss`, `autograd.grad(loss, q)`を計算して比較する。**公式コードの変更なし**、可能なら局所的な単一GPU/CPUテストとして行う。数値差を比較するが、1つの局所テストのみでDDP誤差を断定しない。
+3. 局所InfoNCEで差が説明できなければ、単一GPUのResNet backwardとDDP gradient reduction、backend deterministic flags、DDP bucket順、hookの影響を順に切り分ける。
+4. rtol/atolを合格のため緩めない。A2・A3・A5・Spec Bはこの段階では保留。
+
+**Authority**：ユーザーが提示したコンソール出力・既報JSON・GitHubコードを根拠とする解析であり、GPU実験の独立再実行ではない。元研究コード、spec、README、実験ログは変更していない。
