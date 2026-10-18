@@ -109,3 +109,38 @@ python -m scripts.parity.judge_moco_a1_info_nce --m-s0 <cmp> --m-s1 <cmp> --s0-s
 | 日付 | 内容 |
 |---|---|
 | 2026-10-18 | 実装とCPU検証（変更前66 passed → 変更後120 passed）。GPU runは未実施、変更は未コミット |
+
+---
+
+## 2026-10-18 手動CPU pytest再実行：120 passed / 232.44s
+
+### ユーザー提供の研究サーバ実行ログ
+
+ユーザーは別ターミナルから4つの対象testを実行し、最初は仮想環境非activeのため`python: command not found`だったが、`source .venv/bin/activate`の後に次を実行した。
+
+```bash
+CUDA_VISIBLE_DEVICES="" python -m pytest -q \
+  test/model/test_moco_standalone.py \
+  test/model/test_moco_cifar10_reporting.py \
+  test/model/test_moco_ddp.py \
+  test/model/test_moco_parity_harness.py
+```
+
+- 実行環境のlog: Linux / Python 3.12.3 / pytest 9.1.1、collected 120 items。
+- 結果: **`120 passed in 232.44s (0:03:52)`**。この実行ログにfailed/skippedはない。
+- テストが保存した成果物は`/tmp/pytest-of-ishikawa/pytest-34/`配下の一時ファイル群。大規模GPU runとしては扱わない。
+- `COMET WARNING: Config key 'comet.auto_log.weights' is deprecated...`が1行出ているが、テスト失敗にはなっていない。Comet本番送信が行われた証拠とはみなさない。
+- テスト中の出力`SUPPORTED AS SUFFICIENT AT STEP 1 (validity VALID, reproducibility BITWISE)`は`test_judge_cli_writes_the_judgement_without_overwriting`の**synthetic report**を通じたjudge CLIテストの結果。実GPU M/S0/S1の仮説判定として転記しない。
+- テストランナー内のCPU/gloo fixtureについてのloss/grad/update表示はテスト用計測であり、GPU公式parityの数値品質や学習安定性の結論に使わない。
+- **このログには `git rev-parse HEAD` および `git status --short` が無いため、再実行時ローカルcommit・dirty状態は未確認**。GitHub `dev` の実装済みcommitとこの端末実行環境が一致したとはまだ断言しない。
+
+### 次のアクションと承認境界
+
+1. 研究サーバで`git branch --show-current; git rev-parse HEAD; git status --short`を確認し、同一commit/cleanを記録する。
+2. 追加specはGitHub上で`status: draft`を維持している。承認状態を整理し、**GPU実行の明示的許可**を別に確認する。
+3. GPU許可後はspec §7の2GPU・NCCL A1 synthetic fixtureでS0/S1と各rerunを新規ディレクトリへ保存、Mのprovenance再利用可否確認、3主比較＋2同mode再実行比較を出し、`judge_moco_a1_info_nce`へ入力する。
+4. 暫定FP32 rtol1e-5/atol1e-6は変えず、今回のCPU PASSのみからA1総合PASSや仮説SUPPORTEDを主張しない。
+
+### Evidence境界
+
+数値は2026-10-18にユーザーがアップロードしたターミナルログ由来であり、ChatGPTが研究サーバを直接実行したものではない。既存の実装記録の『実装直後120 passed/233.12s』とは別の再実行Evidenceとして記録する。
