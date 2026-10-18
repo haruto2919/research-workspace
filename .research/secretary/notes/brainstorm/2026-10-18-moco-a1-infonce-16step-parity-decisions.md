@@ -53,3 +53,9 @@ blocking候補は (1) 16stepの厳密な成功範囲、(2) M/S0/S1とrerunの構
 - [Step1 GPU evidence](../../../lab/projects/sequential-video-lora-analysis/experiments/2026-10-18-meta-moco-a1-infonce-arithmetic-gpu-one-step-evidence.md)
 - [Step1 diagnostic spec](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-18-meta-moco-a1-infonce-arithmetic-diagnostic-spec.md)
 - [Parent Spec A](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-17-meta-moco-v2-imagenet-ddp-parity-spec.md)
+
+## 重要な制御比較上の注意（同日追記）
+
+**S0対S1の`logits`以前のbitwise一致はstep1に限定して要求する**。両者ではstep1の勾配・SGD momentumが異なるため、step2以降のQuery重み、EMA Key、Queue、次stepのq/kなどが自然に分岐し得る。これは「最初の介入が算術modeだけ」という実験契約への違反ではない。既存`a1_info_nce`の1step契約（全traceでlogits前bitwise）をそのまま16stepへ拡張すると、正常な因果波及をINVALIDと誤判定する恐れがある。16stepでは、**run開始時のstate/fixture/config（mode以外）一致、step1のlogits入力までの一致**を厳密に検査し、step2以降のS0-S1差は作用の伝播として記録する。
+
+一方、**M対S1**は同じ演算・同じ継続状態を意図する数値parity比較なので、全16stepでpointwiseの判定対象を照合する。`S0`の独立再実行にbitwise再現性を課す場合はS0bと比較し、S1はS1b、MetaはMbと比較する。どの比較がexact、fixed FP32 tolerance、制御診断なのかをレポートに分離する。
