@@ -59,3 +59,31 @@ blocking候補は (1) 16stepの厳密な成功範囲、(2) M/S0/S1とrerunの構
 **S0対S1の`logits`以前のbitwise一致はstep1に限定して要求する**。両者ではstep1の勾配・SGD momentumが異なるため、step2以降のQuery重み、EMA Key、Queue、次stepのq/kなどが自然に分岐し得る。これは「最初の介入が算術modeだけ」という実験契約への違反ではない。既存`a1_info_nce`の1step契約（全traceでlogits前bitwise）をそのまま16stepへ拡張すると、正常な因果波及をINVALIDと誤判定する恐れがある。16stepでは、**run開始時のstate/fixture/config（mode以外）一致、step1のlogits入力までの一致**を厳密に検査し、step2以降のS0-S1差は作用の伝播として記録する。
 
 一方、**M対S1**は同じ演算・同じ継続状態を意図する数値parity比較なので、全16stepでpointwiseの判定対象を照合する。`S0`の独立再実行にbitwise再現性を課す場合はS0bと比較し、S1はS1b、MetaはMbと比較する。どの比較がexact、fixed FP32 tolerance、制御診断なのかをレポートに分離する。
+
+---
+
+## 2026-10-18T05:44:25.669Z ユーザー採用：B1〜B10を一括採用
+
+ユーザーはこの対話で「全て採用します」と回答し、直前に提示したB1〜B10の推奨案を**全て採用**した。上記の「未採用」「未決」と記載されたB1〜B10の推奨候補は、**この採用決定以降、検証計画への承認済み入力**とする（元の探索過程は監査のためそのまま保持）。
+
+### 採用確定したDecision Contract
+
+| ID | 採用内容 |
+| --- | --- |
+| B1 | 目的はA1 synthetic small-Kでの16step継続数値一致。A3/K65536やImageNet性能とは別Gate。 |
+| B2 | M（Meta公式）・S0（自作既存算術）・S1（自作Meta算術）の3経路を比較。M、S0、S1それぞれfresh再実行によるbitwise再現性を確認。 |
+| B3 | 共通synthetic A1 fixture・同一state/seed/views/rank・2GPU NCCL・K64・localB4・64px・ResNet50/MLP・SGD LR0.0075 momentum0.9 weight_decay1e-4・EMA0.999・T0.2・FP32 IEEE TF32 OFF・同一backend・16step・Comet OFF・checkpoint/resumeなし。 |
+| B4 | 既存small traceを全16step記録。full trace [1,8,9,16]でQueue一巡/再置換、enqueue前後、EMA・BN・shuffleを比較。 |
+| B5 | 診断用`meta_einsum`のみA1/16step/full[1,8,9,16]を許可する最小拡張。A1/1step既存制限と共存。通常default `self`/Standalone/CIFAR/Meta cloneは変更しない。 |
+| B6 | 現行comparison/rerunを利用しつつ、16step専用の条件チェック・判定を分離。S0-S1は初期状態とstep1 logits直前までを同一と確認し、step2以降の自然な分岐をINVALID扱いしない。1step専用judgeは不変更。 |
+| B7 | 正式判定前に旧Meta再実行結果等をレビューし、FP32候補rtol1e-5/atol1e-6を事前固定。floatは公式基準allclose、discrete/hashは完全一致。bitwiseは別指標。事後の閾値緩和は禁止。 |
+| B8 | 16stepすべての保存small/discrete/rank/phaseと、[1,8,9,16]のfull tensor群（Query勾配、SGDパラメータ/momentum、Key EMA、Queue、BN、logits/loss等）でPASS/FAILを判断。全step全tensorを取得したかのように主張しない。 |
+| B9 | 同一実装commit/clean、Meta固定commit/clean、同一fixture SHA・環境・rank、独立fresh run、各mode再実行、CPUテストと非回帰、provenance・comparator・judgeレポート保存。既存M再利用は比較条件が一致した場合のみ。 |
+| B10 | OOM/NCCL hang/NaN・非有限/条件・Queue不一致で停止し、自動fallbackや勝手な設定変更なし。2GPU・16step runは実装許可とは別に明示的なrun許可を必要とする。A2/A3/A5/10epochとComet送信は対象外。 |
+
+### 確定事項と未実行事項の境界
+
+- **確定済み**：B1〜B10の研究設計上の方向性・仕様化への入力。S0対S1のstep2以降の差は因果伝播として記録するという注意点も採用対象。
+- **形式化が残る**：research-specで具体的なtrace/比較schema・PASS/FAIL/INVALID/BLOCKED契約・テスト条件・compatibility/stop contractを詰め、FP32閾値を判定run前に文書上で固定する。閾値の候補採用と正式判定用の事前登録完了は別。
+- **許可していないこと**：この「全て採用」はspecの新規作成依頼や、研究コード変更、commit/push、GPU runの開始許可と同義ではない。ユーザーからの明示のspec化依頼を受けてresearch-specへhandoffし、GPU runはその後別に承認を得る。
+- **Research Spec Handoff**：対象 `sequential-video-lora-analysis`、研究問い「A1のInfoNCE算術一致が小K・16step継続でEMA/Queue/SGD/DDP/BNを含めて維持できるか」、提案する変更対象はparity runnerのdiagnostic validation、16step比較契約・判定器、configと関連testsに限定。基準コードは研究コードdevの現在commit/dirtyをspec作成時に再確認。親Spec A・A1 1step診断Spec・2GPU step1 EvidenceをAuthorityとEvidenceを区別して引用。
