@@ -307,3 +307,9 @@ Spec Aの具体パラメータ・データ固定方法・verification Gate・art
 - 最初の短時間診断Comet **OFF**／後続の比較・実験ではONとする方針の採否。
 - 証拠記録をResearch Workspace mainへ同期、Spec A §13・READMEの現状更新（status draft維持）を行うか。
 - A3/A5/Spec Bをいま実行することは提案しない。
+
+---
+
+### 2026-10-18 A1 InfoNCE演算方式診断の追加spec作成先
+
+[A1追加Spec：InfoNCE演算方式 self / meta_einsum の1step制御診断（status: draft）](../../lab/projects/sequential-video-lora-analysis/specs/2026-10-18-meta-moco-a1-infonce-arithmetic-diagnostic-spec.md)
