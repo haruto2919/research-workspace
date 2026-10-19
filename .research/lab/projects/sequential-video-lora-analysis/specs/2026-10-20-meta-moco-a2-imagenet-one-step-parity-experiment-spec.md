@@ -211,3 +211,19 @@ python -m scripts.parity.compare_moco_parity \
 - **成功条件**：fixed事前閾値、fixture/環境/モードが同一で正式`formal_implementation` PASS。
 - **現状確認**：CPU Engineering PASS、ImageFolder sample decode PASS、CUDA discovery PASS。GPU A2/NCCL/VRAM正式検証NOT_RUN。
 - **実行権限**：本draft保存ではGPU実験・研究コード変更・10epochを許可しない。
+
+---
+
+## 2026-10-20：ユーザー採用したA2基本方針・段階的Gate
+
+ユーザーは本spec提示後の「A2の実験計画を基本方針として採用し、まず固定fixture生成とMeta公式の短時間2GPU診断を準備する」という推奨を**明示採用**した。これにより、次の事項は探索案ではなく採用済みの**Decision Contract**となった。
+
+1. A2は既存の `build_moco_parity_fixture.py`、`moco_imagenet_parity.py`、`compare_moco_parity.py`を使う。新たなMoCoモデルや比較器をゼロから作らない。
+2. 固定条件は初期候補として、ImageNet train・ResNet50＋MLP・2GPU NCCL・224px・local batch32/global64・K65536・FP32・seed0・fresh 1stepとする。環境不適合時は自動縮小しない。
+3. 独立したMとS1を共通fixtureで照合するが、**先にMeta公式M0/M0rの独立fresh再演によって再現性とFP32差分を診断**し、その後にA2の正式許容差をユーザー判断で固定する。正式判定run M1/S1はその固定値を持つ別runとする。
+4. 初回はComet OFF、trace.full_steps=[1]、通常S1 selectorは `moco.info_nce_impl=meta_einsum`・`diagnostic.info_nce_impl=null`。report/manifest/hash/metadataと離散状態は照合する。
+5. 既存artifact、Meta公式source、NAS ImageNet、Standalone/CIFAR/ViT/LoRA/動画経路を変更しない。GPU OOM、NCCL不可、画像decode失敗は停止し、別条件を勝手に採用しない。
+
+**Approval scope / 実行権限の確認**：この採用は**A2の基本方針と診断準備の承認**。現時点ではA2 formal用の閾値（rtol/atol）は未固定であるため、**本spec全体のstatusはdraftを維持**し、正式比較runの許可・成功を意味しない。また研究サーバ上での実際のfixture生成、M0/M0r GPU診断、M1/S1 GPU正式判定の実行は、このGitHub編集では行っていない。GPU実験はユーザー実行または別途明示実行指示が必要。
+
+**次に進める内容**：研究サーバで再度Git/Meta clean、PyTorch CUDA/NCCL状態、出力先の空き領域を確認し、既存fixture generatorで1step real-image fixtureを**fresh directory**に作成する。画像64枚×2viewと初期state/hashを記録し、その実出力のpath/manifestをユーザーが提示したら、M0/M0r診断runのGPU可否・安全性を最終確認する。M0/M0rは数値許容差を決めるための**diagnostic**であり、A2正式PASSとはならない。
