@@ -89,6 +89,6 @@ python -m pytest -q -p no:cacheprovider \
 
 ## 関連
 
-- [2026-10-19 B1〜B12採用記録](../../../secretary/notes/brainstorm/2026-10-19-moco-reference-infonce-normal-path-design-decisions.md)
+- [2026-10-19 B1〜B12採用記録](../../../../secretary/notes/brainstorm/2026-10-19-moco-reference-infonce-normal-path-design-decisions.md)
 - [2026-10-19 A1 16step正式GPU一致](./2026-10-19-meta-moco-a1-infonce-16step-gpu-parity-evidence.md)
 - [2026-10-18 A1 16step実装検証](./2026-10-18-meta-moco-a1-infonce-16step-parity-implementation-verification.md)
