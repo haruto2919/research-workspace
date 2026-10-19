@@ -72,3 +72,21 @@ ResNet50＋DDPの通常`meta_einsum`経路は、実ImageNet 224px・K65536・loc
 4. local32/K65536/224pxのOOM可能性を否定しない。OOMで独断batch/K変更しない。
 
 本追記は**探索上の事実更新**であり、A2 spec承認、GPU実行承認、ImageNet full pass、正式A2 PASSではない。
+
+---
+
+## 2026-10-20 08:30 JST：ImageFolder sample decode・PyTorch CUDAチェック
+
+ユーザー提供の研究サーバ実行ログに基づく。ChatGPTがSSHサーバやNAS/GPUへアクセス・実行したものではない。
+
+| チェック | 観測 | 判定範囲 |
+|---|---|---|
+| `ImageFolder('/mnt/NAS-TVS872XT/dataset/ImageNet/train')` | 1000 classes、1,281,167 samples | train indexing PASS |
+| PILによる1件decode | `train/n01440764/n01440764_10026.JPEG`、JPEG、250×250、class index 0、`im.load()`成功 | **1件**のdecode PASS（全ファイル品質ではない） |
+| PyTorch/torchvision | torch 2.14.0+cu130、torchvision 0.29.0+cu130、torch.version.cuda 13.0 | 環境版確認 |
+| GPU runtime discovery | `CUDA_VISIBLE_DEVICES=0,1`、`torch.cuda.is_available() == True`、device_count 2、GPU 0/1 NVIDIA RTX A4500 | PyTorch CUDA認識 PASS |
+| 直前の状態 | 研究コード・公式clone clean、train/val dirあり、各GPU 20470MiB total/20082MiB free | 前回ログに基づく |
+
+**A0 preflight：準備チェックの確認範囲はPASS、A0全体はPARTIAL PASS継続**。まだ未確認なのは、valのImageFolder indexとdecode、全画像の健全性、Meta公式import provenance、2rank NCCL collective通信、2GPUでのモデル初期化とlocal32/K65536/224px FP32 peak VRAM、実際の1step数値一致である。250×250の原画像は224×224へのaug/crop対象であり、その1枚が250×250であること自体は障害ではない。
+
+**次の推奨**：環境の基本検査をこれ以上無制限に広げず、ユーザーがA2 spec作成を明示依頼した時点で`research-spec`へhandoffし、実験の詳細条件と足りないpreflight項目・停止条件を確定する。固定rtol/atolやfull trace計画がない現時点で、正式GPU判定runは始めない。ユーザーの提示したログをもってGPU実験run許可とみなさない。
