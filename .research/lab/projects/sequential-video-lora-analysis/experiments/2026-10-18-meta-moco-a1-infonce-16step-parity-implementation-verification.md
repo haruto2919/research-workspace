@@ -124,3 +124,36 @@ python -m scripts.parity.judge_moco_a1_info_nce_16step --m-s0 <cmp> --m-s1 <cmp>
 | 日付 | 内容 |
 |---|---|
 | 2026-10-18 | 実装とCPU検証（変更前120 passed → 変更後201 passed）。GPU runは未実施、変更は未コミット |
+
+---
+
+## 2026-10-19 ユーザーによるCPUテスト再実行（201 passed / 693.95s）
+
+ユーザーが研究サーバのターミナル出力（大きな貼り付けテキスト）を共有したため、**実装者の記録とは独立した追加のCPU検証Evidence**として保存する。ChatGPTが研究サーバを実行したものではない。
+
+### 実行コマンド（ユーザー報告）
+
+```bash
+CUDA_VISIBLE_DEVICES="" .venv/bin/python -m pytest \
+  -q -p no:cacheprovider \
+  test/model/test_moco_standalone.py \
+  test/model/test_moco_cifar10_reporting.py \
+  test/model/test_moco_ddp.py \
+  test/model/test_moco_parity_harness.py
+```
+
+### 実測結果
+
+- Linux / Python 3.12.3 / pytest 9.1.1 / hydra-core 1.3.7; collected 201 items。
+- **201 passed in 693.95s (0:11:33)、failed 0、skipped 0**。ログのテスト最終サマリーによる。
+- 16step CPU/gloo S0・S1のテストfixtureは両方step1〜16完了し、Queue pointerのstep 8→0、step 9→8、step 16→0を観測。ローカル一時ファイルは `/tmp/pytest-of-ishikawa/pytest-36/` 以下に保存された。
+- `SUPPORTED AS SUFFICIENT AT STEP 1` および `PASS (formal_fp32_parity PASS, m_vs_s1_bitwise NOT_ALL_BITWISE, reruns {'M': 'BITWISE', 'S0': 'BITWISE', 'S1': 'BITWISE'}, S0 control DIVERGED)` は**pytest内で合成・テスト用comparison reportsを渡したjudgeの期待動作を示すメッセージ**であり、Meta公式CUDA runの数値parity成立とは解釈しない。
+- `COMET WARNING: Config key ... deprecated` という警告が出たが、テスト失敗やCometへの本番実験送信の証拠ではない。
+- この端末貼り付けには `git rev-parse HEAD` / `git status --short` / Meta clone HEAD が含まれない。**今回のpytest時点でのローカルHEAD・clean状態は未確認**。GitHub `dev` のコミットとの一致はこのEvidenceのみでは証明できない。
+
+### 実行境界と次のGate
+
+- 確認済み：指定4 test fileのCPU非回帰・16step診断ハーネスのpytestは再実行で全件PASS。
+- 未確認：Git clean、approved specでの閾値事前登録、2GPUのM/Mb/S0/S0b/S1/S1bの正式16step実行、comparison six reports、formal judge。
+- GitHub上の当該specは現時点で`status: draft`。`verification.threshold_status=fixed`というrunner設定だけで正式承認を代替しない。
+- 次に研究サーバのHEAD/cleanと公式cloneのcommit/cleanを確認する。GPU runは本spec §11の別途明示許可と閾値承認を受けてから行う。旧M runはv1 schema等のため正式6 runへ再利用しない。
