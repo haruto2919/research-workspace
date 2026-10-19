@@ -2,7 +2,7 @@
 project: sequential-video-lora-analysis
 date: 2026-10-20
 record_type: user-provided-terminal-evidence
-status: fixture-created-manifest-validation-pending
+status: fixture-validated-gpu-diagnostic-not-run
 evidence_level: cpu-fixture-generation
 gate: A2
 gpu_a2: NOT_RUN
@@ -45,3 +45,26 @@ source: user-shared-terminal-output
 ## 保存・環境の境界
 
 このEvidenceにはuserからの標準出力とpath/SHAのみを保存。大容量fixture.pt、tensor、ImageNetデータセットをResearch WorkspaceのGitHubにpushしていない。GitHubへの文書保存はSSHサーバの研究コードcloneに反映されていない。
+
+---
+
+## 2026-10-20 08:xx JST：Fixture manifestと実tensor整合性の追試（ユーザー提供ログ）
+
+ユーザーは固定fixtureディレクトリを再度開き、`fixture_manifest.json`を検査した上で`torch.load(..., weights_only=True)`で保存済み`fixture.pt`をCPU上に読み込み、`scripts.parity.moco_parity_state`の`file_sha256`・`state_sha256`・`tensor_sha256`を使って検査した。ユーザーが入力したコマンド表示の一部はターミナル貼付けで崩れているが、最終出力は **`FIXTURE VALIDATION PASS`** だった。以下をコンソール出力と元のassert群が成功した範囲に限定して受け取る。
+
+| 確認項目 | 実測/期待一致 | 判定 |
+|---|---|---|
+| kind / steps | `imagenet` / `1` | PASS |
+| GPU world / local / global batch | `2` / `32` / `64` | PASS |
+| Image size / Queue size | `224` / `65536` | PASS |
+| Architecture / seed | `resnet50` / `0` | PASS |
+| ImageNet sample count | `64`件 | PASS |
+| rank 0・1 のinput 2view | 各rankの`[32,3,224,224]`×2、FP32、finite、SHA一致のassert通過 | PASS |
+| fixture.pt SHA | `9edede9195eccef13e7ec8446880d6bfc6a550b11e96b466dbf047723d24b4ac`（生成時出力・manifestと一致） | PASS |
+| Canonical state hash | 保存stateを再計算したSHAとmanifestの比較assert通過 | PASS |
+
+**Evidence判定：`A2 fixture validation = PASS`。** ただしこれは「固定画像/初期stateの単一fixtureが自己整合的である」ことの確認であり、Meta公式 M0/M0r のGPU再演、独立M vs S1、NCCL実通信、localB32でのVRAM可否、A2正式判定を示さない。raw fixture全体をGitHubから直接読み込んだわけではない。
+
+### 次Gate
+
+まずGPU使用状況・研究コード/公式clone clean・保存先空き容量を確認し、短い`M0=meta_reference` 2GPU/NCCL 1step `run_kind=parity gate=A2`を**診断run**として別途実行する。成功時だけ独立fresh `M0r`を実行、CPU offline `--pair-kind rerun`で再現性を調べる。両runの`verification.threshold_status=provisional`であることから、比較結果は正式A2 M vs S1 PASSではない。GPU OOM/不整合なら自動でlocalB/K/image/precisionを変えず停止・報告する。
