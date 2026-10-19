@@ -49,3 +49,26 @@ ResNet50＋DDPの通常`meta_einsum`経路は、実ImageNet 224px・K65536・loc
 - 旧A1 v2の再判定を新judgeへ求める必要性（現行v3では古いv2をINVALIDと扱う既知制約）をA2から分離。
 
 本メモは探索記録であり、**A2 specの承認・GPU runの実施許可ではない**。ユーザーがA2のspec作成を明示依頼したらresearch-specへhandoffする。
+
+---
+
+## 2026-10-20：ユーザー提供のA0 preflight部分結果
+
+ユーザーは研究サーバから次のコマンド・出力を共有した。GitHubからNAS/GPUを直接操作・観測したわけではない。以下のscope内のEvidenceとして扱う。
+
+| 対象 | ユーザー実測値 | 判定 |
+|---|---|---|
+| 研究コードbranch/HEAD/dirty | dev / dc502e416aa26ed4e0791767fa5a72f7843e399d / git status --short 出力なし | clean・対象commit一致 |
+| Meta公式clone HEAD/dirty | a419ef282fc9885015674e77f58c59447206a27f / git status --short 出力なし | clean・固定commit一致 |
+| ImageNet | `train/`, `val/`どちらも存在、`train/`の直下dir数1000 | ディレクトリ構造は存在。ただしImageFolderとしての全ファイルindex・decode・class対応はまだ未確認 |
+| GPUs | RTX A4500 ×2、各20470MiB total / 20082MiB free | 現時点のnvidia-smiから空きは充分。PyTorch CUDA可否、DDP/NCCL、local32/K65536/224px FP32時のpeak VRAMは未実測 |
+
+現時点のA0 preflight：**PARTIAL PASS**。研究コード/Metaコミットclean、train/valと1000 class dirs、GPU空きはPASS。ユーザーが直前のCPU pytestで`CUDA_VISIBLE_DEVICES=""`をexportしていた可能性があるため、次のCUDA PyTorch確認は`CUDA_VISIBLE_DEVICES=0,1`をコマンド単位で明示する。
+
+次にユーザーが実行できる低負荷preflight候補：
+1. ImageNetのtrain・valでImageFolderが画像をindexできるか、各splitの先頭1ファイルをPILでdecodeできるか。read-onlyで確認し、datasetを変更しない。
+2. `CUDA_VISIBLE_DEVICES=0,1`下で`torch.cuda.is_available`、`torch.cuda.device_count`、torch/CUDA/torchvision version、GPU nameを取得する。`nvidia-smi`可とPyTorch CUDA初期化可は同値ではない。
+3. この2件が通ったらA2専用spec（現在未作成）の作成・承認に着手。許容差fixedやtrace契約を定める前に判定GPU runへ入らない。fixture生成もそのspec承認後を推奨。
+4. local32/K65536/224pxのOOM可能性を否定しない。OOMで独断batch/K変更しない。
+
+本追記は**探索上の事実更新**であり、A2 spec承認、GPU実行承認、ImageNet full pass、正式A2 PASSではない。
