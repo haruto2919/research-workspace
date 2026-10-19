@@ -1,11 +1,11 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: implementation-and-verification
-status: draft
+status: approved
 title: Meta MoCo v2 and self MoCo A1 InfoNCE 16-step numerical parity
 created: 2026-10-18
-last_updated: 2026-10-18
-authority: current user request and user-adopted B1-B10 decision contract, pending explicit spec approval
+last_updated: 2026-10-19
+authority: user-adopted B1-B10 contract and explicit 2026-10-19 approval of this spec and its 2GPU 16-step run
 parent_spec: 2026-10-17-meta-moco-v2-imagenet-ddp-parity-spec.md
 predecessor_spec: 2026-10-18-meta-moco-a1-infonce-arithmetic-diagnostic-spec.md
 workspace_repository: haruto2919/research-workspace
@@ -14,17 +14,20 @@ workspace_base_commit: 261f86d7562f8baa0dbd3f89a67d79c30c5a4832
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_branch: dev
 implementation_commit: 13a962b3beffa15807be2e13472aee3e6f734d09
+implementation_verified_commit: 1ce9badcbae3e2df08fa400944e4c385785063f9
+approved_on: 2026-10-19
+gpu_run_authorized_on: 2026-10-19
 implementation_dirty_at_spec_review: false
 reference_repository: facebookresearch/moco
 reference_commit: a419ef282fc9885015674e77f58c59447206a27f
 fp32_rtol: 1.0e-5
 fp32_atol: 1.0e-6
-fp32_tolerance_status: fixed-on-approval
+fp32_tolerance_status: fixed
 ---
 
-# Meta公式MoCo v2と自作MoCoのA1・16step数値一致検証（draft）
+# Meta公式MoCo v2と自作MoCoのA1・16step数値一致検証（approved）
 
-> **Status: draft（実装不可・未承認）**。本specは、ユーザーが採用したB1〜B10を実装可能な変更・比較契約へ固定する。明示承認された時点でFP32閾値を正式固定し、`engineering-task`へ引き継げる。現時点では研究コード変更、commit/push、CPU/GPU実行を許可しない。実装承認後も、2GPU・NCCLの16step runには別の実行許可が必要である。
+> **Status: approved（2026-10-19にユーザーが明示承認）**。採用済みB1〜B10の契約を維持し、A1・16step判定のFP32閾値`rtol=1e-5, atol=1e-6`を判定run前に**fixedとして事前登録**した。2026-10-19、ユーザーはM/Mb/S0/S0b/S1/S1bの2GPU・NCCL・16step正式runも**別途明示承認**した。研究コード側では201件のCPUテストPASSが報告され、`dev@1ce9badc...`のclean状態とMeta固定cloneのclean状態をユーザーが確認済み。これは**GPU run完了やparity PASSを意味しない**。研究コードの新たな編集・commit/pushや追加の長時間runへ許可を拡張しない。
 
 ## 1. 目的、仮説、主張範囲
 
@@ -67,7 +70,7 @@ fp32_tolerance_status: fixed-on-approval
 | S0再現性 | 既存A1 16stepの16,000/16,000比較がbitwise一致 | 本specの正式run setでのfresh S0 rerun |
 | S1 step 1 | Mとの差が全Query勾配・SGD後Query parameter・momentumで暫定閾値超過0。全Query勾配のmax absとrelative L2は0 | step 2〜16、Queue一巡後、BN/EMA反復後の一致 |
 | S0 step 1 | 全Query勾配の暫定閾値超過961要素/rank、momentum超過961要素/rank | 16step専用runでの対照結果 |
-| 閾値 | `rtol=1e-5, atol=1e-6`は親Spec Aで事前候補、1step診断では暫定物差し | 本spec承認前は正式判定用に固定されていない |
+| 閾値 | `rtol=1e-5, atol=1e-6`は親Spec Aで事前候補、1step診断では暫定物差し | 2026-10-19の本spec承認によりA1・16step用にfixed事前登録済み。GPU run未実施 |
 
 数値は既存Evidenceに記録されたユーザー提供GPU実測であり、このspec作成中に再実行していない。
 
@@ -307,7 +310,7 @@ NaNは一致とみなさない。同符号Infの一致を許容する比較器�
 - S1の1stepはMに対し、全Query勾配のmax absとrelative L2が0、SGD momentumの超過も0だった。候補閾値をS1に有利になるよう緩和する必要はなかった。
 - B7でこの候補を正式run前に固定する方針がユーザー採用済みであり、本spec承認が事前登録点になる。
 
-以上から追加のcalibration runを閾値固定のblocking条件にはしない。ただし本specがdraftの間は運用上`fixed`ではなく、承認前に正式判定runを開始しない。
+以上から追加のcalibration runを閾値固定のblocking条件にはしない。2026-10-19の明示承認で固定済みであり、正式runはこの閾値と承認済み条件のみで判定する。結果を見てから変更しない。
 
 ### 8.3 適用対象とbitwiseの分離
 
@@ -490,7 +493,7 @@ run reportにはthreshold status、InfoNCE mode、completed/full stepsを含め�
 
 - **なし**。B1〜B10、正式閾値、比較scope、status、run matrix、変更対象、停止条件は、現在のユーザー指示・最新Evidence・現行コードから実装可能な粒度まで確定した。
 
-ただし本specは`draft`であるため、**内容の明示承認**が実装開始の権限上のGateである。これは仕様上の曖昧性ではない。GPU実行は実装承認とは別Gateである。
+本specは2026-10-19にユーザーが明示承認済みであり、blocking ambiguityは残らない。2GPU・16step GPU runについても同日に別途実行承認済み。ただし実行前のclean commit・fixture・GPU・依存関係のGateは継続する。
 
 ### Non-blocking
 
@@ -500,18 +503,28 @@ run reportにはthreshold status、InfoNCE mode、completed/full stepsを含め�
 
 ### Spec readiness
 
-承認レビュー可能なdraftである。承認された場合、`fp32_tolerance_status`を運用上fixedとし、同じ内容で`engineering-task`へ引き継げる。blocking ambiguityを新たに発見した実装者は推測で補わず、本specを更新・再承認する。
+本specはapproved。A1・16step用FP32閾値はfixedで事前登録済み。実装済みコードとCPU検証の完了記録を引き継ぐ。新たなblocking ambiguityが生じた場合は推測で補わず停止し、本specを改訂・再承認する。
 
-## 16. Implementation Handoff（未承認・実行不可）
+## 16. Implementation Handoff（承認済み・GPU正式run待ち）
 
-- approved spec: 未承認。本ファイルをユーザーが明示承認した後に使用
+- approved spec: 本ファイル。2026-10-19にユーザーが明示承認、FP32閾値fixed事前登録
 - 実装目的: Meta式S1がA1 small-K・16stepでMと数値一致を維持するかを、再現性とQueue/EMA/BN/DDPを含めて判定可能にする
 - 基準repository/commit: `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`、基準`13a962b3beffa15807be2e13472aee3e6f734d09`、実装開始時にHEAD/dirtyを再確認
 - 変更scope: parity runner/config/comparator、16step専用judge、関連testのみ。model算術は変更不要
 - 対象外・維持条件: 通常MoCo/Standalone/CIFAR/Meta clone/1step judge/A2/A3/A5/長時間run/Comet
 - success criteria: 第10節のCPU test PASS。GPU実行後は第12.1節の全条件
-- 許可されている短時間検証: 現在はなし。spec承認と実装依頼後にCPU unit/gloo/non-regression testまで
-- 長時間runの許可状態: 不許可
-- GPU runの許可状態: 不許可。実装・CPU検証後に2GPU・16stepを別途承認
+- 許可されている短時間検証: CPU unit/gloo/non-regression 201件PASS（ユーザー実行ログにより確認済み）
+- 長時間runの許可状態: A1・16step正式6runのGPU検証だけ承認済み。A2/A3/A5/長時間学習は不許可
+- GPU runの許可状態: 2026-10-19にユーザーがM/Mb/S0/S0b/S1/S1bの2GPU・16stepを明示承認。ローカル研究サーバで事前Gateを検査し、別dir fresh実行（ChatGPTからSSH実行はできない）
 - 未検証予定: 16step正式結果、A2/A3/A5、K65536、ImageNet、10epoch、表現品質、Linear Probe
 
+## 17. 承認・FP32事前登録の記録（2026-10-19）
+
+- 承認主体：ユーザー。本specの承認と2GPU・16step正式runの実行を、直前の確認に対して「進めます」と明示。
+- 比較閾値（GPU判定run前の事前登録）：**FP32 rtol=1e-5、atol=1e-6、threshold_status=fixed**。Meta公式をreferenceとした値ごとの比較。discrete/hashはexact、fresh rerunはbitwise。試験結果を見た後で改変しない。
+- 実装済み研究コード：`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`、ユーザー報告のclean HEAD `1ce9badcbae3e2df08fa400944e4c385785063f9`。基準commitの`13a962b...`は変更前参照として引き続き保持する。
+- 公式clone：`facebookresearch/moco@a419ef282fc9885015674e77f58c59447206a27f`、cleanとユーザー報告。
+- CPU非回帰：201/201件PASS、693.95秒。既存の実装検証記録にも別の実行ログを保存済み。
+- 許可済みGPU範囲：A1 synthetic、K64、local batch4、2GPU/NCCL、64px、16step、full `[1,8,9,16]`のM・Mb・S0・S0b・S1・S1bの6fresh runと6比較・judge。Comet OFF、checkpoint/resumeなし、既存artifactを上書きしない。
+- **未実施**：上記6GPU run・比較・正式FP32判定。現地サーバの実行開始前にGPU空き・fixture SHA・双方clean・環境/設定を再確認し、各runのwithin-run failureで停止する。
+- 本承認はGPU実行のリモート自動実行や研究コードの新たな編集・commit/pushを意味しない。
