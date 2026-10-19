@@ -90,3 +90,14 @@ ResNet50＋DDPの通常`meta_einsum`経路は、実ImageNet 224px・K65536・loc
 **A0 preflight：準備チェックの確認範囲はPASS、A0全体はPARTIAL PASS継続**。まだ未確認なのは、valのImageFolder indexとdecode、全画像の健全性、Meta公式import provenance、2rank NCCL collective通信、2GPUでのモデル初期化とlocal32/K65536/224px FP32 peak VRAM、実際の1step数値一致である。250×250の原画像は224×224へのaug/crop対象であり、その1枚が250×250であること自体は障害ではない。
 
 **次の推奨**：環境の基本検査をこれ以上無制限に広げず、ユーザーがA2 spec作成を明示依頼した時点で`research-spec`へhandoffし、実験の詳細条件と足りないpreflight項目・停止条件を確定する。固定rtol/atolやfull trace計画がない現時点で、正式GPU判定runは始めない。ユーザーの提示したログをもってGPU実験run許可とみなさない。
+
+---
+
+## 2026-10-20：research-spec handoff／A2実験draft作成
+
+ユーザーの「次にすすんでください」を受け、既存実装をread-onlyで確認し、A2の実画像1step実験を新規実装ではなく**既存fixture generator / GPU runner / offline comparatorの運用spec**としてdraft化した。
+
+- [A2実験spec（draft）](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-20-meta-moco-a2-imagenet-one-step-parity-experiment-spec.md)
+- 設計方針：ImageNet train 224px、2GPU NCCL、localB32/globalB64、K65536、FP32、Meta公式対通常`meta_einsum`自作、step1 full trace。両run同一fixture・別process・別directory、`formal_implementation`でオフライン判定。
+- **Blocking**：A2のfixed閾値はA1から自動流用しない。Meta M0/M0rの同一fixture再現性診断後、閾値を正式run前にユーザー承認。NCCL/VRAM実機適合とGPU診断/正式runの許可も未確認。
+- **Authority**：本draft作成でGPU run/fixture生成/研究コード変更は行っていない。親Spec A全体の承認にも該当しない。
