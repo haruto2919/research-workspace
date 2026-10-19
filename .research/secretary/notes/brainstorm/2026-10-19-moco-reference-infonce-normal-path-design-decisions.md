@@ -76,3 +76,12 @@ A1の固定fixtureと制御条件でbitwise一致した`meta_einsum`演算を、
 - [A1 16step GPU Evidence](../../../lab/projects/sequential-video-lora-analysis/experiments/2026-10-19-meta-moco-a1-infonce-16step-gpu-parity-evidence.md)
 - [A1 approved spec](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-18-meta-moco-a1-infonce-16step-parity-spec.md)
 - [Parent Spec A draft](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-17-meta-moco-v2-imagenet-ddp-parity-spec.md)
+
+## 2026-10-19 10:51 JST 追加決定とB6再検討
+
+- **ユーザー採用済み**：B1〜B5、B7〜B12（計11項目）。初出時の「未採用」は履歴であり、この追記が現在の採否。
+- **B6は未採用**。ユーザーは「毎演算で公式比較すると計算負荷が増えるのでは」と指摘。
+- **確認済みコード**：`compare_moco_parity.py`はrun後に保存済みtraceをCPUで比較する独立CLIで、通常の学習時にMetaモデルを毎step走らせるわけではない。`moco_imagenet_parity.py`の`parity_loop`は毎step、phase traceを生成・保存し負荷あり。`bench_loop`もper-step Query parameter clone、gradient/update norm、GPU同期があり計測負荷ゼロではない。
+- **B6修正候補（未承認）**：通常学習では公式runとの数値比較・full tensor dumpを行わず、起動時にconfig→構築モデルのeffective `info_nce_impl`と全rank一致を確認しmode/commit/provenanceを記録する。軽量なloss/queue/finite監視は間隔を別途規定。正式Parityだけ同一fixtureからMetaと自作を**独立run**し、保存したtraceの一部またはGateで決めた全stepを**run後オフライン比較**。Meta公式との比較を通常学習毎stepでは行わない。
+- **追加論点**：通常学習のログ周期、benchのweight clone/norm計測負荷と純粋なtraining throughputの差、A2〜A5でのfull trace頻度をspecで定義。A1既存の16step比較契約は変えない。
+- 今回はbrainstorm段階であり、spec作成・コード変更・GPU実行・commit/pushの新たな許可ではない。
