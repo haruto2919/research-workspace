@@ -96,3 +96,8 @@ A1の固定fixtureと制御条件でbitwise一致した`meta_einsum`演算を、
 - **実装上の追加注意**：現行`bench_loop`の毎step Query clone/grad・update norm・GPU同期はゼロコストではない。将来のnormal/monitor/benchの計測間隔と純学習に対するoverheadを測定し、通常runで不要なper-step cloneが常時有効にならないようspecで定義する。性能向上の実測値を未取得の段階では断定しない。
 - **research-specへの引き継ぎ**：最終的に採用したB1〜B12（B6はB6'に置換）を、ResNet50＋DDP経路の安全な`meta_einsum`明示opt-in、後方互換、Checkpoint/Resume同mode契約、config selectorの優先／衝突規則、軽量監視対parity分離、CPU/GPU各Gateへ落とし込む。B3の具体的衝突ルール、B5旧Checkpointの移行の可否、B7のA2以降の正式閾値、通常ログ頻度など詳細はspec段階で定義する。
 - **権限境界**：今回の「採用します」は設計方針への承認。brainstorm skillにより、これはまだspecの作成指示・承認、研究コード変更、GPU実験や研究コードcommit/pushの許可ではない。
+
+## 2026-10-19 draft specへの昇格
+
+- 採用済みB1〜B12（B6はB6'）を実装契約へ変換したdraft：[`2026-10-19-meta-infonce-normal-moco-opt-in-spec.md`](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-19-meta-infonce-normal-moco-opt-in-spec.md)
+- spec本文の明示承認、研究コード実装、CPU/GPU検証、commit/pushは引き続き別の実行境界とする。
