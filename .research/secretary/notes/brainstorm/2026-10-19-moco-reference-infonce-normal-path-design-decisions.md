@@ -85,3 +85,14 @@ A1の固定fixtureと制御条件でbitwise一致した`meta_einsum`演算を、
 - **B6修正候補（未承認）**：通常学習では公式runとの数値比較・full tensor dumpを行わず、起動時にconfig→構築モデルのeffective `info_nce_impl`と全rank一致を確認しmode/commit/provenanceを記録する。軽量なloss/queue/finite監視は間隔を別途規定。正式Parityだけ同一fixtureからMetaと自作を**独立run**し、保存したtraceの一部またはGateで決めた全stepを**run後オフライン比較**。Meta公式との比較を通常学習毎stepでは行わない。
 - **追加論点**：通常学習のログ周期、benchのweight clone/norm計測負荷と純粋なtraining throughputの差、A2〜A5でのfull trace頻度をspecで定義。A1既存の16step比較契約は変えない。
 - 今回はbrainstorm段階であり、spec作成・コード変更・GPU実行・commit/pushの新たな許可ではない。
+
+---
+
+## 2026-10-19 B6'採用・12項目の方針確定
+
+- ユーザーは直前に提示された**B6'（負荷分離型）を明示採用**した。これにより、B1〜B5・B6'・B7〜B12の**全12項目の基本方針が採用済み**。以前の「未採用」「提案中」は当時の履歴として残し、この追記を現在の意思決定とする。
+- **B6'の契約**：通常学習ではMeta公式の追加実行・各stepの公式対自作の全tensor数値比較・full trace dumpを行わない。起動時／再開時にeffective `info_nce_impl`と設定・checkpoint identity・各rankの一致を確認し、provenanceに記録する。通常監視はloss、queue pointer、必要なgrad/update normなど、明示的な周期・コストのprofileとし、異常停止のためのNaN/Inf安全検査を記録間引きとは区別する。
+- 正式なMeta対自作の数値一致は**独立したparity runs**で同一fixtureを固定して必要なtraceを採取し、**run終了後に別比較器でオフライン判定**する。各Gateのfull trace step/比較範囲/閾値は判定run前に別specで固定する。既存A1 1step/16stepの比較契約・Evidenceはそのまま維持する。
+- **実装上の追加注意**：現行`bench_loop`の毎step Query clone/grad・update norm・GPU同期はゼロコストではない。将来のnormal/monitor/benchの計測間隔と純学習に対するoverheadを測定し、通常runで不要なper-step cloneが常時有効にならないようspecで定義する。性能向上の実測値を未取得の段階では断定しない。
+- **research-specへの引き継ぎ**：最終的に採用したB1〜B12（B6はB6'に置換）を、ResNet50＋DDP経路の安全な`meta_einsum`明示opt-in、後方互換、Checkpoint/Resume同mode契約、config selectorの優先／衝突規則、軽量監視対parity分離、CPU/GPU各Gateへ落とし込む。B3の具体的衝突ルール、B5旧Checkpointの移行の可否、B7のA2以降の正式閾値、通常ログ頻度など詳細はspec段階で定義する。
+- **権限境界**：今回の「採用します」は設計方針への承認。brainstorm skillにより、これはまだspecの作成指示・承認、研究コード変更、GPU実験や研究コードcommit/pushの許可ではない。
