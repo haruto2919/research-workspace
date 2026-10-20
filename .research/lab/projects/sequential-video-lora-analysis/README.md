@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: MoCo単体のMeta公式比較A2（実ImageNet1step）・A3（synthetic1025step）のformal parityがbitwise PASS。MoCo v2公式Global Batch256/2GPU各128/FP32の10epoch向けrunnerはdev@d6f7accでCPU52/52 PASS。実ImageNet V1はMeta公式・自作の各30stepが両rankでVRAM Gate PASS（peak reserved 13026/13038MiB、余裕7069.875/7057.875MiB、Comet OFF）。V1オフライン比較は契約valid、記録指標すべて一致、入力SHAは1/1step一致（epoch state比較なし）。次のE1（100step paired）は別承認が必要。E2/E3本番学習・E4特徴診断は未実施。
+summary: MoCo単体のMeta公式比較A2（実ImageNet1step）・A3（synthetic1025step）のformal parityがbitwise PASS。MoCo v2公式Global Batch256/2GPU各128/FP32の10epoch向けrunnerはdev@d6f7accでCPU52/52 PASS。実ImageNet V1はMeta公式・自作の各30stepが両rankでVRAM Gate PASS（peak reserved 13026/13038MiB、余裕7069.875/7057.875MiB、Comet OFF）。V1オフライン比較は契約valid、記録指標すべて一致、入力SHAは1/1step一致（epoch state比較なし）。E1（Meta公式・自作各100step+Cometライブ送信）はユーザー承認済み・未実行、E2/E3は別承認が必要。E2/E3本番学習・E4特徴診断は未実施。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-20
@@ -109,3 +109,4 @@ last_updated: 2026-10-20
 | 2026-10-20 | A3のMeta公式M対自作S1をsynthetic 1025step×2run、Queue一巡後まで実行。Stage/formalともPASS、比較58,790/58,790エントリbitwise一致、failures0、正式契約valid。所要時間約25分34秒・保存容量9.9G。A5-pair NOT_RUN。[A3正式Gate Evidence](experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md) |
 | 2026-10-20 | MoCo v2 global256/2GPU×local128の実ImageNet V1 30stepをMeta公式と自作の両実装で完了、全rank VRAM Gate PASS。ピークreservedはMeta13026MiB、自作13038MiB、headroom7069.875/7057.875MiB、Comet双方OFF。表示されたLoss/Cosine/Queue等は一致するが全パラメータbitwiseは未検証。MetaはDataLoader待ちが長く速度比較は保留。次はV1 offline input-hash比較を確認後、別許可でE1へ。[V1 Evidence](experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md) |
 | 2026-10-20 | V1 30stepのMeta公式/自作でオフライン比較が完了。比較契約valid・両run completed・記録scalarはLoss等4/4、grad norm2/2完全一致（max_abs_diff=0）、入力ハッシュ1/1一致。epoch-state hashは未比較（None）。V1のresource feasibilityと記録指標parityのみPASS、E1/E2/E3は未実施・別許可。[V1 Evidence](experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md) |
+| 2026-10-20 | V1 30step×2の実ImageNet結果と比較器出力がPASS。ユーザーが次のE1（Meta公式・自作各100step、Comet `moco-imagenet-v2-reproduction`へライブ送信）のみ実行承認。研究コード・GPU実行・Comet通信はこのResearch Workspace更新時には未実施。E2/E3/E4は保留。[E1実行契約](specs/2026-10-20-meta-moco-v2-official-global256-imagenet-10epoch-comet-reproduction-spec.md) |
