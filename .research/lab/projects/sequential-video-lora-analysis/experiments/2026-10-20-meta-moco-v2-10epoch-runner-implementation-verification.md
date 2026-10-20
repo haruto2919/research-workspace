@@ -125,3 +125,37 @@ reference_clone: /mnt/HDD12TB-1/ishikawa/facebookresearch-moco
 - B1のheadroom閾値1024MiB：ユーザー未確認
 - E4軽量特徴診断の実装：今回の範囲外
 - **直下`.comet.config`の変更により、このrepoから明示的なproject指定なしで起動する他のComet実験（`train.py`、既存parity runなど）も`moco-imagenet-v2-reproduction`へ送られる**（ユーザー判断。spec §5の「既存projectと混在させない」と緊張関係にある）
+
+---
+
+## ユーザー研究サーバでの独立再確認（2026-10-20）
+
+ユーザーが自分のSSH研究サーバ（host `150-740GP-TNRT`、repo `/mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora`）で実行したコマンドと結果を、チャット上に提示したログから転記・要約。**ChatGPTがSSHサーバに接続して実行した結果ではない**。
+
+### Source checkout and 2-stage CPU pytest
+
+- `git branch --show-current` → `dev`
+- `git rev-parse HEAD` → `d6f7acc75ee92adcf7e6e3e65831d46759b9ed14`
+- `git status --short` → 出力なし（cleanであることを示す）。
+- `python -m pytest -q test/model/test_moco_imagenet_10epoch.py -k "hydra or repository_comet_config or comet_preflight"`: **13 passed, 39 deselected, 7.36 seconds**（52 collected）。設定・Comet preflight関係。
+- `python -m pytest -q test/model/test_moco_imagenet_10epoch.py`: **52 passed, 1 warning, 82.76 seconds**（52 collected）。既存レポート記載の同52 tests PASSと整合する、ユーザーによる独立再確認。
+- `warning` は `comet_ml/error_tracking/shutdown.py:22`の `SentryHubDeprecationWarning`（Sentry SDKのAPI非推奨、test failureではない）。
+- PyTorch multiprocessingが一度 `Terminating process ... via signal SIGTERM` と表示したが、pytestの終了statusは全52PASS。コード側にはresume identity不一致等の異常入力テストが含まれるものの、**この出力だけでは特定の発生箇所・因果を確定しない**。
+
+### Observed toy CPU training checks
+
+新規runnerの小さい人工画像データで3epochs、2step/epoch（global4, queue8）を学習したログを提示。epoch別のLRは `0.03 → 0.0225 → 0.007500000000000003`、各epochでログが保存され、full / rerun / checkpoint_epoch001.ptからのresumed runを確認。各epochのlossについてfullとrerunが同じ、resumeが再開点以降同じ：
+- epoch 0: mean loss `1.0684681087732315`
+- epoch 1: `2.3693398237228394`
+- epoch 2: `2.261043131351471`
+比較器のtest CLIから `curve_agreement=bitwise` と出力された。ただし、**CPU selfのfull/rerunを比較するfixture上の試験であり、Meta公式/CUDA/実ImageNetの2実装間比較が実行された証拠ではない**。
+
+global_step1のquery_grad_norm `126113439.3388547`など大きな値が見られるが、小さいQueue/入力/学習設定のtoy runで有限値・pytest PASSであり、ImageNetの勾配品質を主張する材料ではない。lossが途中増加した点もtoyであり本番品質評価には使わない。
+
+### Gate interpretation
+
+**Engineering CPU tests = PASS**（独立実機ログより）。**VRAM V1 / GPU NCCL / Meta公式vs自作の実ImageNet 100step+1epoch+10epoch / Comet API real online通信 / E4固定held-out診断 = 未実施または未提示**。大型GPU実験の開始条件を満たしたとみなさない。
+
+**最新specとの整合**：本specのB2/B3残部/B5はユーザー採用を記録済み。B1の`vram_gate.min_headroom_mib=1024`はrunner既定であり、実験閾値としてのユーザー承認未確認。次にB1条件を確定してから、まずV1だけを独立に明示許可し、MetaとSelf双方を `gate=V1 training.max_steps=30 logging.comet_enabled=false` で試験する。V1は二つのrankのpeak reserved/allocated, headroom, error, throughput, data waitを比較し、片方でもOOMやheadroom不足ならE1/E2/E3へ進まない。
+
+**保存・作用範囲**：本記録の追記のみ。研究コード、採用spec、CPU test、GPU job、Comet ExperimentへChatGPTからの変更・実行なし。
