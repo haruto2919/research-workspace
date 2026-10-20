@@ -20,7 +20,8 @@ implementation_commit: 914e736c2699e2e129211a888d1f19013dd1dd1a
 engineering_cpu_gate: PASS
 engineering_cpu_fast_regression: "29 passed (new launcher 23 + parity selected 6); existing full suite not verified"
 implementation_record: ../experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md
-gpu_experiments: "A5-pilot PASS; A4 PASS; A3 NOT_RUN; A5-pair NOT_RUN"
+gpu_experiments: "A5-pilot PASS; A4 PASS; A3 PASS; A5-pair NOT_RUN"
+a3_evidence: ../experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md
 a4_evidence: ../experiments/2026-10-20-meta-moco-a4-synthetic-two-gpu-step2-resume-formal-parity-evidence.md
 a5_pilot_evidence: ../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md
 approved_on: 2026-10-20
@@ -244,3 +245,16 @@ FAIL／INVALID／BLOCKED／NOT_RUNを分離する。監視の百分率上限を�
 通常small traceのstep2に近い0.571秒を仮に**すべての2050step**に適用すると、`2050×0.571 ≈ 1171秒 ≈ 19.5分`。これはGPU計測区間の**机上外挿**に過ぎず、両run起動、full trace×6、各stepのCPU trace serialization/保存、fixture生成、1025step分の正式比較、ディスクI/O、環境変動を含まない。**A3実行時間の見積り下側の参考に留め、保証値や実測値とはしない**。A4比較の24.7秒を単純に1025倍または3倍することもできない（full traceは3step×2run、small traceは全step）。
 
 A3は前段A4 PASS・clean commit・`issues=[]`でplan可能と確認済みだが、GPU本番は`NOT_RUN`のまま。長時間実行時は`tmux`などでSSH切断に備え、同じcampaign rootとcommitを使い、`--execute`は別途明示的に開始する。stageディレクトリが存在すると再実行は拒否され、既存runを勝手に削除・上書きしない。
+
+---
+
+## 12. 2026-10-20 A3完了・正式Gateの暫定集計状況（後続Authority）
+
+ユーザーが研究サーバ上で採用済みA3を実行して終了させ、terminalに`A3 PASS: every step completed and every check holds`、`Saved .../gates/a345_20261020_114641/A3`が表示された。**GPU実行完了とランチャー総合Gate PASSは観測済み**。SSH上の`stage_summary.json`と`parity_report.json`の各集計項目はユーザーからの追送待ちであり、数値件数・bitwise率を作らない。
+
+- 実験名：Meta公式M（`implementation=meta_reference`）対自作S1（normal`meta_einsum`）のsynthetic固定fixture、2GPU FP32、各1025step。global batch64、Queue K65536、初回一巡step1024およびstep1025を含む。
+- `[A3] compare`実行ログは`formal_implementation`、固定`rtol=1e-5,atol=1e-6`、M/S1比較dirを示す。ランチャーはcompare`status=PASS`と全step事後チェックを要求するため、最終`A3 PASS`は**所定の固定閾値正式比較がランチャーで受理されたことの間接Evidence**。
+- **まだ集計値が不明**：正式比較`counts.judged`、`counts.bitwise_equal`、`counts.exact_failures`、`counts.close_failures`、`formal.contract_valid`、`steps_compared`実数・`first_difference`、Queue pointer観測値、wall time。PASSを**全件bitwise一致100%**と誤解しない。
+- 保全：run rootを上書き・削除せず、`A3/stage_summary.json`、`A3/compare/parity_report.json`とM/S1 run artifactを保持。
+- **未実施**：A5-pair（実ImageNet・100step OFF/Light各1runによる監視overhead測定）。次の操作はA3成果物から大きい`comparisons`配列を除外して集計のみ読み出すこと、および同じキャンペーンのA5-pairを**plan-only**で確認すること。A5-pairのGPU実行はまだ起動していない。
+- 証拠の記録：[A3の実験Evidence](../experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md)。
