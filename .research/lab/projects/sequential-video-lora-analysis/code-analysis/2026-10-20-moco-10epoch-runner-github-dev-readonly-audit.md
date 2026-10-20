@@ -74,3 +74,49 @@ execution: NOT_RUN
 - 10epoch全体の完了、Loss曲線の一致、画像表現の品質。すべて未証明。
 
 **結論**：GitHubに専用runner・comparator・テストの実装は確認。ただし新しいconfig2件がcommitにないため、**現在のcommitを完全実装済み・再現可能とは判定できない**。設定とspec approvalの整合を済ませ、必須V1を通した後に段階的な実験へ進む。コード・spec・README・TODO・GPU/Cometはいずれも本監査では変更しない。
+
+---
+
+## 2026-10-20 再監査：dev@d6f7acc（ユーザー実装再報告後）
+
+対象research code：`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`、HEAD **`d6f7acc75ee92adcf7e6e3e65831d46759b9ed14`**。直前の`3cade3dc9c6e474e0c81595690cbee5a494e4cb2`から**1commit ahead**（`fix(parity): restore the 10-epoch runner config and use the repository .comet.config`）。以下を旧監査の修正・追補として参照する。**旧F1のmissing設定ファイル指摘は最新HEADでは解消済み**。
+
+### 最新差分（直接確認）
+
+- 新規`conf/moco_imagenet_10epoch.yaml`（91行）。`dev`のGitHubに存在。Hydraのrunner指定と整合。2GPU×local128/global256、LR0.03、10epoch Cosine、FP32、ResNet50 MLP、K65536、workers16/rank、入力hash100step、V1 1GiB以上headroom、Comet workspace/project target、Hydra run出力dir、B2 strictモードを設定。
+- `test/model/test_moco_imagenet_10epoch.py`は`COMET_CONFIG`を`ROOT / ".comet.config"`へ修正し、module import時の`conf/moco_imagenet_10epoch.yaml`読み込みが参照可能。20+ test function相当のCPU/fixture/rank/Cometモック/V1判定ケースがあるが**実行したとは主張しない**。
+- Git追跡`.comet.config`は`[comet] workspace`・`project_name=moco-imagenet-v2-reproduction`を記載。直接確認した内容では実値`api_key`行は存在しない。秘密情報は転載しない。SDKがhomedirのキーを正しく解決するかは実機preflightとモックテストの検証対象。
+- `conf/comet/moco_imagenet_v2_reproduction.comet.config`は最新HEADでも存在しないが、**現行runner/testsはroot`.comet.config`に変更しているため今や要求ファイルではない**。旧F1のこの欠損指摘も解消。
+- 新たに追加したconfigは、A2/A3の既存`conf/moco_imagenet_parity.yaml`を変更しない。旧parity runnerの数値/evidenceは独立。
+
+### 現時点の状態判定
+
+| 観点 | 判定と理由 |
+|---|---|
+| Source shape/entrypoint | **静的に存在確認**。`scripts/parity/moco_imagenet_10epoch.py:844–850`の`@hydra.main(config_name="moco_imagenet_10epoch")`と新規YAMLが一致 |
+| Adopted recipe | **静的に整合**。新configの2GPU/global256/local128、MoCo v2の各値が`ADOPTED_RECIPE`に一致 |
+| Epoch loop & checkpoint | **静的に存在確認**。`train_epochs:508–658`でSampler epoch, LR, metrics/Comet, checkpoint/resume sidecars |
+| Comet destination | **静的に存在確認**。`comet_preflight:195–236`でproject名が配置と整合、オンラインAPI権限は実機未確認 |
+| CPU tests | **結果未受領**。GitHub HEADのcheck-runs/statusは本解析時に0件（非実施の断定ではない） |
+| GPU V1, E1, E2, E3 | **GitHubから未確認**。特にlocal128/FP32でVRAM不足が起きない証拠は未受領 |
+| E4 lightweight held-out feature diagnostics | **このcommitの新規runner/comparatorには未実装**。研究主張は学習挙動再現まで、B4で採用した診断は別実装/評価Gateが必要 |
+
+### 残る重要論点（勝手にapprovedへしない）
+
+1. **Authority mismatch**：10epoch specは依然`status:draft`で、**B1/B2/B3残部/B5未承認**。runner自身のdocstringやconfigコメントに「2026-10-20採用」と書いてあることは研究上のユーザー承認を証明しない。特に**B2：ユーザーは公式設定を希望したが、現在のcodeは`cudnn_deterministic=true,cudnn_benchmark=false,TF32 off`のstrict parity側**。Meta公式`main_moco.py`のbenchmark=trueと異なる。両runは揃っており比較に適するが「完全に公式8GPU実行のruntime flags」とは言えない。ユーザーが選択する必要あり。
+2. **Precondition bypass**：`prepare_config:98–100`はV1/E1/E2/E3を列挙するが、E3の実行前に既存V1の正式PASS reportをrequireする独立チェックは未実装。**V1→E1→E2→E3の順を実行者が保証する必要**。V1 OOM時に設定を自動劣化させない契約は保持。
+3. **Comparator nuance**：`compare_moco_10epoch.py:118–150`は`both_completed`と`inputs_identical`を`curve_agreement`と別に報告し、総合Gateの完全PASSを単一値で表現しない。full finished、input alignment、metric/canonical stateを併記して判断。CLI比較器だけを回しても代表的な学習成功の根拠ではない。
+4. **Common input alignment**：epoch/rank seedによる拡張画像一致はコード上の意図であり、独立したM/S1実GPUで`input_sha256`を比較するまで検証済みではない。必要なら比較器の`inputs_identical`がTrueか確認。
+5. **Comet shared root configuration side effect**：Git追跡root`.comet.config`のデフォルトprojectを変えたため、同リポジトリから実行する他のComet SDK利用も専用MoCo projectへ送信し得る。configコメントでも示唆されている。B3/既存baselineへの影響を承認前に確認。
+6. **Comet online mode**：V1では`logging.comet_enabled=false`でローカルのみ検証。E1以降のComet送信は設定が読めるだけでは成功を保証しない。api keyを表示せずpreflightログ・Comet URLを確認し、送信失敗時はlocal historyと区別。
+7. **Security**：root`.comet.config`はtrackedだがAPIキー行を実際には含まない。今後も`~/.comet.config`等の安全なローカル秘密管理を継続し、認証情報をgitに追加しない。
+
+### 次の検証手順（提案、未実行）
+
+1. SSHローカルで`git status --short`、`git rev-parse HEAD`、`nvidia-smi`、`test -f`。GitHub latestとの差分がなければ継続。
+2. config-only/unit系`pytest -q test/model/test_moco_imagenet_10epoch.py -k 'hydra or repository_comet_config or comet_preflight'`。その後`pytest -q test/model/test_moco_imagenet_10epoch.py`（一部CPU DDP testは公式cloneを使うので、running時間/CPU負荷に注意）。**GitHubレビューだけではPASSとは言えない**。
+3. 研究上のB1/B2/B3残部/B5の合意を明示しspecをapproved可能にする。現在のstrict B2やライブComet、16 workers等を無断でapprovedとしない。
+4. 必須VRAM **V1**：Meta公式・自作を**別run**でglobal256 FP32 224px real ImageNet、複数step＋GPU毎VRAM headroom。各V1 gate statusがPASSならE1 100step→E2 1epochで性質と速度/再開を確認。E3 10epochはそれらの正式Gate PASSと別実行許可の後にのみ行う。
+5. B4採用済みE4 lightweight特徴診断は別途実装/評価し、kNNを必須化しない。
+
+**修正履歴**：本節は`3cade3d`時点のF1（missing 2 config）の判定を**最新`d6f7acc`では解消済み**へ更新する追補であり、旧レビューを消さず履歴保持。**静的レビューのみ**（repo code/README/spec/TODO/experiment/logは変更なし）。
