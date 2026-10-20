@@ -28,9 +28,10 @@ b5_workers_checkpoints: ADOPTED_16_WORKERS_PER_RANK_EVERY_EPOCH_CHECKPOINT_KEPT_
 b1_stop_rule: ADOPTED_FAIL_CLOSED_THRESHOLD_1024MIB_2026-10-20
 implementation: IMPLEMENTED_CPU_VERIFIED_COMMITTED_d6f7acc_PUSHED_2026-10-20
 implementation_record: ../experiments/2026-10-20-meta-moco-v2-10epoch-runner-implementation-verification.md
-vram_gate: NOT_RUN
+v1_partial_evidence: ../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md
+vram_gate: META_REFERENCE_30STEP_PASS_SELF_PREFLIGHT_BLOCKED_2026-10-20
 ten_epoch_training: NOT_RUN
-comet_upload: NOT_RUN
+comet_upload: META_V1_DEFAULT_ENABLED_REAL_DELIVERY_UNVERIFIED_2026-10-20
 representation_evaluation: NOT_RUN
 ---
 
@@ -218,3 +219,12 @@ Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experi
 - V1後に両runの`run_report.json`からstatus・training_completed・vram_gate.status・per-rank headroom・GPUピーク・throughput・data waitを確認する。1件でもBLOCKEDなら停止。E1 100step、E2 1epoch、E3 10epoch、Comet実送信はV1の許可に含めない。
 - 事前の実機CPU testはユーザー提示ログで52/52 PASS、GitHub code `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` `d6f7acc75ee92adcf7e6e3e65831d46759b9ed14`がclean。今回のGitHubでの作業はspecのみで、GPU job・Comet・研究コード変更は行わない。
 - **`approved`は仕様承認であって、V1/E1/E2/E3や表現品質が実証されたことを意味しない**。E4軽量特徴診断は**未実装**で、別の評価Gateとする。
+
+
+### V1途中結果：Meta公式のみ30step PASS、自作はpreflight停止（2026-10-20）
+
+ユーザーが実行したcampaign `moco_v2_v1_20261020_162206`のMeta公式V1は30/30step、両rankのpeak reserved 13026.0MiB、headroom 7069.875MiB、`vram_gate.status=PASS`。しかし自作のV1はMeta cloneに生成された未追跡Python `.pyc` 2件が原因で`repository_preflight`が停止、学習は未開始。**V1全体はINCOMPLETE、E1/E2/E3へ進めない**。
+
+また、Meta公式の起動コマンドで本specの`logging.comet_enabled=false`が指定されておらず、YAML defaultは`true`。Cometの実送信有無・URLは未確認。厳密にComet OFFのV1ペアを揃える場合は、初回Metaのresource PASSを残しつつMeta OFFの別runを取り直す必要がある。追加の証拠と安全な対応方法は[partial V1実験記録](../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md)を参照。
+
+この更新は**Gate状態・Evidenceリンクのみ**であり、approvedなB1〜B5契約・研究コード・10epoch実験の許可範囲は変更しない。
