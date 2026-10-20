@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: MoCo単体Meta公式との数値parity（A2実ImageNet1step、A3 synthetic1025step）がbitwise PASS。10epoch用runnerはdev@d6f7accでCPU52/52 PASS。ImageNet Global Batch256/2GPU FP32のV1（各30step）は両run VRAM PASS、記録指標一致。E1（Meta/自作各100step）は双方completed、入力hash2/2一致、Loss等11/11・grad norm2/2のbitwise一致（最大絶対誤差0）、両方Comet実験URLあり。epoch stateは未評価。E2はユーザー提示比較ログでMeta/自作各5004step完了、入力hash51/51・記録Loss等502/502・grad norm52/52がbitwise一致。1epoch canonical model stateもbitwise同一SHAと確認され、E2比較器の全VerdictがPASS。Checkpoint本体・両rank sidecarの実在性、Comet URL/errors=[]、run failures=[]も両実装で確認し、E2の採用済み比較・保存Gate PASS。E3（10epoch）は別承認待ち。
+summary: 2026-10-20 E2（Meta/Self各ImageNet1epoch/5004step）でinput hash51/51、記録Loss等502/502、grad norm52/52、epoch canonical state SHA一致、checkpointおよび両rank sidecar実在、Comet URL/errorsなしまでPASS。ユーザーが10epoch実験を取消し、Meta公式5epoch→自作5epochの自動逐次実行とComet別Experimentへ計画変更。新5epoch spec approved、コード未実装、GPU長時間run未実施・未承認。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-20
@@ -115,3 +115,4 @@ last_updated: 2026-10-20
 | 2026-10-20 | E2：Meta公式・自作ともImageNet1epoch 5004step完了。入力hash51/51、Loss等の記録指標502/502、query_grad_norm52/52がbitwise一致、epoch mean loss差0。比較器の`curve_agreement=bitwise`を確認。ただし`canonical_state_equal`行が貼付断片から欠けているため**E2正式PASSは保留**。Checkpoint/Comet実験の整合確認後に確定し、E3は別承認。[E2暫定Evidence](experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md) |
 | 2026-10-20 | E2 1epoch 5004stepのMeta/自作ペアについて、ユーザーが比較reportから全Verdict PASS（contract_valid、both_completed、inputs_identical、metrics_bitwise_equal、**epoch_states_identical**）を追加確認。epoch0 canonical state SHA一致、mean loss差0、51/51 input hashes、502/502指標等がbitwise一致。**E2比較PASS**。Checkpoint/rank sidecarsの存在、Comet deliveryはこの表示から未確認。E3 10epochは別承認。[E2 Evidence](experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md) |
 | 2026-10-20 | E2最終確認：ユーザーがMeta公式/自作それぞれのrun_reportとディスク実体を照合し、両方5004step完了・canonical state SHA `2dc5e599...`一致・checkpoint_epoch001.pt・rank0/1 sidecarの実在・Comet URL記録・errors=[]・failures=[]を確認。既存の51/51 input hash・502/502 logged metric・52/52 grad norm一致と合わせ、**E2比較・保存Gate PASS**。Checkpoint内容・Optimizer/RNG sidecarの全bitwise・Resume・画像特徴品質は未検証。E3 10epochは別承認。[E2 Evidence](experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md) |
+| 2026-10-20 | **研究方針更新**：ユーザーが長時間の10epoch比較を中止し、Meta公式5epoch→自作5epochの自動逐次学習へ変更。Cometは同一Projectの独立した2 Experimentとして記録。5epoch Cosine horizon、新規共通fixture、旧E2 Checkpointからresumeしない、公式が成功しなければ自作を起動しないGateを採用。[5epoch逐次比較spec](specs/2026-10-20-meta-moco-v2-imagenet-5epoch-sequential-comet-comparison-spec.md)を作成し、旧10epoch E3実行契約はsuperseded。**実装・Git push・5epoch GPU実験は未実行**。 |
