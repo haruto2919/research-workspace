@@ -198,3 +198,26 @@ FAIL／INVALID／BLOCKED／NOT_RUNを分離する。監視の百分率上限を�
 - **Evidence boundary**: 指定synthetic fixture・2GPU・3stepの実行についての正式比較。長時間の任意Resume、実ImageNet DataLoader resume、A3の1025stepや特徴表現品質の証明ではない。
 - Current GPU Gates: **A5-pilot PASS / A4 PASS / A3 NOT_RUN / A5-pair NOT_RUN**。
 - **次のGate**：A3はMeta公式Mと自作S1の**1025step×2run**、synthetic224px/local32/K65536で、各stepのsmall traceとstep1/1024/1025のfull traceを保存する。A5-pilotの`run_kind=bench`で得た0.79秒/stepをparity本番時間として扱わない。実行前にA3 `plan`とA4 trace/artifactのサイズ計測を行い、GPU・disk・所要時間の見積りを確定してから別にrun指示を受ける。
+
+---
+
+## 11. 2026-10-20 A3 preflight・trace容量の実測外挿（NOT_RUN）
+
+ユーザーが研究サーバで実行したA4成果物の`du`およびtrace file size計測と、**A3のplan-only出力**を根拠とする。これはA3のGPU実行結果ではない。
+
+### A4の容量実測とA3概算
+
+- A4 stage保存ディレクトリ全体：`du -sh "$ROOT/A4" = 3.7G`。
+- A4 `S1_uninterrupted` のstep1 small trace：rank0＋rank1合計 **0.20 MiB**。
+- A4のstep3 full trace：rank0＋rank1合計 **1,556.00 MiB**。
+- A3のtrace外挿式（**2 run合計**）：`2 × (1,022 small steps × 0.20 MiB + 3 full steps × 1,556.00 MiB) / 1,024 = 約9.53 GiB`（元の未丸めたファイルbyteからユーザーの計算スクリプトが出力した値）。Meta公式側と自作側のtrace形式・圧縮・metadata差、fixture、log、比較report、cacheなどを含まない。**9.53GiBはtraceの概算でありA3全体の上限ではない**。
+- A3のplan時点で`disk_free_gib = 2758.0`。残容量だけを見る限り、trace推定値に対して十分な余裕。
+- A5-pilotで測った`0.79秒/step`は`run_kind=bench`かつmonitor OFFのwindowであり、parityのper-step trace/hook/CPU保存やMeta公式runを含まないため、A3のGPU総所要時間へ単純に掛けない。長時間の実行時間は**未実測・未確定**。
+
+### A3 plan（実行なし）
+
+- Root：`/mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora/log/moco_imagenet_parity/gates/a345_20261020_114641`。Stage予定先`A3/`。
+- `previous = A4 PASS`、同じcommit `914e736c2699e2e129211a888d1f19013dd1dd1a`。研究repo dev clean、Meta clone pinned `a419ef282fc9885015674e77f58c59447206a27f` clean、`issues=[]`。
+- 予定：synthetic fixture生成 → Meta公式M 1025step → 自作S1 `meta_einsum` 1025step → `formal_implementation`でfixed tolerance `rtol=1e-5,atol=1e-6`比較。full traceは`[1,1024,1025]`、残りstepでもsmall trace収集。
+- **A3の状態 = NOT_RUN**。`plan`出力に含まれる`mode = plan only`は学習・ディレクトリ作成なし。A3の実行は長時間になるため、A4ランチャーの`stage_summary.json.steps.*.elapsed_sec`、A4 `run_report.json`の`ranks[*].history[*].metrics.step_time_sec_with_tracing`から短時間の参考負荷をまず抽出するのが次の低リスク作業。その値も数stepの参考値で、A3 2050stepの実行時間を保証しない。
+- 2GPU空き、SSHセッション維持、ログ監視、runの中断時のstage dir再実行不可（既存出力を上書きしない）が実行時の運用上の注意点。
