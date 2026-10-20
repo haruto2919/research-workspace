@@ -180,6 +180,6 @@ FAIL／INVALID／BLOCKED／NOT_RUNを分離する。監視の百分率上限を�
 
 軽量CPU確認は**29 passed / 15.05秒 / exit0**（新規ランチャー23テスト＋既存parityの代表6テスト）。**既存parity harness全件**の完了結果は未確認であるため、全件回帰PASSとはしない。
 
-**A5-pilotのみ2026-10-20に実GPUでPASS**：campaign `a345_20261020_114641`、ImageNet実画像、RTX A4500×2、20step、normal`meta_einsum`、monitor OFF。ランチャー標準判定`A5-pilot PASS: every step completed and every check holds`はユーザー提供terminalに基づく。raw`run_report.json`のGPUピーク/throughput値は未受領。[正本GPU Evidence](../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md)参照。
+**A5-pilotのみ2026-10-20に実GPUでPASS**：campaign `a345_20261020_114641`、ImageNet実画像、RTX A4500×2、20step、normal`meta_einsum`、monitor OFF。ランチャー標準判定`A5-pilot PASS: every step completed and every check holds`はユーザー提供terminalに基づく。その後ユーザーが`stage_summary.md`/`run_report.json`の表示ログを提出し、GPU peak reserved 3788/3886MiB、step time約0.7905秒、global throughput約80.96 images/sec、DataLoader wait約0.599/0.586秒/stepを確認。[正本GPU Evidence](../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md)参照。
 
-**A4、A3、A5-pairは引き続きNOT_RUN。** 次はこの**同じcampaign root**でA4の`plan`を行い、`previous stage A5-pilot = PASS`、`issues=[]`を確認した後に、A4の別GPU実行をユーザーが明示決定する。A3（各1025step）とA5-pair（OFF/Light各100step）の実行結果を推測で補わない。
+**A4、A3、A5-pairは引き続きNOT_RUN。** この**同じcampaign root**でA4の`plan`を行い、ユーザー提供terminalで`previous stage A5-pilot = PASS`、`issues=[]`を確認済み。**A4のGPU実行自体はまだNOT_RUN**であり、実行時にはGPU競合や研究repoのcleanを再検査する。A3（各1025step）とA5-pair（OFF/Light各100step）の実行結果を推測で補わない。
