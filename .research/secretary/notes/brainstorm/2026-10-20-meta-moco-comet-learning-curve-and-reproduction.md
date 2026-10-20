@@ -143,3 +143,33 @@ ImageNet train = **1,281,167画像**（先行ユーザー実測）、2GPU global
 ### 2026-10-20 research-spec handoff（現在のユーザー採用範囲）
 
 新規[Meta公式MoCo v2・Global Batch256・2GPU/local128・LR0.03・ImageNet 10epoch・Comet再現比較のdraft spec](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-20-meta-moco-v2-official-global256-imagenet-10epoch-comet-reproduction-spec.md)に昇格候補を整理。ユーザーが採用した設定は固定したが、比較入力/公式cuDNN運用/Cometアップロード/held-out表現評価・運用詳細の推奨は承認待ちであり、**specはdraft**。コード実装・VRAM pilot・10epoch・Comet送信はまだ実行していない。本文の探索的候補は引き続き履歴として保持する。
+
+---
+
+### 2026-10-20 14:12 JST 追記：本研究でのImageNet kNN評価の必要性
+
+**相談内容**：「今回の自分の研究でkNN評価まで行う必要があるか考えて」。Research Workspaceのproject READMEと2026-10-15 MTG決定を根拠に、ImageNet分類品質と動画LoRAの動的情報評価を分離する。
+
+#### 研究目的に基づく判断（提案、未承認）
+
+- **採用候補（推奨）**：公式MoCo v2/ImageNet10epoch比較の「本体Gate」を、同じrecipe・初期状態/画像順/augmentation条件を揃えた**学習完了・Comet Loss/positive-negative cosine/grad/LR/Queue・異常値/学習更新・公式対自作の整合**に置く。
+- **採用候補（低コスト診断）**：モデルが特徴を全サンプルで一様に出すcollapseや非有限出力を見落とさないよう、固定少量のheld-out画像（例：ImageNet validationからサンプルindexを固定）に対して、学習前と10epoch後の**feature variance、feature norm、相異なる画像間のcosine分布、embeddingの有効次元の概略**などを軽量に観測。これらは「正常性の補助診断」であり**kNN精度やタスク上の有用性の証明ではない**。
+- **保留（必須Gateから外す推奨）**：ImageNet train全体特徴バンクとval 50,000枚を使った本格kNN/linear probe。画像クラスの線形分離性を評価するが、研究主題である**動画逐次入力・LoRAの動的/時間的情報獲得を直接計測しない**。研究成果の主張が「良い画像特徴が獲得できた」「Metaと同程度の下流画像性能が得られた」に拡張した時点で必要性が増す。kNNは安価とは言い切れず、128万枚のfeature生成/保存と近傍検索の計算が追加される。
+- **将来の本題に近い評価候補**：動画に戻った段階で、時間順入替・時間反転に対する特徴感度、motion-biasedなクリップ比較、静的手掛かりを制御した動的判別、Frozen ViT vs Frozen ViT+LoRAの特徴差分、時系列条件の下流probe等で「LoRAが動的情報を獲得したか」を検証する。ただしこの候補は正式な評価protocol未確定の仮説案。
+
+#### 理由と反例
+
+- 研究上の成功基準（Project README）：動画の逐次学習によるLoRAの動的・時間的情報の獲得・解析。MoCo ResNet50/ImageNetはそのための基盤の**単体検証**であり、kNN Accuracyは主要な研究問いと直接対応しない。
+- 2026-10-15 MTGでは、まずMeta公式の標準的なMoCo Loss/類似度/更新の挙動を確かめて、ViT→LoRA→逐次Loaderに段階的に戻す決定。MoCo単体CIFAR500stepは「mechanics」までで、学習の成否と混同しない、と明示。
+- **kNNなしでも主張できること**：採用条件の10epoch学習実行成立、公式と自作の学習数値の一致/近似、勾配/Queue/損失の検証、崩壊兆候の定量的サニティチェック。
+- **kNNなしでは主張できないこと**：有用な画像意味特徴を獲得したこと、ImageNet分類上の性能、Meta公式と同等の表現品質。Loss曲線が一致していても両モデルが無意味な特徴を学んでいる可能性は残る。軽量診断のみでも有用性の証明にはならない。
+- 対案：もし学会発表で「公式MoCo v2の表現学習性能を再現した」と主張したい、またはLoRA統合前に定量的な画像表現品質の最低条件が必要なら、**固定部分集合kNN**など縮小した評価を追加し、予算が許せば正式なval kNN/Linear Probeへ進む。ただし小標本は代表性・seed/クラス分布・精度幅に制約あり。
+- 10epochは公式200epochより短い。kNNが伸びなくてもすぐに「自作実装が間違い」と判定しない。逆にkNNが高くても動的情報獲得を示さない。
+
+#### 前のdraft specとの関係・未決事項
+
+現行draft `.research/lab/projects/sequential-video-lora-analysis/specs/2026-10-20-meta-moco-v2-official-global256-imagenet-10epoch-comet-reproduction-spec.md` にはE4およびB4としてkNNを「推奨」と書いているが**ユーザー未承認**。この壁打ちは**B4を変更するための提案**であり、specや10epochの採用条件を勝手に修正しない。
+
+**B4推奨の改訂候補**：10epochの必須Gateは表現性能の強いclaimを含めず、固定held-out特徴診断を補助として実施。ImageNet kNN/Linear Probeは独立の任意Gateへ延期。将来LoRAの動的情報の評価を優先。特に、Loss比較で「正しく学習」を**数値と更新の健全性まで**と定義するのか、「意味的に有用な特徴獲得」まで含むのかはユーザーが選ぶ余地がある。
+
+**研究コード・10epoch draft spec・README・TODO・GPU/Comet runは未変更**。kNNの省略はこの段階では未採用。
