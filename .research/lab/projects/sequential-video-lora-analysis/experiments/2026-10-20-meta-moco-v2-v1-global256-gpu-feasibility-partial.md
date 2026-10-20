@@ -106,3 +106,39 @@ comet_delivery: DISABLED_BOTH_PER_RUN_REPORT
 - raw evidenceは研究サーバの`log/moco_imagenet_10epoch/moco_v2_v1_20261020_162206`。SSHローカルの物理ファイルやlogsのSHAはGitHubから直接確認不能。本Research Workspace記録はユーザー提示値の要約である。
 
 **最終状態：pair V1 = PASS_RESOURCE_FEASIBILITY_ONLY。V1までは成功、10epoch学習や表現品質を実証していない。**
+
+---
+
+## V1オフライン比較の追加Evidence（2026-10-20 16:44 JST）
+
+ユーザーが研究サーバ上で`python -m scripts.parity.compare_moco_10epoch`を実行した結果を貼り付けた。これは**GitHubから実行ファイルを読んだ結果ではなく、ユーザー提示した比較出力**の転記である。前節のV1 resource feasibility判定に、独立した**ログ比較Evidence**を加える。
+
+- campaign: `moco_v2_v1_20261020_162206`
+- Meta run: `2026-10-20_16-22-44-972339_meta_reference_V1`
+- Self run: `2026-10-20_16-34-13-790251_self_V1`
+- comparison output dir: `log/moco_imagenet_10epoch/moco_v2_v1_20261020_162206/comparisons/v1_20261020_164421`
+- output reports: `comparison_report.json` と `comparison_summary.md`（SSHローカル。GitHubへ生ログ本体は未反映）。
+
+### 比較器の出力
+
+| 判定名 | 実際の値 | 解釈 |
+|---|---|---|
+| `contract_valid` | `True` | 比較器でのconfig、campaign、sampler等の契約照合がPASS（問題リストなし） |
+| `both_completed` | `True` | 双方のrun_report statusはcompleted |
+| `inputs_identical` | `True` | SHA-256を記録した1stepで2実装の入力hashが同一 |
+| `metrics_bitwise_equal` | `True` | 比較対象の記録scalar値が完全一致 |
+| `epoch_states_identical` | `None` | 学習途中30stepでepoch checkpoint/state digestなしのため未評価 |
+| `curve_agreement` | `bitwise` | 比較器の**記録曲線上**の判定。全パラメータや全step tensorへのbitwise証明ではない |
+| `contract_issues` | `[]` | 契約上の問題なし |
+
+`metrics.jsonl`由来の一致（全てmax_abs_diff=0.0）：loss 4/4、positive_cosine_mean 4/4、negative_cosine_mean 4/4、hardest_negative_cosine_mean 4/4、lr 4/4、queue_ptr 4/4、finite 4/4、query_grad_norm 2/2。入力hashは `hashed_steps=1, identical_steps=1, first_differing_step=null`。
+
+### Evidence解釈と境界
+
+- 実ImageNet + 2GPU + FP32 + global256での**両実装V1 resource feasibility PASSとサンプル観測した学習scalar完全一致**は支持される。これは単なる合成画像parityより実運用条件に近い補助Evidence。
+- **入力については1stepのみハッシュ照合**。残り29stepの入力tensorが同一だったことまではこのレポートは保証しない。今回の`curve_agreement=bitwise`はサンプリングしたログに対する判定であり、全step/全stateの形式的完全一致と同義ではない。
+- **epoch状態は未比較**。`compare_moco_10epoch.py`の`states = [... for epoch in epochs if canonical_state_equal is not None]`が空の場合、`all(states)`は真となり得るため、`curve_agreement=bitwise`は`epoch_states_identical=None`の状況でも表示される。これを超える主張をしない。
+- ImageNetの表現品質・分類精度、10epoch学習の成功、E2/E3の長時間安定性、Cometへの実送信、速度差の有意性は未検証。
+- 次の研究判断は`E1`（別承認を要するMeta/Self各100step）で、`1 + every100`の追加input-hashやComet実接続、Loss/cosine/gradの再現性を確認するかどうか。E1へは**V1の承認から自動移行しない**。
+
+**更新後の本記録の最新判定**：V1 Meta+Self GPU feasibility **PASS**、V1 sampled-input+logged-scalar comparison **PASS**、epoch-state/tensor-level formal parity **NOT_EVALUATED**。経緯にある`partial`と`INCOMPLETE`は当時の履歴として保持し、現在状態の主張と混同しない。
