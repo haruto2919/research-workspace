@@ -173,3 +173,11 @@ ImageNet train = **1,281,167画像**（先行ユーザー実測）、2GPU global
 **B4推奨の改訂候補**：10epochの必須Gateは表現性能の強いclaimを含めず、固定held-out特徴診断を補助として実施。ImageNet kNN/Linear Probeは独立の任意Gateへ延期。将来LoRAの動的情報の評価を優先。特に、Loss比較で「正しく学習」を**数値と更新の健全性まで**と定義するのか、「意味的に有用な特徴獲得」まで含むのかはユーザーが選ぶ余地がある。
 
 **研究コード・10epoch draft spec・README・TODO・GPU/Comet runは未変更**。kNNの省略はこの段階では未採用。
+
+---
+
+### 2026-10-20 B4採用の記録（ユーザー指示）
+
+ユーザーは直前に検討した**「ImageNetのkNN評価を必須にせず、固定した少数のheld-out画像でFeature variance・norm・画像間cosine等の軽量診断を行う。kNN/Linear Probeは必要時の独立Gateとして保留する」**案を明示採用した。10epochのMeta公式/自作・Comet比較の背景研究目的は変えない。
+
+B4の採用を[10epoch公式設定比較spec（draft）](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-20-meta-moco-v2-official-global256-imagenet-10epoch-comet-reproduction-spec.md)に反映済み。**B1/B2/B3/B5は未承認、spec statusはdraftを保持**。研究コード変更・GPU run・Comet送信はいずれも未実行。この判断により、今回の10epochで主張するのは学習挙動の公式再現性と軽量な異常診断までであり、画像分類精度や意味的特徴の有用性の実証ではない。
