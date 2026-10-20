@@ -5,8 +5,8 @@ record_type: experiment-evidence
 status: completed
 gate: A3
 judgement: PASS
-evidence_level: "synthetic-two-gpu-1025step-meta-vs-self-formal-implementation; launcher-aggregate-verdict-only"
-source: "user-provided-terminal-output ending in A3 PASS; stage_summary/parity_report raw summary not yet provided; SSH artifacts not independently read"
+evidence_level: "synthetic-two-gpu-1025step-meta-vs-self-formal-implementation; 58790-of-58790-bitwise-parity"
+source: "user-provided-terminal-output of A3 stage_summary.json and compare/parity_report.json aggregate, plus earlier launcher PASS; SSH artifacts not independently accessed"
 experiment_spec: ../specs/2026-10-20-meta-moco-a3-a4-a5-integrated-execution-spec.md
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_branch: dev
@@ -19,13 +19,19 @@ threshold_status: fixed
 rtol: 1.0e-5
 atol: 1.0e-6
 formal_judgement_observed_via_launcher: PASS
-bitwise_entries: "PENDING_RAW_SUMMARY"
+comparison_entries: 58790
+bitwise_equal_entries: 58790
+exact_failures: 0
+close_failures: 0
+steps_compared: 1025
+full_tensor_steps: [1, 1024, 1025]
+stage_disk_du_human: "9.9G"
 gpu_gates: "A5-pilot PASS; A4 PASS; A3 PASS; A5-pair NOT_RUN"
 ---
 
 # A3実GPU Formal Gate：Meta公式 MoCo v2 対 自作 MoCo の1025step Queue一巡検証
 
-> **A3ランチャー総合判定 = PASS（ユーザー提供端末ログ）**。採用済みの固定A3計画によりMeta公式Mと自作S1のsynthetic 1025step×2runを実行する構成で、最後にランチャーが`A3 PASS: every step completed and every check holds`と出力した。ただし、個々の比較エントリ数、bitwise一致率、Queue pointerの実際の観測値、wall timeは**今回の端末断片には含まれない**。これらを推測値で補わず、別途raw summaryの提示待ちとする。SSH上の原本にはChatGPTからアクセスしていない。
+> **A3の総合Gate・formal_implementationともPASS（ユーザー提供のA3 stage summaryと比較器report集計）**。Meta公式Mと自作S1のsynthetic 1025step×2runを実行し、**58,790 / 58,790比較エントリがbitwise一致（100%）**、`exact_failures=0`、`close_failures=0`、`contract_valid=True`、step1〜1025の全step比較を確認した。SSH上のtensor原本、Queue pointer個別値、artifact SHAまではChatGPTから独立確認していない。
 
 ## 1. Source・Authority
 
@@ -77,13 +83,15 @@ Saved .../log/moco_imagenet_parity/gates/a345_20261020_114641/A3
 
 **確認済み**：ユーザーが出力したランチャー最終行は`A3 PASS: every step completed and every check holds`。前回のplanは固定閾値/両commit clean/前段A4 PASS/問題なし。現行ランチャーの`check_compare`は比較器`status=PASS`を要求するので、ランチャーが`PASS`を返したことは、正式比較をランチャーが受理した強い間接証拠。
 
-**まだ直接提示されていない**：`counts.judged`、`counts.bitwise_equal`、`counts.exact_failures`、`counts.close_failures`、`formal.contract_valid`、`steps_compared`の長さ、`first_failure`、`first_difference`、各run実際の`completed_steps`、Queue pointer step1024/1025の実測詳細、`stage_summary.steps[*].elapsed_sec`、A3全体のディスク実容量。
+**追加ユーザーログで確認できた**：`counts.judged=58790`、`counts.bitwise_equal=58790`、`exact_failures=close_failures=0`、`formal.contract_valid=True`、`steps_compared`はstep1〜1025の1025件、`full_tensor_steps=[1,1024,1025]`、`first_failure/first_difference=None`、stageの4工程が完了exit0、所要時間、`du -sh`の実容量。
 
-比較器の`PASS`は事前固定誤差以内を意味するが、**bitwise一致100%を自動的には意味しない**。`bitwise`一致率は別の観測で確認する。
+**引き続き未提示**：各runの`completed_steps`数値を直接読み出した表示、rank別のQueue pointer step1024/1025実数、artifact SHAとraw tensor原本の独立取得。ランチャーがPASSを判定した範囲と別に区別する。
+
+比較器の`PASS`一般は事前固定誤差以内を意味するだけであるが、**今回は追加提出された集計値により58,790/58,790のbitwise一致を直接確認した**。58,790は比較エントリ数であり、torch Tensor全要素の個数ではない。
 
 **主張できないこと**：ImageNet実画像で1025step連続学習の数値一致、任意のseed/GPU条件・長期収束・表現の有用性、ViT/LoRA/動画のオンライン学習結果。
 
-## 5. 次に必要な最小の読み出し
+## 5. 集計確認に使用した読み出しコマンド（実行済み）
 
 SSHでA3 stage summaryとcomparison reportの集計のみを、巨大な`comparisons`配列を表示せず読み出す。
 
@@ -110,4 +118,61 @@ PY
 du -sh "$ROOT/A3"
 ```
 
-数値を受け取り次第、この**同じEvidenceに追記**して集計を確定する。A3の結果は、A5-pair（OFF/Light各100step）に進むための前段Gateであるが、**A5-pairはまだNOT_RUN**。実験を勝手に開始せず、まず次のplanを確認する。
+追加ログを受領し、下記の数値を本Evidenceに反映済み。A3はA5-pair（OFF/Light各100step）の前段Gateとして正式にPASS。ただし**A5-pairはまだNOT_RUN**で、次は同じcampaign rootでplan-onlyを確認する。GPU実験は未起動。
+
+## 6. 追補：正式比較の全step bitwise一致・実測所要時間・ディスク使用量（2026-10-20）
+
+ユーザーがSSH研究サーバ上で既存`A3/stage_summary.json`および`A3/compare/parity_report.json`を読み出し、比較の集計値と時間を表示した。これは**ユーザー提出のローカル実験artifact出力**であり、ChatGPTがSSHファイルを直接ダウンロード・ハッシュ照合したわけではない。
+
+### 公式M対自作S1：formal_implementationの確定判定
+
+```text
+=== A3 STAGE ===
+Status: PASS
+Reason: every step completed and every check holds
+Issues: []
+
+=== FORMAL COMPARISON ===
+status: PASS
+reason: all compared tensors within the fixed tolerance; within-run checks PASS
+pair_kind: formal_implementation
+rtol: 1e-05
+atol: 1e-06
+threshold_status: fixed
+run_consistency_issues: []
+counts: {judged: 58790, exact_failures: 0, close_failures: 0, bitwise_equal: 58790}
+full_tensor_steps: [1, 1024, 1025]
+first_failure: None
+first_difference: None
+steps_compared: 1025 (first 1, last 1025)
+contract_valid: True
+formal.bitwise: {judged: 58790, bitwise_equal: 58790, fraction: 1.0,
+                 first_difference: 'none (all compared values bitwise equal)'}
+```
+
+重要な解釈：**Queue一巡点の1024stepと直後1025stepを含む1025stepの全比較対象がbitwise一致**。比較器が追跡したloss/logits/Query-Key/Queue/optimizer等の対象でbitwise差なし（測定範囲は既存harnessのtrace契約に限定）。これは**Meta公式との指定synthetic fixture上の長期数値一致**の証拠となるが、実ImageNetでの1025step学習、表現品質、ViT/LoRA/オンライン動画統合を証明しない。Queue pointerの具体的観測数値は本コンソールにないので未確認扱い。
+
+### 4工程の実行時間（launcher elapsed_sec）
+
+| 工程 | state / exit | elapsed_sec |
+|---|---|---:|
+| fixture | completed / 0 | 4.723967037003604 |
+| Meta公式 M（1025step） | completed / 0 | 719.4326336240047 |
+| 自作 S1（1025step） | completed / 0 | 732.3776578129982 |
+| formal compare | completed / 0 | 76.99084420599684 |
+| **合計** | **4工程success** | **1533.5251026800032秒、約25分33.5秒** |
+
+2つのrunの観測値は近いが、同一マシンでの1回の順次実行に過ぎず、速度の優位性や統計的同等性は未検証。GPU演算timerでなく各subprocessのwall time。fixture・比較込みで約25分34秒。
+
+### Disk
+
+```text
+du -sh ".../gates/a345_20261020_114641/A3"
+9.9G
+```
+
+事前trace外挿9.53GiBとの比較はファイル以外のartifactや丸めを含むため単純一致とは言わない。実測は表示上**9.9G**（duの人間可読表示）。出力上書き禁止、M/S1のtraceとreportを保持する。
+
+## 7. 後続Gate
+
+**A5-pair: NOT_RUN**。A3の前段PASSが確定したので、同じ`a345_20261020_114641` rootで`python -m scripts.parity.run_moco_gates A5-pair --root "$ROOT"`のplan-onlyを実行し、`previous=A3 PASS`, `issues=[]`, commit clean、空きGPU/ディスクを確認する。その後のOFF100/Light100実行は別操作。A5-pairはmonitorの処理・資源overhead測定であり、MoCoの特徴品質評価ではない。
