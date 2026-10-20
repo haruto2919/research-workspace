@@ -5,7 +5,7 @@ status: approved
 created: 2026-10-20
 last_updated: 2026-10-20
 title: "Meta MoCo v2 Official Global Batch 256 ImageNet-1K 10-Epoch Reproduction and Comet Comparison"
-authority: "User adopted official-example global batch 256 / 2 GPUs x local 128 / initial LR 0.03, mandatory VRAM feasibility, ImageNet 10 epochs, Meta vs self Comet loss comparison on 2026-10-20. Remaining choices are proposed, not approved."
+authority: "User approved B1-B5 and staged V1/E1 execution on 2026-10-20; E2/E3 are not separately authorized. Latest E1 results are user-shared experiment evidence, not Github-observed GPU runs."
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_branch_at_read: dev
 implementation_commit_at_read: 914e736c2699e2e129211a888d1f19013dd1dd1a
@@ -32,15 +32,17 @@ v1_partial_evidence: ../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-fea
 vram_gate: META_AND_SELF_30STEP_BOTH_PASS_2026-10-20
 v1_offline_comparison: INPUT_HASH_1_OF_1_AND_LOGGED_METRICS_BITWISE_PASS_2026-10-20
 e1_execution_authority: USER_APPROVED_META_AND_SELF_100STEP_WITH_COMET_ON_2026-10-20
-e1_execution_status: NOT_RUN
+e1_execution_status: META_SELF_100STEP_COMPLETE_INPUT_HASH_2OF2_METRICS_BITWISE_2026-10-20
+e1_evidence: ../experiments/2026-10-20-meta-moco-v2-e1-imagenet-100step-comet-parity-evidence.md
+comet_destination_verified: E1_META_AND_SELF_EXPERIMENT_URLS_PRESENT_2026-10-20
 ten_epoch_training: NOT_RUN
-comet_upload: V1_DISABLED_BOTH_CONFIRMED_BY_RUN_REPORT_2026-10-20
+comet_upload: E1_META_AND_SELF_EXPERIMENT_LINKS_REPORTED_AND_SELF_METRICS_CONFIRMED_2026-10-20
 representation_evaluation: NOT_RUN
 ---
 
 # Meta公式MoCo v2条件でImageNet 10epochを実行し自作とComet比較するspec（approved）
 
-> **現行承認済み契約（2026-10-20）**：Meta公式MoCo v2のGlobal Batch256・初期LR0.03を2GPU・local128/GPUで維持し、Meta公式と自作を各10epoch学習してComet比較する。**先行V1 VRAM feasibility必須**。B1〜B5を採用済み（B4のkNNは任意）。実装は`dev@d6f7acc`、CPU test 52/52 PASS。**今回許可されたGPU実行はV1（30step×2run）のみ**。E1/E2/E3/Comet送信には別途実行合意が必要。V1の実機結果は未確認。
+> **現行採用契約と実施済みGate（2026-10-20）**：Meta公式MoCo v2のglobal256（2GPU×local128）、初期LR0.03、FP32、K65536でImageNet-1K 10epochを最終的に比較する。B1〜B5承認済み。研究コード`dev@d6f7acc`はCPU52/52 PASS。**V1（両実装各30step）のVRAM Gate PASS**、**E1（両実装各100step）の入力hash2/2一致・記録メトリクスbitwise一致・Comet実験URL報告済み**。**E2 1epochとE3 10epochは未実行・別途実行許可が必要**。E1はpartial epochで状態hash未評価、学習品質未実証。
 
 ## 1. 背景と検証する問い
 
@@ -264,3 +266,15 @@ Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experi
 **成功・報告**：Meta/Selfの`run_report.json`から`status=completed`・`training_completed=true`・100/100step・失敗なし、`preflight.comet.enabled=true`、意図したworkspace/project、Comet実験の`key/url`と`errors`、CPU/NAS data wait、GPU peakを確認。比較器は`contract_valid/both_completed/inputs_identical/metrics_bitwise_equal/curve_agreement/contract_issues`を報告する。入力hashは1stepと100stepの**計2箇所**であり、100stepすべてのtensor一致ではない。100stepはepoch未完了なので`epoch_states_identical=None`、checkpoint/state full bitwiseは**未検証**。Queue K65536は100stepで一巡せず、V1/E1のLoss曲線は特徴品質を示さない。
 
 **実行状況**：この決定記録の保存はGPU jobやCometへの実送信ではない。ユーザー研究サーバ側で起動して結果を返す。E2/E3/E4・コード変更・full runは未承認／未実行のまま。
+
+### E1実測結果の採用Evidence（2026-10-20、ユーザー添付ログ）
+
+ユーザーがSSHサーバからE1の自作100stepコンソールと比較器出力を提示したため、**E1完了状態**へ更新。実験root：`log/moco_imagenet_10epoch/moco_v2_e1_20261020_165430`、比較report：`comparisons/e1_20261020_171802/comparison_report.json`。GitHubからサーバ上のraw artifactsを直接確認したものではない。
+
+- 両run `completed`、`contract_valid=true`、`contract_issues=[]`。同一config/初期状態条件で100step完走。
+- sampled input hash **2/2一致**、loss・各cosine・lr・queue_ptr・finiteが**各11/11完全一致**（max_abs_diff=0）、query_grad_normが**2/2完全一致**。比較器 `metrics_bitwise_equal=True,curve_agreement=bitwise`。
+- `epoch_states_identical=None`。これは100stepがepoch途中であるためで、**epoch checkpoint/canonical state未比較**。全100stepの入力全テンソルや学習state全体のbitwise一致と混同しない。
+- Comet：Meta公式 `https://www.comet.com/haruto2919/moco-imagenet-v2-reproduction/1f99cdba1f74470391f804121a8d5db2`、自作 `https://www.comet.com/haruto2919/moco-imagenet-v2-reproduction/54fefa983b55467398fc79e84c3404a1`。自作はSDK終了Summaryで明示記録され、公式は比較reportのURLとして観測。UI上での同時曲線表示は未確認。
+- Lossはstep1 6.441793→step100 9.806382だが、Queue置換途中・短時間runのため特徴学習成功/失敗の主張には使わない。
+- [E1原本Evidence](../experiments/2026-10-20-meta-moco-v2-e1-imagenet-100step-comet-parity-evidence.md)参照。
+- **本更新でE2/E3の実行許可は生じない**。E2では1epoch完走・epoch checkpoint・canon state SHA一致・データ待ち/長期安定性を判断する。E2の実行には別のユーザー承認を要する。E3 10epochはさらに別Gate。
