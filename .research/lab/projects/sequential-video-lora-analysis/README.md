@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: MoCo単体CIFAR-10工学PASS、Meta公式対自作ImageNet2GPU A2は3,926/3,926 bitwise PASS。A3/A4/A5段階ランチャーはdevへcommit済み、CPU軽量29件PASS、実ImageNet2GPUのA5-pilot 20step PASS。A4 step2→3 Resumeは2GPU synthetic formal PASS（3,608/3,608比較エントリbitwise）。A3は2GPU synthetic 1025step×2の正式比較ランチャーPASS（集計内訳は確認待ち）。A5-pair・表現品質は未検証。A5-pilot peak reserved 3788/3886MiB、80.96 global images/sec。
+summary: MoCo単体CIFAR-10工学PASS、Meta公式対自作ImageNet2GPU A2は3,926/3,926 bitwise PASS。A3/A4/A5段階ランチャーはdevへcommit済み、CPU軽量29件PASS、実ImageNet2GPUのA5-pilot 20step PASS。A4 step2→3 Resumeは2GPU synthetic formal PASS（3,608/3,608比較エントリbitwise）。A3は2GPU synthetic 1025step×2のMeta公式対自作Formal PASS（58,790/58,790比較エントリbitwise完全一致、実測約25分34秒、A3出力9.9G）。A5-pair・表現品質は未検証。A5-pilot peak reserved 3788/3886MiB、80.96 global images/sec。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-20
@@ -57,7 +57,7 @@ last_updated: 2026-10-20
 
 同日、**A4（2GPU synthetic / step2 native+rank sidecar checkpoint → step3 resume）のFormal検証がPASS**した。A4 stageはfixture、S1_uninterrupted、S1_resumed、compareの4工程が全てexit0、issuesなし。比較器`formal_resume`の固定閾値`rtol=1e-5, atol=1e-6`でstep3/full-trace step3の**3,608 / 3,608比較エントリがbitwise一致**、exact/close failures0、first difference/failureなし、contract_valid True。これは指定synthetic 3stepのCheckpoint/Resume再現性であり、Meta公式とのA3長時間parityや表現品質は未検証。[A4正式GPU Evidence](experiments/2026-10-20-meta-moco-a4-synthetic-two-gpu-step2-resume-formal-parity-evidence.md)参照。
 
-同日、A3のMeta公式MoCo M対自作MoCo S1、**synthetic 1025step×2run／Queue一巡を含むFormal implementation比較が、統合ランチャー最終判定でPASS**。ユーザーが提示した終端ログは`A3 PASS: every step completed and every check holds`。固定`rtol=1e-5/atol=1e-6`の比較器まで進んでいる。一方、report内のjudged/bitwise件数、Queue pointer実測、実行時間・保存容量の詳細は未受領のため、これらは断定しない。**A5-pairはNOT_RUN**。[A3 GPU Evidence](experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md)。
+同日、A3のMeta公式MoCo M対自作MoCo S1、**synthetic 1025step×2run／Queue一巡を含むFormal implementation比較が、統合ランチャー最終判定でPASS**。ユーザーが提示した終端ログは`A3 PASS: every step completed and every check holds`。固定`rtol=1e-5/atol=1e-6`の比較器まで進んでいる。追送された正式比較reportの集計値では**58,790/58,790比較エントリbitwise一致**、exact/close failures 0、contract_valid True、steps1〜1025の全比較、full traceは[1,1024,1025]。A3の各工程合計は実測約25分34秒、保存容量は`du -sh`で9.9G。Queue pointer個別実測値は未受領のため断定しない。**A5-pairはNOT_RUN**。[A3 GPU Evidence](experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md)。
 
 実装の正しさと基盤の成立を検証した後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
@@ -77,7 +77,7 @@ last_updated: 2026-10-20
 - [x] ImageNet実画像・2GPUのMeta公式MoCoと自作`meta_einsum`のA2 1step正式数値一致を検証（3,926/3,926 bitwise、2026-10-20）
 - [x] MoCo A5-pilot：ImageNet real DataLoaderで2GPU・通常bench 20stepを完了（2026-10-20、ランチャーPASS）
 - [x] MoCo A4：2GPU syntheticのstep2 Checkpoint/step3 Resumeが正式比較3,608/3,608 bitwise一致（2026-10-20）
-- [x] MoCo A3：Meta公式M対自作S1の2GPU synthetic 1025step×2runで統合ランチャーFormal Gate PASS（2026-10-20、比較内訳は確認待ち）
+- [x] MoCo A3：Meta公式M対自作S1の2GPU synthetic 1025step×2runで正式比較58,790/58,790エントリbitwise一致（2026-10-20）
 - [ ] MoCo loss振動とQuery LoRA勾配急増の原因を切り分け、統合実験の再開条件を定める
 - [ ] 研究室紹介用にオンライン学習の難しさと研究上の必要性を説明するスライドを作成する
 
@@ -106,4 +106,4 @@ last_updated: 2026-10-20
 | 2026-10-20 | A3/A4/A5統合実行specに従い段階ランチャーとCPUテスト23件を実装（未commit、既存ファイル無変更）。CPU検証PASS、GPU Gateは全てNOT_RUN。詳細は[実装・CPU検証記録](experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md) |
 | 2026-10-20 | A3/A4/A5ランチャーをdev@`914e736c`へcommit済みと確認。CPU軽量29件PASS、plan全4stage正常。ImageNet実画像2GPUのA5-pilot 20stepはランチャー判定PASS。A4/A3/A5-pairは未実施。追加表示ログでGPU peak reserved 3788/3886MiB、平均0.7905秒/step、global 80.96枚/秒を確認。A4 planは前段PASS・issuesなし。[GPU Evidence](experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md) |
 | 2026-10-20 | A4のstep2 Checkpoint→step3 Resumeを2GPU syntheticで正式検証。4工程exit0、stage/formal_resumeともPASS、固定閾値で3,608/3,608比較エントリbitwise一致。A3・A5-pairはNOT_RUN。[A4 Evidence](experiments/2026-10-20-meta-moco-a4-synthetic-two-gpu-step2-resume-formal-parity-evidence.md) |
-| 2026-10-20 | A3のMeta公式M対自作S1をsynthetic 1025step×2run、Queue一巡後まで実行。最終ランチャー判定A3 PASS。比較件数・bitwise率等は別途raw report確認待ち。A5-pairはNOT_RUN。[A3正式Gate Evidence](experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md) |
+| 2026-10-20 | A3のMeta公式M対自作S1をsynthetic 1025step×2run、Queue一巡後まで実行。Stage/formalともPASS、比較58,790/58,790エントリbitwise一致、failures0、正式契約valid。所要時間約25分34秒・保存容量9.9G。A5-pair NOT_RUN。[A3正式Gate Evidence](experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md) |
