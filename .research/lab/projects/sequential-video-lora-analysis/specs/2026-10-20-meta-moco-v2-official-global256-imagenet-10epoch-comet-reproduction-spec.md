@@ -30,6 +30,7 @@ implementation: IMPLEMENTED_CPU_VERIFIED_COMMITTED_d6f7acc_PUSHED_2026-10-20
 implementation_record: ../experiments/2026-10-20-meta-moco-v2-10epoch-runner-implementation-verification.md
 v1_partial_evidence: ../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md
 vram_gate: META_AND_SELF_30STEP_BOTH_PASS_2026-10-20
+v1_offline_comparison: INPUT_HASH_1_OF_1_AND_LOGGED_METRICS_BITWISE_PASS_2026-10-20
 ten_epoch_training: NOT_RUN
 comet_upload: V1_DISABLED_BOTH_CONFIRMED_BY_RUN_REPORT_2026-10-20
 representation_evaluation: NOT_RUN
@@ -241,3 +242,9 @@ Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experi
 - Data waitがMeta側約75秒/rank、Self側約5秒/rankと大差。性能比較の主張は保留。
 - 正本Evidence:[V1両実装PASSの実験記録](../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md)。この記録は研究サーバの現物をGitHub connectorで取得したものではなく、ユーザーが提示したログ由来。
 - **V1 PASSED only**。E1 100step・E2 1epoch・E3 10epoch・Comet real send・E4軽量特徴診断は未実施。次のGPU実験実行には別の明示許可が必要。
+
+### V1 offline comparisonの採用Evidence追記（2026-10-20 16:44 JST）
+
+同一campaign・同一初期fixtureでMeta/Selfそれぞれ30step、GPU V1が両者PASSした後、ユーザーが研究サーバで`compare_moco_10epoch.py`を実行。比較器の`contract_valid=True`、`both_completed=True`、`inputs_identical=True`（**ハッシュした1stepのみ一致**）、`metrics_bitwise_equal=True`、`curve_agreement=bitwise`、`contract_issues=[]`を確認。Loss/positive-negative-hardest cosine/LR/queue_ptr/finiteは各4/4step、query_grad_normは2/2stepでscalar値が完全一致（max_abs_diff=0）。ただし`epoch_states_identical=None`で**終了epochのstate比較は未実施**。比較器の`bitwise`表示はfull stepのモデル全状態bitwise一致を示さない。V1は**計算資源+サンプル学習指標の再現性Gate PASS**であり、正式E1/E2/E3/E4の代替ではない。
+
+研究サーバの出力：`log/moco_imagenet_10epoch/moco_v2_v1_20261020_162206/comparisons/v1_20261020_164421/comparison_report.json`（GitHub connectorでは実体未確認）。[V1 Evidence](../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md)参照。**E1の100step×2run、Cometライブ送信はV1実行許可に含まれない**ため、先行Gate結果を受けた別のユーザー実行合意を必要とする。
