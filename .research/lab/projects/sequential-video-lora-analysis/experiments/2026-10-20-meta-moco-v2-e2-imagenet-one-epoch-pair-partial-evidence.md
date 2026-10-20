@@ -2,7 +2,7 @@
 project: sequential-video-lora-analysis
 date: 2026-10-20
 record_type: experiment-evidence
-status: verified-comparison
+status: completed
 experiment: moco-v2-imagenet-10epoch-e2
 campaign: moco_v2_e2_20261020_173541
 gate: E2
@@ -12,10 +12,10 @@ source: user-pasted-ssh-compare-output
 sampled_metrics: BITWISE_EQUAL
 sampled_input_hashes: 51_OF_51_IDENTICAL
 epoch_end_state: CANONICAL_SHA_IDENTICAL_EPOCH0
-overall_gate: COMPARISON_PASS_CHECKPOINT_AND_COMET_ARTIFACTS_NOT_YET_CHECKED
+overall_gate: E2_PASS_COMPARISON_CHECKPOINT_SIDECAR_COMET_LOCAL_REPORT
 ---
 
-# E2 実ImageNet 1epoch Meta公式 vs 自作：比較器PASS（保存成果物の実在性は確認待ち）
+# E2 実ImageNet 1epoch Meta公式 vs 自作：数値比較・Checkpoint・Comet報告すべてPASS
 
 2026-10-20、ユーザーが研究サーバでMeta公式対自作の`compare_moco_10epoch.py`を実行した出力を貼り付けた。**ChatGPTはSSHサーバのrun report/比較JSON/Checkpoint現物へ接続していない**。このファイルは提示ログの確認済み範囲のみ記録する。
 
@@ -103,3 +103,32 @@ E2 comparison PASS: True
 - GitHubはSSH研究サーバのローカル生log、モデルcheckpoint、Comet実験の実体を直接参照していない。今後の追加情報から確認する。
 
 **最新最終判定（限定）**：E2 **comparative numerical replay: PASS**、artifact existence/Comet delivery: **UNCHECKED**、E3 10epoch：**NOT_RUN / NOT_AUTHORIZED**。E2の成功が自動的にE3の実行許可になるわけではない。
+
+---
+
+## E2成果物検証完了（2026-10-20、ユーザー実機からの提示ログ）
+
+ユーザーは**同一campaign `moco_v2_e2_20261020_173541` の各run `run_report.json`とファイル実在確認スクリプトをSSH研究サーバで実行**し、以下の結果を会話へ提示した。前節の「未確認」「未完了」は古い時点の履歴であり、この節を最新判定とする。
+
+| 項目 | meta_reference E2 | self E2 |
+|---|---|---|
+| `status` | completed | completed |
+| `last_global_step` | 5004 | 5004 |
+| `completed_epochs` | [0] | [0] |
+| `canonical_state_sha256` | `2dc5e59947677ffcb9cadc9006947e415b992f2b42f09517f0f3b19b7e44abbc` | **同値** |
+| `checkpoint_epoch001.pt` | file OK | file OK |
+| `checkpoint_epoch001.rank0.sidecar.pt` | file OK | file OK |
+| `checkpoint_epoch001.rank1.sidecar.pt` | file OK | file OK |
+| Comet URL | https://www.comet.com/haruto2919/moco-imagenet-v2-reproduction/af69fe76ffde4e55abb73551f3a1096e | https://www.comet.com/haruto2919/moco-imagenet-v2-reproduction/728e58d18e3b40de9147197f7bbb7972 |
+| `comet.errors` | [] | [] |
+| `failures` | [] | [] |
+| 検証スクリプト | `ARTIFACT CHECK PASS` | `ARTIFACT CHECK PASS` |
+
+### 確定したGateの範囲
+
+- **E2の採用済み比較・保存GateをPASS**：入力hashの51/51の一致、記録scalar 502/502およびgrad norm52/52一致（全てmax abs diff=0）、両run 5004step完了、`epoch_states_identical=True`と上記のcanonical model state SHA一致、Checkpointと各rank RNG sidecarのファイル**実在確認**、run report上Comet URL取得・errorsなし、run failuresなし。
+- **実証しない事項**：全5004stepの全入力tensor完全一致、途中のoptimizer/weight/Queueの全状態bitwise、native checkpointファイルのバイト列一致、sidecar RNG状態の値の一致、Checkpointのロード/Resume再演、Comet Web UIでの曲線の目視確認、特徴量が有用であること。ファイルが存在することと正常に復元可能であることは異なる。
+- **実験の地位**：Meta公式モデルを用いた比較runner対自作runnerの、同一実験契約の1epoch再現性。Metaの公開された200epoch pretraining品質を再現したという主張ではない。
+- **証拠の出所**：ChatGPTがSSH上でファイル操作したわけではなく、ユーザーが貼付した検証出力からの二次記録。今回のGitHubの更新はResearch Workspace実験記録のみであり、GPU job、Comet、研究コードには変更を加えていない。
+
+**最新判定：E2 = PASS（numerical comparison + epoch canonical state + checkpoint/sidecar existence + Comet local-report checks）。E3（Meta/Selfそれぞれ10epoch）は未実行、実行許可も別途必要。**
