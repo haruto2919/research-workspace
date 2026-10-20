@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: MoCo単体CIFAR-10工学PASS、Meta公式対自作ImageNet2GPU A2は3,926/3,926 bitwise PASS。A3/A4/A5段階ランチャーはdevへcommit済み、CPU軽量29件PASS、実ImageNet2GPUのA5-pilot 20step PASS。A4 step2→3 Resumeは2GPU synthetic formal PASS（3,608/3,608比較エントリbitwise）。A3は2GPU synthetic 1025step×2のMeta公式対自作Formal PASS（58,790/58,790比較エントリbitwise完全一致、実測約25分34秒、A3出力9.9G）。A5-pair・表現品質は未検証。A5-pilot peak reserved 3788/3886MiB、80.96 global images/sec。
+summary: MoCo単体のMeta公式比較A2（実ImageNet1step）・A3（synthetic1025step）のformal parityがbitwise PASS。MoCo v2公式Global Batch256/2GPU各128/FP32の10epoch向けrunnerはdev@d6f7accでCPU52/52 PASS。実ImageNet V1はMeta公式・自作の各30stepが両rankでVRAM Gate PASS（peak reserved 13026/13038MiB、余裕7069.875/7057.875MiB、Comet OFF）。V1の記録済みscalar値は一致。次のE1（100step paired）の実行許可・結果は未確定。E2/E3本番学習・E4特徴診断は未実施。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-20
@@ -107,3 +107,4 @@ last_updated: 2026-10-20
 | 2026-10-20 | A3/A4/A5ランチャーをdev@`914e736c`へcommit済みと確認。CPU軽量29件PASS、plan全4stage正常。ImageNet実画像2GPUのA5-pilot 20stepはランチャー判定PASS。A4/A3/A5-pairは未実施。追加表示ログでGPU peak reserved 3788/3886MiB、平均0.7905秒/step、global 80.96枚/秒を確認。A4 planは前段PASS・issuesなし。[GPU Evidence](experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md) |
 | 2026-10-20 | A4のstep2 Checkpoint→step3 Resumeを2GPU syntheticで正式検証。4工程exit0、stage/formal_resumeともPASS、固定閾値で3,608/3,608比較エントリbitwise一致。A3・A5-pairはNOT_RUN。[A4 Evidence](experiments/2026-10-20-meta-moco-a4-synthetic-two-gpu-step2-resume-formal-parity-evidence.md) |
 | 2026-10-20 | A3のMeta公式M対自作S1をsynthetic 1025step×2run、Queue一巡後まで実行。Stage/formalともPASS、比較58,790/58,790エントリbitwise一致、failures0、正式契約valid。所要時間約25分34秒・保存容量9.9G。A5-pair NOT_RUN。[A3正式Gate Evidence](experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md) |
+| 2026-10-20 | MoCo v2 global256/2GPU×local128の実ImageNet V1 30stepをMeta公式と自作の両実装で完了、全rank VRAM Gate PASS。ピークreservedはMeta13026MiB、自作13038MiB、headroom7069.875/7057.875MiB、Comet双方OFF。表示されたLoss/Cosine/Queue等は一致するが全パラメータbitwiseは未検証。MetaはDataLoader待ちが長く速度比較は保留。次はV1 offline input-hash比較を確認後、別許可でE1へ。[V1 Evidence](experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md) |
