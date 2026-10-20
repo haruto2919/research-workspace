@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: MoCo単体Meta公式との数値parity（A2実ImageNet1step、A3 synthetic1025step）がbitwise PASS。10epoch用runnerはdev@d6f7accでCPU52/52 PASS。ImageNet Global Batch256/2GPU FP32のV1（各30step）は両run VRAM PASS、記録指標一致。E1（Meta/自作各100step）は双方completed、入力hash2/2一致、Loss等11/11・grad norm2/2のbitwise一致（最大絶対誤差0）、両方Comet実験URLあり。epoch stateは未評価。次は別承認のE2（1epoch+checkpoint/state比較）、その後E3（10epoch）。
+summary: MoCo単体Meta公式との数値parity（A2実ImageNet1step、A3 synthetic1025step）がbitwise PASS。10epoch用runnerはdev@d6f7accでCPU52/52 PASS。ImageNet Global Batch256/2GPU FP32のV1（各30step）は両run VRAM PASS、記録指標一致。E1（Meta/自作各100step）は双方completed、入力hash2/2一致、Loss等11/11・grad norm2/2のbitwise一致（最大絶対誤差0）、両方Comet実験URLあり。epoch stateは未評価。E2（Meta/自作各1epoch+Comet+checkpoint/state比較）は2026-10-20に個別実行承認済み・GPU未実行。E3（10epoch）は別承認待ち。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-20
@@ -111,3 +111,4 @@ last_updated: 2026-10-20
 | 2026-10-20 | V1 30stepのMeta公式/自作でオフライン比較が完了。比較契約valid・両run completed・記録scalarはLoss等4/4、grad norm2/2完全一致（max_abs_diff=0）、入力ハッシュ1/1一致。epoch-state hashは未比較（None）。V1のresource feasibilityと記録指標parityのみPASS、E1/E2/E3は未実施・別許可。[V1 Evidence](experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md) |
 | 2026-10-20 | V1 30step×2の実ImageNet結果と比較器出力がPASS。ユーザーが次のE1（Meta公式・自作各100step、Comet `moco-imagenet-v2-reproduction`へライブ送信）のみ実行承認。研究コード・GPU実行・Comet通信はこのResearch Workspace更新時には未実施。E2/E3/E4は保留。[E1実行契約](specs/2026-10-20-meta-moco-v2-official-global256-imagenet-10epoch-comet-reproduction-spec.md) |
 | 2026-10-20 | E1（Meta公式と自作の実ImageNet各100step、global256、2GPU、FP32、Cometライブ）はユーザー提出ログで両run completed、契約valid、入力hash2/2一致、Loss等の全11地点・grad norm2地点でbitwise一致（max_abs_diff 0）。Comet実験リンク2件あり。Partial epochのためepoch state未評価、特徴品質未確認。次のE2（1epoch）は別承認待ち。[E1実験Evidence](experiments/2026-10-20-meta-moco-v2-e1-imagenet-100step-comet-parity-evidence.md) |
+| 2026-10-20 | ユーザーがE1再現性比較PASSを踏まえ、E2（Meta公式と自作各1epoch、ImageNet-1K/2GPU×local128/FP32、Cosine10epoch schedule・1epochで停止、Cometライブ、checkpoint/canonical state比較）のGPU実行のみ承認。仕様を更新済み、実験実行・結果は未確認。E3 10epochは別承認が必要。[E2採用実行契約](specs/2026-10-20-meta-moco-v2-official-global256-imagenet-10epoch-comet-reproduction-spec.md) |
