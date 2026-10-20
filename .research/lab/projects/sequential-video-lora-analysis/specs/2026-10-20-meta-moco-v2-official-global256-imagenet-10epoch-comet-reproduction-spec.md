@@ -1,7 +1,9 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: experiment-and-engineering
-status: approved
+status: superseded
+superseded_by: 2026-10-20-meta-moco-v2-imagenet-5epoch-sequential-comet-comparison-spec.md
+supersession_scope: E3_10epoch_planned_run_cancelled; historical V1 E1 E2 results remain valid
 created: 2026-10-20
 last_updated: 2026-10-20
 title: "Meta MoCo v2 Official Global Batch 256 ImageNet-1K 10-Epoch Reproduction and Comet Comparison"
@@ -318,3 +320,9 @@ Meta公式・自作の比較器出力で`curve_agreement=bitwise`、`contract_is
 - **E2の承認済み比較・保存契約を満たしたと判定**。ただしこれは模型のcanonical state SHA一致であり、native checkpoint形式・optimizer/RNG sidecarの全データの一致・resumeの正常動作・特徴品質を実証していない。Cometはrunner reportのURL＋errorsなしの確認であり、オンラインUIの最新メトリクスを別に再取得したわけではない。
 - 研究サーバのraw data/CheckpointはGitHub connectorから直接読めない。根拠は**ユーザー提示の実機検証ログ**。正本Evidence：[E2実験記録](../experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md)。
 - **E3（10epoch×2 run）は依然として未承認・未実行**。次の実験に進む場合は、所要時間・ストレージ・計測内容・表現診断の必要性を検討し、別のユーザー許可の後に実行する。
+
+### 2026-10-20 ユーザー指示による10epoch将来実行計画の取消
+
+ユーザーが長時間計算コストを理由に、**E3のMeta公式10epoch＋自作10epochの検証を行わず、各5epochへ変更**すると指定した。実行順は**Meta 5epoch→自作5epochを逐次自動実行**、Cometは別Experiment。未来の10epoch起動契約を現行として使用しない。
+
+採用後継は[5epoch逐次比較spec](2026-10-20-meta-moco-v2-imagenet-5epoch-sequential-comet-comparison-spec.md)。ここまで行ったV1、E1、E2の検証結果、実験ログ、Comet/Checkpointの既存artifact、200epoch公式例と10epoch短縮設定の技術的記録は**履歴として有効・削除しない**。後継specの「実装承認」と実際の研究コードGit push、5epoch長時間GPU実験の開始は別境界として扱う。
