@@ -258,3 +258,19 @@ A3は前段A4 PASS・clean commit・`issues=[]`でplan可能と確認済みだ�
 - 保全：run rootを上書き・削除せず、`A3/stage_summary.json`、`A3/compare/parity_report.json`とM/S1 run artifactを保持。
 - **未実施**：A5-pair（実ImageNet・100step OFF/Light各1runによる監視overhead測定）。次の操作はA3成果物から大きい`comparisons`配列を除外して集計のみ読み出すこと、および同じキャンペーンのA5-pairを**plan-only**で確認すること。A5-pairのGPU実行はまだ起動していない。
 - 証拠の記録：[A3の実験Evidence](../experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md)。
+
+---
+
+## 13. 2026-10-20 A3正式比較の確定集計と実測時間（§12追補）
+
+§12作成後に、ユーザーが研究サーバ上の`A3/stage_summary.json`と`A3/compare/parity_report.json`から判定・時間・ディスク容量を読み出した。以下が**A3の確定したGate Evidence**であり、§11・§12の「NOT_RUN」「詳細未確認」は当時の履歴。正本は[A3正式GPU実験Evidence](../experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md)。
+
+- Stage: **PASS**、`every step completed and every check holds`、`issues=[]`。fixture/M/S1/compareがすべてcompleted、exit0。
+- Comparator: `formal_implementation` **PASS**、`contract_valid=True`、事前固定`rtol=1e-5, atol=1e-6`、`run_consistency_issues=[]`。
+- **58,790/58,790比較エントリbitwise一致（100%）**。exact failures0、close failures0、first_failure/first_difference=None。
+- `steps_compared=1025`（step1〜1025）、`full_tensor_steps=[1,1024,1025]`。K65536/globalB64の初回Queue一巡点とその直後を含む。Queue pointer自体の観測実数は未提示。
+- `stage_summary.json`のwall時間：fixture `4.723967s`、Meta公式M `719.432634s`、自作S1 `732.377658s`、formal compare `76.990844s`。**4工程計1533.525103s＝約25分34秒**。
+- `du -sh A3`の実測表示は**9.9G**。事前のtrace推定`9.53 GiB`は総容量の上限を意味しなかった。
+- 上記数値は**ユーザーのSSH上コンソールからの集計出力**。ChatGPTはSSH上の原本tensor、fingerprint等を独立取得していない。
+- これはMeta公式対自作の**固定synthetic入力／2GPU／当該commit・fixture／1025step**の数値一致であり、実ImageNet長期学習・他seed/precision・性能や表現品質・LoRA/ViT/動画逐次入力への外挿は未検証。
+- 次の**A5-pairはNOT_RUN**。同じrootで`A5-pair --root "$ROOT"`をまずplanのみ実行、`previous=A3 PASS`、`issues=[]`、Git clean、GPU競合なし、出力衝突なしを確認する。OFF/Light各100stepの実GPU実行は次の明示操作。
