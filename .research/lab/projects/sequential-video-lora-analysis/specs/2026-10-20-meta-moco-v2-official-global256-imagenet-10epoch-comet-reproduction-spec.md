@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: experiment-and-engineering
-status: draft
+status: approved
 created: 2026-10-20
 last_updated: 2026-10-20
 title: "Meta MoCo v2 Official Global Batch 256 ImageNet-1K 10-Epoch Reproduction and Comet Comparison"
@@ -15,7 +15,7 @@ source_brainstorm: ../../../../secretary/notes/brainstorm/2026-10-20-meta-moco-c
 related_evidence:
   - ../experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md
   - ../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md
-approval: PENDING_REVIEW
+approval: USER_APPROVED_B1_B2_B3_B4_B5_2026-10-20
 b4_feature_evaluation: ADOPTED_LIGHTWEIGHT_HELDOUT_DIAGNOSTICS_KNN_OPTIONAL_2026-10-20
 comet_project_name: moco-imagenet-v2-reproduction
 comet_project_policy: ADOPTED_NEW_DEDICATED_PROJECT_AND_COMET_DOT_CONFIG_MANAGED_2026-10-20
@@ -25,7 +25,7 @@ b2_runtime_mode: ADOPTED_STRICT_DETERMINISTIC_BENCHMARK_OFF_TF32_OFF_2026-10-20
 b3_input_alignment: ADOPTED_SAME_SEED_PER_EPOCH_RANK_WITH_SAMPLED_INPUT_HASHES_2026-10-20
 b3_comet_mode: ADOPTED_LIVE_RANK0_LOCAL_JSONL_FIRST_2026-10-20
 b5_workers_checkpoints: ADOPTED_16_WORKERS_PER_RANK_EVERY_EPOCH_CHECKPOINT_KEPT_2026-10-20
-b1_stop_rule: IMPLEMENTED_AS_RECOMMENDED_HEADROOM_THRESHOLD_1024MIB_NOT_CONFIRMED
+b1_stop_rule: ADOPTED_FAIL_CLOSED_THRESHOLD_1024MIB_2026-10-20
 implementation: IMPLEMENTED_CPU_VERIFIED_COMMITTED_d6f7acc_PUSHED_2026-10-20
 implementation_record: ../experiments/2026-10-20-meta-moco-v2-10epoch-runner-implementation-verification.md
 vram_gate: NOT_RUN
@@ -34,9 +34,9 @@ comet_upload: NOT_RUN
 representation_evaluation: NOT_RUN
 ---
 
-# Meta公式MoCo v2条件でImageNet 10epochを実行し自作とComet比較するspec（draft）
+# Meta公式MoCo v2条件でImageNet 10epochを実行し自作とComet比較するspec（approved）
 
-> **今回採用されたこと**：公式MoCo v2の「Global Batch 256／初期LR 0.03」の8GPU例に含まれる数値設定を、利用可能なRTX A4500 **2GPU・local batch 128/GPU**で維持し、Meta公式と自作の**それぞれ10epoch**をImageNet-1Kで行い、Comet上のLoss等を比較する。**VRAM feasibilityは必須の事前Gate**。現在のcommitにこの専用10epoch経路はなく、研究コード編集・GPU実験・Comet送信は**このspec作成時点では一切行わない**。未解決の設計判断があるためstatusは`draft`で、approved/implementedではない。
+> **現行承認済み契約（2026-10-20）**：Meta公式MoCo v2のGlobal Batch256・初期LR0.03を2GPU・local128/GPUで維持し、Meta公式と自作を各10epoch学習してComet比較する。**先行V1 VRAM feasibility必須**。B1〜B5を採用済み（B4のkNNは任意）。実装は`dev@d6f7acc`、CPU test 52/52 PASS。**今回許可されたGPU実行はV1（30step×2run）のみ**。E1/E2/E3/Comet送信には別途実行合意が必要。V1の実機結果は未確認。
 
 ## 1. 背景と検証する問い
 
@@ -159,7 +159,7 @@ representation_evaluation: NOT_RUN
 
 `non-blocking`：CLI file名、local JSONL file名、Comet display nameの表記、既存helperの呼び出し構造等は既存repo規約に従う。ただしmetricキー、同一step同期、checkpoint/experiment identityを曖昧にしない。
 
-**Spec readiness: draft / BLOCKED FOR APPROVAL**。global256/local128/LR0.03/10epoch/公式MoCo v2/Comet比較/VRAM Gate必須は採用済み。**B4（軽量特徴量診断を必須・kNNは任意）とComet新規専用project `moco-imagenet-v2-reproduction` は2026-10-20ユーザーが採用済み**。B1の失敗時停止条件、B2のcuDNN運用、B3の**入力再生・ライブ/事後記録方式**、B5のworkers/Checkpoint等は未承認（B1/B2/B3残部/B5が残るblocking）。これらを解消するまでは`approved`へ昇格せず、実際のV1/E1/E2/E3 GPU実行・Comet送信も別許可。Comet project作成・存在確認は未実施。V1実機成功までは10epochを開始しない。
+**Spec readiness: approved（2026-10-20）**。B1：VRAM安全余裕1024MiB（各GPU）・OOM/異常時STOP・無断降格なし。B2：strict cuDNN/TF32。B3：同seed/入力hash＋Cometライブ（V1ではOFF）。B4：軽量特徴診断・kNN任意。B5：16 workers/rank＋epoch checkpoint。**blockingな設計判断なし**。ただし実機V1は未検証であり、E1/E2/E3は先行Gate PASSと別許可が必要。
 
 ## 9. Handoff（approved後に使用）
 
@@ -201,8 +201,18 @@ Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experi
 - **B3（Comet）**：ライブ送信。rank0がローカルJSONLを先に書いてから送る。Cometの障害では学習を止めず、記録して送信だけを停止する。resumeは親runと同じexperimentを継続するため、クラッシュ直前のstepが重複して表示されることがある。事後再送ツールは作らない。
 - **B5**：16 worker/rank（公式`--workers 32`を2GPUで分割）。epoch終了ごとにnative checkpointとrank sidecarを保存し、全epochを保持する。
 
-**B1**は改めて確認していない。specの推奨どおり「自動で条件を下げず停止」で実装した。GPU runは§2の採用recipe以外を起動前に拒否し、V1ではいずれかのGPUのheadroom（総量−max reserved）が`vram_gate.min_headroom_mib=1024`未満ならBLOCKEDとする。**この1024MiBという閾値は実装時に置いた既定値で、ユーザー未確認**。
+**B1採用履歴の更新（2026-10-20）**：前段の実装時点では未確認だったが、CPU52/52 PASSの報告と「B1の安全余裕を1024MiBで採用してV1（各30step）へ進めてよいか」の明示質問に対して、ユーザーは「次に進みます」と回答。**B1の閾値1024MiB・失敗時STOP/無断降格なしと、V1 Meta/Self各30stepの実行だけ採用・許可**。headroomはコード上「総量−当該プロセスのpeak reserved」であり、他ユーザーのGPU使用量を含まないため実行前の`nvidia-smi`確認が必要。
 
 **Comet宛先（最終形）**：研究repo直下の追跡済み`.comet.config`は、SDKの優先順位で`~/.comet.config`より強い。そのため、「`~/.comet.config`だけで宛先を管理する」という本specの想定どおりでは新projectへ送信されない。当初はユーザー提示のテンプレート形式の専用ファイルを`COMET_CONFIG`で指定する設計で実装した。しかしユーザーのcommit `3cade3d`で直下`.comet.config`の`project_name`が`moco-imagenet-v2-reproduction`へ変更され、専用ファイルとrunner用yamlは含まれなかった。確認のうえ、ユーザーは**直下`.comet.config`で管理する**方式を選択した（2026-10-20）。runner（`logging.comet_config: .comet.config`）は、このファイルを`COMET_CONFIG`として指定する。**この設定が続く間は、このrepoから明示的なproject指定なしで起動する他のComet実験（`train.py`、既存parity runなど）も`moco-imagenet-v2-reproduction`へ送られる**（§5の「既存projectと混在させない」と緊張関係にあり、ユーザー判断として記録する）。APIキーは引き続き`~/.comet.config`で管理する。送信前のpreflightでは、環境変数・`.env`を含めてSDKが解決する宛先が期待値と一致すること、APIキーが解決されることを確認する。一致しなければ学習もせずにfail-closedとする。オンライン確認では、workspaceへの到達性とprojectの事前存在も記録する。
 
 実装は`dev`の`3cade3d`（ユーザーcommit）と`d6f7acc`（yamlの復元とComet宛先の修正）としてorigin/devへpush済み。実装と検証の詳細は[実装・CPU検証記録](../experiments/2026-10-20-meta-moco-v2-10epoch-runner-implementation-verification.md)を参照。V1/E1/E2/E3・Comet送信・Comet project作成はいずれも**NOT_RUN**。E4軽量特徴診断の実装は今回の範囲外（§9 Handoffの「先に実装するもの」に含まれない）。
+
+
+### V1 GPU短時間検証への進行承認（2026-10-20）
+
+- ユーザー指示：「次に進みます」。直前のB1閾値1024MiBとV1 30step×2runの具体的な確認質問に対する同意。
+- 採用設定：ImageNet train、ResNet50+MLP128、K65536、m0.999/T0.2、2GPU×local128/global256、SGD LR0.03/mom0.9/wd1e-4、FP32、strict deterministic、16 workers/rank、V1は`gate=V1 training.max_steps=30 logging.comet_enabled=false`。初期state fixtureをMeta公式と自作に共通利用する。
+- V1の合格判断：Meta/Selfそれぞれ予定30stepを完了、loss有限でQueue/EMA動作に異常なし、両rankで`total_memory_mib − max_reserved_mib >= 1024`。`nvidia-smi`で他GPUプロセスの占有を事前確認する。OOM/NCCL異常/余裕不足ではSTOPし、BatchやAMPは変更しない。
+- V1後に両runの`run_report.json`からstatus・training_completed・vram_gate.status・per-rank headroom・GPUピーク・throughput・data waitを確認する。1件でもBLOCKEDなら停止。E1 100step、E2 1epoch、E3 10epoch、Comet実送信はV1の許可に含めない。
+- 事前の実機CPU testはユーザー提示ログで52/52 PASS、GitHub code `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` `d6f7acc75ee92adcf7e6e3e65831d46759b9ed14`がclean。今回のGitHubでの作業はspecのみで、GPU job・Comet・研究コード変更は行わない。
+- **`approved`は仕様承認であって、V1/E1/E2/E3や表現品質が実証されたことを意味しない**。実装済みE4軽量特徴診断は別扱い。
