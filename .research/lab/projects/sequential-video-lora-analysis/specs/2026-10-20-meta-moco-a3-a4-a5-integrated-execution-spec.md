@@ -32,7 +32,7 @@ approved_a3_a4_atol: 1.0e-6
 - [A2正式PASS](../experiments/2026-10-20-meta-moco-a2-imagenet-real-one-step-formal-gpu-parity-evidence.md)：ImageNet64枚・224px・ResNet50＋MLP・2GPU・local32/global64・K65536・FP32・独立fresh Meta M1 vs 自作S1 meta_einsum・1step。formal comparator judged3,926/bitwise3,926、差分0、事前fixed rtol1e-5/atol1e-6。**1stepまでのEvidence**。
 - [親Spec A（draft）](2026-10-17-meta-moco-v2-imagenet-ddp-parity-spec.md) はA3=Queue一巡と複数step数値比較、A4=checkpoint/resume、A5=ImageNet実画像100〜300step GPU速度/VRAMと規定。A3/A4/A5全体の正式実行許可と判定閾値は自動付与されない。
 - [通常InfoNCE opt-in spec（implemented）](2026-10-19-meta-infonce-normal-moco-opt-in-spec.md) はself既定を維持しつつ`moco.info_nce_impl=meta_einsum`を明示選択する仕組み、run report/Checkpoint identity、formal pairs、bench軽量monitorを実装。CPU MoCo testsは279/279 PASS（当該時点の記録）。
-- [A5単独draft](2026-10-20-meta-moco-a5-imagenet-gpu-bench-monitor-overhead-experiment-spec.md) の20step pilot→100step監視OFF/ON方針を**候補として再利用**。本統合specがapprovedになった時に重複を整理し、A5単独draftを黙ってimplemented/approvedへ変更しない。
+- [A5単独draft](2026-10-20-meta-moco-a5-imagenet-gpu-bench-monitor-overhead-experiment-spec.md) で提案された20step pilot→100step監視OFF/ON方針は**本統合specで採用済み**。統合specを実行条件の優先SSOTとし、A5単独draftのstatusは変更せず、実装時に両者の重複を生じさせない。
 - GitHub `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`、commit `dc502e416aa26ed4e0791767fa5a72f7843e399d` の `conf/moco_imagenet_parity.yaml`、`scripts/parity/moco_imagenet_parity.py`、`scripts/parity/build_moco_parity_fixture.py`、`scripts/parity/compare_moco_parity.py`、`test/model/test_moco_parity_harness.py` をread-only確認した。これは**GitHub上のcommit**であり研究サーバの現dirtyやGPU実行状態を示すものではない。repoルート/当該parity配下のAGENTS.md/CLAUDE.mdはGitHub上で見当たらない。
 
 ### GitHubコード上で実装済み
@@ -45,7 +45,7 @@ approved_a3_a4_atol: 1.0e-6
 
 **後日の実装対象として採用**：`scripts/parity/`の既存CLIに渡すコマンドとfresh出力を段階管理する**最小限の共通ランチャー**およびCPU dry-run／validation tests。MoCo本体・parity loop・bench loop・comparatorの数式/判定やHydra既定値は変更しない。複雑なフレームワーク・新dependency・公式ソースのコピーは不要。ランチャーは外部挙動を既存CLI起動・出力契約に限定し、後日の実装時もより小さい構成で同じ契約を満たせるなら差分を最小化する。**今回はコードを一切編集しない。**
 
-## 2. 分離すべきGateと提案順序
+## 2. 分離すべきGateと採用済みの段階順序
 
 1. **事前確認**：研究コード・Meta参照cloneのcommit/clean、ImageNet NAS read-only、2GPU/NCCL可用性、GPU競合、出力容量、seed/precisionを確認。既存A2は容量目安の1stepにすぎない。
 2. **A5小pilot（先）**：`run_kind=bench gate=A5 implementation=self moco.info_nce_impl=meta_einsum diagnostic.info_nce_impl=null`、ImageNet/224/local32/K65536/FP32/2GPU、20step、monitor OFF。GPU/NAS/DataLoaderとVRAMのfeasibilityを先に確認。
@@ -53,7 +53,7 @@ approved_a3_a4_atol: 1.0e-6
 4. **A3長いGPU Queue一巡**：Meta公式referenceと自作self `meta_einsum`を同一**synthetic** canonical fixture（224px/local32/K65536/seed0）から独立freshで`run_kind=parity gate=A3 training.max_steps=1025 'trace.full_steps=[1,1024,1025]'`。同batch global64でstep1024に初期random Queueが全置換され`queue_ptr=0`、step1025に`queue_ptr=64`となる。毎step軽いtraceとfull step traceを区別し、`--pair-kind formal_implementation`で比較。**既存runnerはparityで毎step traceを保存し、CPU↔GPU同期やI/Oコストがある**ため、正式長時間job前に容量/速度見積りが必要。A1の小K wrap検証と実K長期を混同しない。
 5. **A5本計測**：A5-0がPASSした場合、必要な時点で独立fresh100step×2本（monitor OFF → Light）、warmup10、window10、Comet OFF。ImageNet DataLoaderのサンプル順・seed・構成を一致させ、VRAM・throughput・DataLoader wait・measurement windowを比較。**A3/A4のheavy trace時間をA5性能計測へ使わない**。逆順再演はノイズが大きい場合のオプションであり初回必須ではない。
 
-**A5 pilot→A4→A3→A5 paired**は、いずれかの工程で止まっても後続を無許可に流さず、失敗理由と保存済みartifactが追跡できる提案。単一コマンドの一括起動でも、**各Gateの実行許可は別個に表現**する。
+**A5 pilot→A4→A3→A5 paired**は、今回採用した段階順序であり、いずれかの工程で止まっても後続を無許可に流さず、失敗理由と保存済みartifactを追跡できる。単一コマンドの一括起動でも、**各Gateの実行許可は別個に表現**する。
 
 ## 3. 採用済み条件（設計承認。GPU実機結果ではない）
 
