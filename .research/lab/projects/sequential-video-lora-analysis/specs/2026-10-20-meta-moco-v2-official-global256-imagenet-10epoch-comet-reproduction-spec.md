@@ -34,7 +34,7 @@ v1_offline_comparison: INPUT_HASH_1_OF_1_AND_LOGGED_METRICS_BITWISE_PASS_2026-10
 e1_execution_authority: USER_APPROVED_META_AND_SELF_100STEP_WITH_COMET_ON_2026-10-20
 e1_execution_status: META_SELF_100STEP_COMPLETE_INPUT_HASH_2OF2_METRICS_BITWISE_2026-10-20
 e2_execution_authority: USER_APPROVED_META_AND_SELF_ONE_EPOCH_WITH_COMET_2026-10-20
-e2_execution_status: META_SELF_EPOCH_COMPLETED_5004_STEPS_SAMPLED_METRICS_BITWISE_STATE_CHECK_PENDING_2026-10-20
+e2_execution_status: META_SELF_EPOCH5004_ALL_COMPARE_VERDICTS_PASS_CANONICAL_MODEL_STATE_EQUAL_2026-10-20
 e2_partial_evidence: ../experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md
 e1_evidence: ../experiments/2026-10-20-meta-moco-v2-e1-imagenet-100step-comet-parity-evidence.md
 comet_destination_verified: E1_META_AND_SELF_EXPERIMENT_URLS_PRESENT_2026-10-20
@@ -301,3 +301,9 @@ Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experi
 Meta公式・自作の比較器出力で`curve_agreement=bitwise`、`contract_issues=[]`、入力ハッシュ`51/51`一致、Loss・Positive/Negative/Hardest Cosine・LR・Queue Pointer・finiteはそれぞれ`502/502`一致（max_abs_diff=0.0）、Query Grad Norm`52/52`一致、epoch0は両者`completed=true,global_step=5004`、mean loss差0.0。
 
 ただし貼付が末尾で途切れ、**`epochs[0].canonical_state_equal`および`verdicts.epoch_states_identical`は未確認**。比較器はepoch SHA未記録時にも`curve_agreement=bitwise`を表示し得るため、現時点での承認済みE2全体の正式判定は**保留**する。`run_report.json`とCheckpoint/sidecar/Comet状態も必要に応じて照合。原本: [E2暫定実験結果](../experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md)。E3 10epoch実行は未承認であり、本追記はE3実行を許可しない。
+
+### E2正式比較判定：モデル状態の一致を確認（2026-10-20 20:55 JST）
+
+ユーザーが`moco_v2_e2_20261020_173541/comparisons/e2_20261020_205017/comparison_report.json`から次の値を追加提示：`contract_valid=True`, `both_completed=True`, `inputs_identical=True`, `metrics_bitwise_equal=True`, **`epoch_states_identical=True`**, `curve_agreement=bitwise`。`epochs[0]`は`completed=[True,True]`, `global_step=[5004,5004]`, `lr_equal=True`, `loss_mean_abs_diff=0.0`, **`canonical_state_equal=True`**。比較スクリプト上`E2 comparison PASS=True`。前段の`canonical_state_equal`未確認は解消。
+
+**E2比較契約の再現性GateはPASS**（記録scalar完全一致、input hash 51/51、canonical epoch-end model state SHA一致）。**ただしCheckpoint本体/rank sidecarsの実在性、Comet URL/errorsは最新貼付ログからはまだ独立確認できない**ので、長期E3の前にrun_reportとディスク上で別途確認する。モデルcanonical state一致と、Optimizer/RNG/Checkpointファイル全体の同一性は別の主張。ImageNetの表現学習品質も未評価。正本記録： [E2比較Evidence](../experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md)。**E3 10epochは未承認、未実行**である。
