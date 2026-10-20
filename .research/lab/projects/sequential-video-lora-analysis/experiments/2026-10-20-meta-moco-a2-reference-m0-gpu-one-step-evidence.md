@@ -2,7 +2,7 @@
 project: sequential-video-lora-analysis
 date: 2026-10-20
 record_type: user-provided-terminal-evidence
-status: meta-reference-m0-completed-m0r-not-run
+status: meta-reference-rerun-bitwise-reproducible-formal-not-run
 evidence_level: gpu-diagnostic-one-step
 gate: A2
 run_kind: parity
@@ -80,3 +80,44 @@ if isinstance(v, dict) and v.get("status") not in ("PASS", "INFO")
 - [A2 fixture生成・整合性PASS](2026-10-20-meta-moco-a2-imagenet-fixture-generation-evidence.md)
 
 本記録はユーザー出力由来であり、研究サーバの実体、run artifactsファイルの内容全体をChatGPTが直接検査したものではない。研究サーバのcloneはGitHub書込みで同期されない。
+
+---
+
+## 2026-10-20 M0r・M0 vs M0r 再現性診断（追加Evidence）
+
+この追記はユーザーが研究サーバで実行したログの転記・分析であり、ChatGPTがSSH上のraw artifactを直接閲覧して独立検証した結果ではない。
+
+### 事前チェックとM0rの成功
+
+前回の確認コードで誤ってエラー扱いになった `verification.max_errors`（辞書にstatus fieldがないため）をスキップしてM0のstatus付きcheckのみを再評価した。16項目が`PASS`、BN rank差に関する2項目が`INFO`、`META M0 VERIFICATION PASS`。
+
+- Meta M0r run：`/mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora/log/moco_imagenet_parity/runs/a2_M0r_20261020_090749`
+- Git preflightは前回固定commit・clean検査と整合。GPU freeは0/1とも20082 MiB（ユーザー出力）。
+- M0r `Saved run artifacts`、`META M0r VERIFICATION PASS`。
+- M0r step 1 rank 0：loss `6.47951602935791`、positive_cosine_mean `0.9418870925903321`、negative_cosine_mean `-0.0001348661258816719`、queue_ptr `64`、lr `0.0075`、query_grad_norm `19.536392104956256`、query_update_norm `0.1465230765670673`。M0の報告と一致。
+- M0r `step_time_sec_with_tracing=2.034807861004083`、M0の値は10.245887390999997で異なる。wall timeは初回ウォームアップ・I/Oなど条件依存があるため**計算値の非再現性とみなさず**、A5性能結論にも使わない。
+
+### CPUオフライン comparatorの実測
+
+`--pair-kind rerun --gate A2 --threshold-status provisional`にてM0をreference、M0rをcandidateとした。
+
+- 比較出力：`/mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora/log/moco_imagenet_parity/compare/a2_M0_M0r_20261020_090802/parity_report.json`
+- `Comparison status: BLOCKED`：`threshold is provisional (spec §5.3): diagnostic only; 0 float tensors outside the provisional tolerance`。
+- `counts={'judged':3926,'exact_failures':0,'close_failures':0,'bitwise_equal':3926}`。
+- `first_difference: None`、`first_failure: None`。
+
+**Evidence判定：Meta公式同一fixture・同一環境での2独立fresh runの比較対象3,926件は全件bitwise一致。再現性診断の数値契約はクリア。比較器の`BLOCKED`は暫定閾値ゆえの正式判定保留であって再現性失敗ではない。**
+
+**3,926はtrace上の比較entry数であり、画像枚数や浮動小数scalar要素数を意味しない。** 壁時計測値が異なることはこの記録対象の再現性違反とはみなさない。
+
+### A2正式判定の閾値案（まだ未承認）
+
+- `rtol=1e-5, atol=1e-6`を事前固定候補として推奨（A1の過去採用値と同じ）。離散量/入力hash/permutation/pointerはexact。floatは`abs(Self-Meta) <= 1e-6 + 1e-5 * abs(Meta)`。bitwise一致率は別指標として記録。
+- M0/M0rで誤差が観測されなかった事実は**零許容差をA2の科学的必要条件にする根拠にはならない**。A2で計算方式の異なる独立実装同士の浮動小数比較を行うため、現行compareの共通thresholdとA1の確定値を維持するのが比較可能性上の推奨。再現性floorは0だが選んだ非ゼロ閾値は「実装差を許容する設計基準」であり自動最適化された統計区間ではない。
+- **この推奨はユーザー承認前**。正式M1/S1はまだ`NOT_RUN`、A2 specは`draft`のまま。閾値のユーザー採用と正式runへの別実行指示が必要。先行するM0/M0rをformal判定へ転用しない。
+
+### Next Gate
+
+1. この閾値とexact条件をユーザーが決定し、[A2実験spec](../specs/2026-10-20-meta-moco-a2-imagenet-one-step-parity-experiment-spec.md)に`fixed`として事前記録する。
+2. 事前承認後、既存fixtureを用い**新規fresh M1 と新規fresh 自作S1**を各2GPU/NCCL 1stepで独立実行。両方のresolved configに同じfixed閾値・flagsを記録する。
+3. `compare_moco_parity.py --pair-kind formal_implementation`でM vs S1を判定し、runと比較の成果物からPASS/FAIL/INVALID/BLOCKEDを区別してResearch Workspaceへ記録する。OOM、rank不一致、NaN/Infの場合は条件自動変更なしで停止。
