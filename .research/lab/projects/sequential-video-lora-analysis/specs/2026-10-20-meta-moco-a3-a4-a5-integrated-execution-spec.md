@@ -20,7 +20,8 @@ implementation_commit: 914e736c2699e2e129211a888d1f19013dd1dd1a
 engineering_cpu_gate: PASS
 engineering_cpu_fast_regression: "29 passed (new launcher 23 + parity selected 6); existing full suite not verified"
 implementation_record: ../experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md
-gpu_experiments: "A5-pilot PASS; A4 NOT_RUN; A3 NOT_RUN; A5-pair NOT_RUN"
+gpu_experiments: "A5-pilot PASS; A4 PASS; A3 NOT_RUN; A5-pair NOT_RUN"
+a4_evidence: ../experiments/2026-10-20-meta-moco-a4-synthetic-two-gpu-step2-resume-formal-parity-evidence.md
 a5_pilot_evidence: ../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md
 approved_on: 2026-10-20
 research_code_edits_authorized_now: true  # 2026-10-20 user implementation request (launcher + CPU tests only)
@@ -183,3 +184,17 @@ FAIL／INVALID／BLOCKED／NOT_RUNを分離する。監視の百分率上限を�
 **A5-pilotのみ2026-10-20に実GPUでPASS**：campaign `a345_20261020_114641`、ImageNet実画像、RTX A4500×2、20step、normal`meta_einsum`、monitor OFF。ランチャー標準判定`A5-pilot PASS: every step completed and every check holds`はユーザー提供terminalに基づく。その後ユーザーが`stage_summary.md`/`run_report.json`の表示ログを提出し、GPU peak reserved 3788/3886MiB、step time約0.7905秒、global throughput約80.96 images/sec、DataLoader wait約0.599/0.586秒/stepを確認。[正本GPU Evidence](../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md)参照。
 
 **A4、A3、A5-pairは引き続きNOT_RUN。** この**同じcampaign root**でA4の`plan`を行い、ユーザー提供terminalで`previous stage A5-pilot = PASS`、`issues=[]`を確認済み。**A4のGPU実行自体はまだNOT_RUN**であり、実行時にはGPU競合や研究repoのcleanを再検査する。A3（各1025step）とA5-pair（OFF/Light各100step）の実行結果を推測で補わない。
+
+---
+
+## 10. 2026-10-20 A4実GPU Formal PASS（後続Evidence）
+
+ユーザー提供の研究サーバterminalに表示された`A4/stage_summary.json`と`A4/compare/parity_report.json`によって、採用済みのA4 fixed-threshold formal checkpoint/resume Gateが**PASS**と確認された。詳細と根拠は[A4正式Evidence](../experiments/2026-10-20-meta-moco-a4-synthetic-two-gpu-step2-resume-formal-parity-evidence.md)。
+
+- campaign rootはA5-pilotと同じ`log/moco_imagenet_parity/gates/a345_20261020_114641`。
+- Stage A4: **PASS**、reason `every step completed and every check holds`、`issues=[]`、fixture / uninterrupted / resumed / compare の4工程は全てcompleted・exit0。
+- Compare `formal_resume`: **PASS**、`contract_valid=true`、`steps_compared=[3]`、`full_tensor_steps=[3]`、事前固定`rtol=1e-5` /`atol=1e-6`、`threshold_status=fixed`。
+- Judged comparison entries **3,608/3,608 bitwise一致**、exact failures0、close failures0、first difference/failureなし。**step2 checkpointからのstep3再開**を、同一自作実装の中断なしstep3と比較したもの。A2/A3のMeta公式対自作比較とは異なる。
+- **Evidence boundary**: 指定synthetic fixture・2GPU・3stepの実行についての正式比較。長時間の任意Resume、実ImageNet DataLoader resume、A3の1025stepや特徴表現品質の証明ではない。
+- Current GPU Gates: **A5-pilot PASS / A4 PASS / A3 NOT_RUN / A5-pair NOT_RUN**。
+- **次のGate**：A3はMeta公式Mと自作S1の**1025step×2run**、synthetic224px/local32/K65536で、各stepのsmall traceとstep1/1024/1025のfull traceを保存する。A5-pilotの`run_kind=bench`で得た0.79秒/stepをparity本番時間として扱わない。実行前にA3 `plan`とA4 trace/artifactのサイズ計測を行い、GPU・disk・所要時間の見積りを確定してから別にrun指示を受ける。
