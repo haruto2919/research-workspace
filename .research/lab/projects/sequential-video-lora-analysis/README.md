@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: MoCo単体CIFAR-10工学PASS、Meta公式対自作ImageNet2GPU A2は3,926/3,926 bitwise PASS。A3/A4/A5段階ランチャーはdevへcommit済み、CPU軽量29件PASS、実ImageNet2GPUのA5-pilot 20step PASS。A4/A3/A5-pair・表現品質は未検証。
+summary: MoCo単体CIFAR-10工学PASS、Meta公式対自作ImageNet2GPU A2は3,926/3,926 bitwise PASS。A3/A4/A5段階ランチャーはdevへcommit済み、CPU軽量29件PASS、実ImageNet2GPUのA5-pilot 20step PASS。A4/A3/A5-pair・表現品質は未検証。A5-pilot資源はpeak reserved 3788/3886MiB、80.96 global images/sec、data wait約0.59s/step。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-20
@@ -53,7 +53,7 @@ last_updated: 2026-10-20
 
 同日、承認済みの[A3/A4/A5統合実行spec](specs/2026-10-20-meta-moco-a3-a4-a5-integrated-execution-spec.md)に従い、既存のfixture生成・runner・comparatorを呼び出すだけの**段階ランチャー**（`scripts/parity/run_moco_gates.py`）とCPUテスト23件を追加した（実装当初未commit、既存ファイル無変更。その後devの914e736へcommit）。A5-pilot→A4→A3→A5-pairを1 stageずつ明示実行し、出力衝突・dirty・前段非PASS・GPU不足/使用中では何も書かずに停止する。CPUテストとミューテーション確認はPASSした（この段落は実装当初の状態）。GPU Gateの更新後状況は次段落に示す。詳細は[実装・CPU検証記録](experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md)。
 
-同日11:46頃、統合ランチャーの実ImageNet-1K・RTX A4500×2・FP32・ResNet50・localB32/K65536・20step通常bench **A5-pilotがPASS**（`a345_20261020_114641`、`S1_off20`）。ユーザーが提示した端末ログでrun前preflight clean（research dev `914e736c...`、Meta `a419ef2`）、GPU2枚利用可能、ImageNet trainの存在、`issues=[]`と、run後`A5-pilot PASS: every step completed and every check holds`を確認。CPU軽量検証は新規23件＋既存代表6件の**29 passed / EXIT_CODE=0**。数値VRAM・throughputはraw report未提出のため未記録。**A4・A3・A5-pairはNOT_RUN**。詳しくは[A5-pilot GPU Evidence](experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md)を参照。
+同日11:46頃、統合ランチャーの実ImageNet-1K・RTX A4500×2・FP32・ResNet50・localB32/K65536・20step通常bench **A5-pilotがPASS**（`a345_20261020_114641`、`S1_off20`）。ユーザーが提示した端末ログでrun前preflight clean（research dev `914e736c...`、Meta `a419ef2`）、GPU2枚利用可能、ImageNet trainの存在、`issues=[]`と、run後`A5-pilot PASS: every step completed and every check holds`を確認。CPU軽量検証は新規23件＋既存代表6件の**29 passed / EXIT_CODE=0**。追加でユーザーがrun reportとstage summaryの表示ログを提示し、GPU peak reservedはrank0=3788MiB/rank1=3886MiB、ウォームアップ後10stepの平均step時間は約0.7905秒、global throughputは約80.96枚/秒、data waitはrank0約0.5992秒/step・rank1約0.5857秒/stepと確認。**A4・A3・A5-pairはNOT_RUN**、A4のplanは前段PASS・`issues=[]`。詳しくは[A5-pilot GPU Evidence](experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md)を参照。
 
 実装の正しさと基盤の成立を検証した後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
@@ -98,4 +98,4 @@ last_updated: 2026-10-20
 | 2026-10-15 | Standalone MoCoの実CIFAR-10 GPU Queue置換64stepとGate C 500stepが工学的PASS。特徴表現の識別性・時間情報の学習は未検証。結果はexperimentsのEvidence記録を参照 |
 | 2026-10-20 | Meta公式M0/M0r再演の3,926/3,926 bitwise一致後、事前固定FP32閾値によるImageNet実画像・ResNet50・2GPU×1stepのMeta公式M1対自作S1でFormal A2 PASS（3,926/3,926 bitwise）。A5/A3/A4・表現品質は別検証 |
 | 2026-10-20 | A3/A4/A5統合実行specに従い段階ランチャーとCPUテスト23件を実装（未commit、既存ファイル無変更）。CPU検証PASS、GPU Gateは全てNOT_RUN。詳細は[実装・CPU検証記録](experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md) |
-| 2026-10-20 | A3/A4/A5ランチャーをdev@`914e736c`へcommit済みと確認。CPU軽量29件PASS、plan全4stage正常。ImageNet実画像2GPUのA5-pilot 20stepはランチャー判定PASS。A4/A3/A5-pairは未実施、VRAM/速度の詳細は未取得。[GPU Evidence](experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md) |
+| 2026-10-20 | A3/A4/A5ランチャーをdev@`914e736c`へcommit済みと確認。CPU軽量29件PASS、plan全4stage正常。ImageNet実画像2GPUのA5-pilot 20stepはランチャー判定PASS。A4/A3/A5-pairは未実施。追加表示ログでGPU peak reserved 3788/3886MiB、平均0.7905秒/step、global 80.96枚/秒を確認。A4 planは前段PASS・issuesなし。[GPU Evidence](experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md) |
