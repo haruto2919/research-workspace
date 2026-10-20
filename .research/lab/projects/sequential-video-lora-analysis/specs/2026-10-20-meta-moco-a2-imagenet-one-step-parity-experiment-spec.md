@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: experiment
-status: approved
+status: implemented
 title: "Meta MoCo v2 vs Self meta_einsum — A2 ImageNet-1K real-image 2GPU one-step FP32 parity"
 created: 2026-10-20
 last_updated: 2026-10-20
@@ -14,16 +14,22 @@ implementation_commit: dc502e416aa26ed4e0791767fa5a72f7843e399d
 reference_repository: facebookresearch/moco
 reference_commit: a419ef282fc9885015674e77f58c59447206a27f
 input_evidence: "../experiments/2026-10-20-moco-normal-infonce-opt-in-cpu-verification.md"
-gpu_gate: FORMAL_NOT_RUN
+gpu_gate: FORMAL_PASS
 a2_formal_threshold: fixed
 a2_rtol: 1.0e-5
 a2_atol: 1.0e-6
 a2_discrete_rule: exact
+formal_completed_on: 2026-10-20
+formal_judged_entries: 3926
+formal_bitwise_equal_entries: 3926
+formal_exact_failures: 0
+formal_close_failures: 0
+formal_evidence: "../experiments/2026-10-20-meta-moco-a2-imagenet-real-one-step-formal-gpu-parity-evidence.md"
 ---
 
-# A2実験spec（approved）：ImageNet実画像・2GPU・1stepでMeta公式と自作MoCoを数値比較
+# A2実験spec（implemented）：ImageNet実画像・2GPU・1stepでMeta公式と自作MoCoを数値比較
 
-> **現行状態：approved／正式M1/S1 GPU runは未実施。** 2026-10-20ユーザーが、M0/M0rの完全再現性診断後に`rtol=1e-5`、`atol=1e-6`、離散exact、fresh M1/S1（各2GPU×1step）正式比較を明示採用した。過去のdraft記述・候補欄については本書末尾の「承認記録」が優先する。研究コード変更・他Gate実行は許可しない。
+> **現行状態：implemented／正式A2比較PASS（2026-10-20ユーザー提供run）。** 2026-10-20ユーザーが、M0/M0rの完全再現性診断後に`rtol=1e-5`、`atol=1e-6`、離散exact、fresh M1/S1（各2GPU×1step）正式比較を明示採用した。過去のdraft記述・候補欄については本書末尾の「承認記録」が優先する。研究コード変更・他Gate実行は許可しない。
 
 ## 1. 目的・主張の範囲
 
@@ -265,3 +271,15 @@ Decision Gate D1への**推奨値**：`rtol=1e-5, atol=1e-6`、離散状態 exac
 | Meta reference M0/M0r independent 2GPU 1step | COMPLETED / BITWISE 3926 of 3926 |
 | A2 numeric threshold | FIXED / APPROVED BEFORE M1-S1 |
 | M1 vs S1 formal implementation GPU parity | NOT_RUN |
+
+
+---
+
+## 2026-10-20：正式M1/S1 GPU検証完了・Gate A2 PASS（現行Authority）
+
+- **status: implemented（A2実験specの必須検証が完了したという意味）**。MoCo研究コードへの新規変更を意味しない。現行frontmatterの`gpu_gate: FORMAL_PASS`が最新であり、前節の`NOT_RUN`や古いdraft時点の記述は当時の履歴。
+- ユーザーは正式承認後に **fresh Meta公式 M1とfresh自作 S1 (`meta_einsum`) を同じ検証済みImageNet-1K fixtureで2GPU/NCCL各1step独立実行**。両runとも`completed`、`completed_steps=1`、mode/effective per rank一致、`threshold_status=fixed`と`rtol=1e-5/atol=1e-6`、全status付きwithin-run checks PASS/INFO、両rank full trace存在を独立にユーザー側スクリプトでassertして`BOTH FORMAL RUNS COMPLETED`。
+- CPU offline `--pair-kind formal_implementation --gate A2 --threshold-status fixed`：**`FORMAL STATUS: PASS`**、judged **3,926**、bitwise equal **3,926/3,926**、exact failures 0、close failures 0、first difference/failure `None`。3,926は比較エントリ数であってscalar element数ではない。
+- Run root：`/mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora/log/moco_imagenet_parity/formal_a2_20261020_091930`。M1、S1、compareはそれぞれこの配下の独立directory。元fixture SHA `9edede9195eccef13e7ec8446880d6bfc6a550b11e96b466dbf047723d24b4ac`。
+- 詳細：[A2 Formal GPU Parity Evidence](../experiments/2026-10-20-meta-moco-a2-imagenet-real-one-step-formal-gpu-parity-evidence.md)。根拠は**ユーザー共有のrun/comparator標準出力**であり、ChatGPTはSSH上のraw tensor・trace・JSONを直接取得していない。
+- これによりA2の固定実画像・2GPU・1step・対象Traceの公式一致は支持される。ただし**Queue一巡A3、resume A4、monitor/throughput A5、10epoch、linear probe、ViT/LoRA/動画での有効性は未検証**。A5実行を含む次のGPU Gateは別specと明示承認が必要。
