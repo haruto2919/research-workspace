@@ -17,6 +17,9 @@ related_evidence:
   - ../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md
 approval: PENDING_REVIEW
 b4_feature_evaluation: ADOPTED_LIGHTWEIGHT_HELDOUT_DIAGNOSTICS_KNN_OPTIONAL_2026-10-20
+comet_project_name: moco-imagenet-v2-reproduction
+comet_project_policy: ADOPTED_NEW_DEDICATED_PROJECT_2026-10-20
+comet_project_creation: NOT_VERIFIED
 implementation: NOT_STARTED
 vram_gate: NOT_RUN
 ten_epoch_training: NOT_RUN
@@ -63,7 +66,7 @@ representation_evaluation: NOT_RUN
 | MoCo arithmetic | Meta公式builderに対して自作`moco.info_nce_impl=meta_einsum` | 既存A3のformal結果を参照 |
 | Training precision | FP32、AMPなし（採用したA2/A3の検証精度を暫定推奨） | **cudnn.benchmark/TF32などの運用整合はBlocking B2** |
 | Metadata/seed | seed0を初期候補 | hash/commit/cuda/torch/package/worker RNGを記録 |
-| Comet | 同一Comet projectで公式/自作を別experiment、metric名/step・epoch軸を統一 | **送信方法と同期方針はBlocking B3** |
+| Comet | **新規専用project `moco-imagenet-v2-reproduction`（ユーザー採用済み）**。同一project内にMeta公式/自作の**別experiment**を作り、metric名・step/epoch軸を統一 | projectはまだ作成・存在確認していない。**送信方法と入力同期方針はBlocking B3** |
 
 **step数の予算**：rankごとの`DistributedSampler`が`ceil(1,281,167/2)=640,584`件を扱い、`drop_last=True`、local batch128で`floor(640,584/128)=5004`step/epoch。**10epochで50,040 optimizer updates/実装**、2本で**100,080 updates**。サンプラpadding/末尾dropにより各epochですべての画像をちょうど1回学習する契約ではない。実際のsampler/loader lengthを両rankで事前検証する。
 
@@ -106,7 +109,7 @@ representation_evaluation: NOT_RUN
 - 10stepごと：`loss`（学習のmini-batch InfoNCE）、`positive_cosine_mean`、`negative_cosine_mean`、`lr`、`queue_ptr`、finiteなど。可能なら`hardest_negative_cosine_mean`。
 - 100stepごと：`query_grad_norm`。full Query param cloneを必要とする`query_update_norm`はoverhead/必要性を測ってから別途選択し、全step計測しない。
 - epochごと：sample-weighted mean loss、例数、global step、duration、GPU peak allocated/reserved、checkpoint SHA、再開有無。
-- 公式と自作は**別experiment**で同一project・同一groupとし、role=`meta_reference`/`self_meta_einsum`、image resolution、epoch数、global batch、LR、K、seed、Git commit、state/input policyを明記する。グラフは2系列オーバーレイ＋差分、epoch-wise summaryを作る。metricの定義とサンプリングstepを統一する。
+- Comet projectは**今回の専用新規project `moco-imagenet-v2-reproduction`（ユーザー採用済み）**とし、従来のActivityNet/動画LoRA等のprojectへ混在させない。公式と自作は**同一project内の別experiment**・同一groupとし、role=`meta_reference`/`self_meta_einsum`、image resolution、epoch数、global batch、LR、K、seed、Git commit、state/input policyを明記する。グラフは2系列オーバーレイ＋差分、epoch-wise summaryを作る。metricの定義とサンプリングstepを統一する。設定ではSDKの暗黙デフォルトに依存せず、`comet_project`を明示する。projectの作成・所有workspace・権限は初回送信前のpreflightで実環境から確認する。
 - **local artifactがSSOT**：各runの軽量history（JSONL等）、checkpoint、epoch summary/manifestを先に原子保存。Comet通信の失敗でGPU学習を破綻させず、イベントidとsource hashを使って再送/二重送信を抑える。credential/API keyはログ/Repo/Comet parameterに記録しない。
 - Cometライブ送信 vsローカルに保存して後からアップロードの運用選択はユーザー承認待ち。比較可視化とscientific Gateを混同しない。
 
@@ -143,13 +146,13 @@ representation_evaluation: NOT_RUN
 |---|---|---|
 | **B1** | **V1でlocal128がOOMまたはVRAM安全余裕不足になった場合** | 公式Batch256/LR0.03を維持してSTOP。追加GPU等の別条件を提案、**global64やAMPへ自動降格しない**（今回のユーザー採用を守る）。この停止規則は提案で、V1実測までfeasibility自体は不明 |
 | **B2** | **公式の`cudnn.benchmark=True`などの実行モードとA3の厳密再現設定のどちらを優先するか** | 公式条件忠実を第一候補に両runで揃え、modeをprovenanceに保存。bitwiseはA3 formal Gateの既存証拠として別立て。ただし再現性優先なら両方benchmark OFF等で固定する代替案 |
-| **B3** | **どこまで完全に同じ学習入力を再生し、Cometをライブ送信するか** | **公式M/Selfを同一state＋同じImageNetサンプル順＋同じ2-view拡張で比べる**方式を推奨。非同期/事後アップロードで原runを壊さず、Cometには2系列・epoch/step・source hashを残す。augmentationの再生は公式transform分布を変えない実装で検証する。完全同期がコスト過大なら独立runの曲線類似と区別 |
+| **B3（一部採用済み）** | **入力再生とComet記録方式** | **Comet保存先はユーザー決定済み：新規project `moco-imagenet-v2-reproduction`、同一project内でMeta/Selfを別experiment。**残りは**公式M/Selfを同一state＋同じImageNetサンプル順＋同じ2-view拡張で比べる**方法、ライブ送信か再送可能な事後アップロードか、入力再生コストの判断。非同期/事後アップロードで原runを壊さず、2系列・epoch/step・source hashを残す方式を推奨。augmentationの再生は公式transform分布を変えない実装で検証する |
 | **B4（採用済み／非blocking）** | **本研究での特徴評価の範囲** | **ユーザーが新推奨を採用：**固定少数のImageNet val画像で、学習前・公式10epoch後・自作10epoch後のResNet50 backbone特徴のvariance、norm、画像間cosine分布を**軽量診断**する。画像ラベルを使う正式なkNN/Linear Probeは**任意の別Gateとして延期**。分類能力・意味的な特徴品質の獲得を今回の10epoch結果の必須の主張にしない |
 | **B5** | **worker/Checkpoint/失敗時の運用細部** | 公式`--workers 32`相当（2GPU各16）を第一候補にし、VRAMだけでなくCPU/RAM/NASを測る。epoch毎native checkpoint＋rank sidecar、差分のないresume試験、失敗時はfresh outputを維持。保存上限・Comet命名/タグは実装前に固定 |
 
 `non-blocking`：CLI file名、local JSONL file名、Comet display nameの表記、既存helperの呼び出し構造等は既存repo規約に従う。ただしmetricキー、同一step同期、checkpoint/experiment identityを曖昧にしない。
 
-**Spec readiness: draft / BLOCKED FOR APPROVAL**。global256/local128/LR0.03/10epoch/公式MoCo v2/Comet比較/VRAM Gate必須は採用済み。**B4（軽量特徴量診断を必須・kNNは任意）は2026-10-20ユーザーが採用済み**。B1の失敗時停止条件、B2のcuDNN運用、B3の入力再生/Comet方式、B5のworkers/Checkpoint等は未承認（B1/B2/B3/B5が残るblocking）。これらを解消するまでは`approved`へ昇格せず、実際のV1/E1/E2/E3 GPU実行も別許可。V1実機成功までは10epochを開始しない。
+**Spec readiness: draft / BLOCKED FOR APPROVAL**。global256/local128/LR0.03/10epoch/公式MoCo v2/Comet比較/VRAM Gate必須は採用済み。**B4（軽量特徴量診断を必須・kNNは任意）とComet新規専用project `moco-imagenet-v2-reproduction` は2026-10-20ユーザーが採用済み**。B1の失敗時停止条件、B2のcuDNN運用、B3の**入力再生・ライブ/事後記録方式**、B5のworkers/Checkpoint等は未承認（B1/B2/B3残部/B5が残るblocking）。これらを解消するまでは`approved`へ昇格せず、実際のV1/E1/E2/E3 GPU実行・Comet送信も別許可。Comet project作成・存在確認は未実施。V1実機成功までは10epochを開始しない。
 
 ## 9. Handoff（approved後に使用）
 
@@ -164,3 +167,9 @@ representation_evaluation: NOT_RUN
 ユーザー指示「新しい推奨案を採用します」を、直前の**B4：ImageNetの本格kNNを必須から外し、固定held-out画像による軽量特徴量診断を行う**という提案への明示承認として反映した。**この承認の対象はB4だけ**であり、B1/B2/B3/B5の承認、spec全体の`approved`化、コード変更、GPU実験、Comet送信の許可ではない。
 
 E4の再現性契約：同じ固定val画像index・同じ前処理・同じ2048次元backbone特徴位置・同じnormalization方針で、同一初期stateとMeta公式/自作の10epochモデルを比較する。測定対象は有限性、サンプル間のvariance、L2 norm分布、非同一画像対のcosine similarity分布。可能なら有効次元の補助診断も記録するが、測定が重い場合は必須化しない。ImageNetのvalidationクラスラベルを指標計算に使用しない。run reportに評価画像のindex/前処理/hash、checkpoint lineage、集計定義、結果を保存し、異常兆候・確立しない主張を明示する。固定サンプル数や実装上のファイル名はengineering review時に事前決定して記録する。
+
+### Comet専用project採用記録（2026-10-20）
+
+ユーザーは「既存のComet projectを使わず新規に作成する」案を採用。正式な**project name**を`moco-imagenet-v2-reproduction`と固定する。Meta公式と自作MoCoを別々のExperimentとして同じprojectへ送信し、比較画面ではLoss・Positive/Negative cosine・Grad等を同一step/epoch軸で重ねる。
+
+今回の決定は**送信先の研究仕様**であり、Cometサービスでprojectを実際に作成したという証拠ではない。Comet workspace/権限とproject存在は初回送信前に確認し、存在しない場合は適切なworkspaceに新規作成する。設定`logging.comet_project`あるいは新規専用runnerの同等項目へproject名を明示し、`.comet.config`に暗黙依存しない。**B3の共通入力再生方式・ライブ送信か事後登録かは未承認のまま**。本specは引き続き`draft`。
