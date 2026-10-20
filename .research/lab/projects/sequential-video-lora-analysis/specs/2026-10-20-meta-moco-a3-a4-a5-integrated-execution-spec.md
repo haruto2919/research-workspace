@@ -1,11 +1,11 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: engineering-and-experiment
-status: draft
+status: approved
 created: 2026-10-20
 last_updated: 2026-10-20
 title: "Meta MoCo A3/A4/A5 integrated execution orchestration on existing parity and bench runner"
-authority: "Current user request: implement A3, A4, A5 together; detailed experiment thresholds, GPU budget and Git push not yet approved"
+authority: "2026-10-20 user expressly adopted proposed A3/A4/A5 integrated design but requested spec-only work: no research code edits, commit/push, or GPU runs"
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_branch: dev
 implementation_commit_at_read: dc502e416aa26ed4e0791767fa5a72f7843e399d
@@ -15,11 +15,17 @@ parent_spec: 2026-10-17-meta-moco-v2-imagenet-ddp-parity-spec.md
 related_a5_draft: 2026-10-20-meta-moco-a5-imagenet-gpu-bench-monitor-overhead-experiment-spec.md
 implementation: NOT_STARTED
 gpu_experiments: NOT_RUN
+approved_on: 2026-10-20
+research_code_edits_authorized_now: false
+research_code_commit_push_authorized_now: false
+gpu_run_authorized_now: false
+approved_a3_a4_rtol: 1.0e-5
+approved_a3_a4_atol: 1.0e-6
 ---
 
-# A3・A4・A5統合実行設計（draft／承認前）
+# A3・A4・A5統合実行設計（approved／実装・実験未着手）
 
-> **現行の研究コードにはA3・A4・A5に必要な主要機能が既に存在する。** ここでいう「まとめて実装」は、既存MoCo本体・parity runner・bench runner・CPU comparatorを利用し、各Gateの条件固定、実行順、artifact検証と停止条件を一つの*オーケストレーション*として扱うことを第一候補とする。**3つを同じ学習runへ合成しない。** この案を採用する場合も各GPU実験、Git commit/pushには別の実行許可が必要。
+> **現行状態：approved（設計のみ承認）、研究コード変更なし、GPU Gateは全てNOT_RUN。** ユーザーは2026-10-20に、前回の推奨条件（共通ランチャー＋dry-run、A3 synthetic 1025step、A4 step2→3 resume、A5 20step pilot＋OFF/Light各100step、A3/A4固定許容差）を明示採用し、**今回は研究コードに直接追加せずspecを保存すること**を指定した。既存MoCo本体・parity/bench runner・CPU comparatorを再利用し、3つのGateは**独立したrun**としてオーケストレーションする。後日の実装許可、研究コードGitHub commit/push、GPU実験起動は今回の依頼には含まれない。
 
 ## 1. 根拠、現状とscope
 
@@ -37,7 +43,7 @@ gpu_experiments: NOT_RUN
 | A4 | `checkpoint_steps` native＋rank別sidecar、mode/RNG/fixture/config SHA照合を伴うresume、`formal_resume`、CPUでの拒否/成功テスト | **正式2GPUのcheckpoint復帰・数値一致は未実施**。独立uninterruptedとresumedの手順とtrace比較 |
 | A5 | `run_kind=bench`、ImageNet train DistributedSampler/two-crop/DataLoader、監視OFF/Light、warmup10/window10、GPU VRAM/throughput/data-wait json | **実機100〜300step OFF/Light paired Evidenceは未実施**。独立runと集計・順序/測定限界の記録 |
 
-**変更対象候補**：`scripts/parity/`に最小の統合実行ランチャー（既存3 CLIを明示的に起動し、stage毎fresh dir・command/config identity・出力path・合否を整理）、必要な短いunit/dry-run tests。必要性がないなら既存CLI＋共通runbookの方が最小なので、承認時にコード新設とrunbookのみのどちらかを選ぶ。新たな学習loop/Meta実装コピー/InfoNCE演算変更、デフォルト変更、旧artifact改変、外部dependency追加は行わない。
+**後日の実装対象として採用**：`scripts/parity/`の既存CLIに渡すコマンドとfresh出力を段階管理する**最小限の共通ランチャー**およびCPU dry-run／validation tests。MoCo本体・parity loop・bench loop・comparatorの数式/判定やHydra既定値は変更しない。複雑なフレームワーク・新dependency・公式ソースのコピーは不要。ランチャーは外部挙動を既存CLI起動・出力契約に限定し、後日の実装時もより小さい構成で同じ契約を満たせるなら差分を最小化する。**今回はコードを一切編集しない。**
 
 ## 2. 分離すべきGateと提案順序
 
@@ -49,9 +55,9 @@ gpu_experiments: NOT_RUN
 
 **A5 pilot→A4→A3→A5 paired**は、いずれかの工程で止まっても後続を無許可に流さず、失敗理由と保存済みartifactが追跡できる提案。単一コマンドの一括起動でも、**各Gateの実行許可は別個に表現**する。
 
-## 3. 確定値の候補（正式採用前）
+## 3. 採用済み条件（設計承認。GPU実機結果ではない）
 
-| Axis | Proposed |
+| Axis | Adopted contract |
 |---|---|
 | Model | Random-init ResNet50＋MLP dim128。Meta固定参照clone無改変、自作S1の通常InfoNCEは明示`meta_einsum` |
 | Global parameters | FP32 AMP OFF TF32 OFF、seed0、2GPU NCCL、global64（local32×2）、K65536、m0.999、T0.2、SGD lr0.0075/momentum0.9/wd1e-4、epoch0 Cos horizon10 |
@@ -59,11 +65,11 @@ gpu_experiments: NOT_RUN
 | A3 full trace | [1,1024,1025]。light traceは毎step、compareには両run共通のStep/rank/phaseが必要 |
 | A4 fixture | synthetic、224px、3step。checkpoint step2、uninterrupted 3stepとresume後step3の対照 |
 | A5 dataset | real ImageNet train、data.num_workers=8/rank、image224、sampler epoch0、20step OFF pilot、OFF/Light各100step、Comet OFF |
-| Threshold | **A3/A4もA2で固定した `rtol=1e-5`・`atol=1e-6`・離散exactを独立に事前承認することを推奨**。A2の批准値がA3/A4に自動適用されたとは主張しない。A3の長い累積差が閾値超過しても後から緩めない |
+| Threshold | **今回A3とA4にも `rtol=1e-5`・`atol=1e-6`・`verification.threshold_status=fixed`・離散exactをユーザーが事前採用**。A2の過去runを使い回さず、A3/A4の新規runのconfigとoffline comparatorに明示する。長い累積差でFAILしても事後緩和しない。 |
 | Log/trace | 全run新規ディレクトリ。既存実験artifact上書きなし。大きなfixture.pt/trace/GPU logをResearch Workspace GitHubへpushしない |
 | A5 overhead | feasibility PASSと定量差の実測を分離し、根拠なく%許容上限を設けない。必要時に上限を別途事前固定 |
 
-## 4. 実装提案：最小オーケストレーション（コード変更は未承認）
+## 4. 承認済み実装契約：最小オーケストレーション（コード変更は今回禁止）
 
 ### Required behavior
 
@@ -93,28 +99,55 @@ gpu_experiments: NOT_RUN
 
 FAIL／INVALID／BLOCKED／NOT_RUNを分離する。監視の百分率上限を未固定のまま「実測した」以上のoverhead PASSとしない。ユーザーの保存したraw GPU traceやcheckpointをGitHub ChatGPTが独立検査済みとは表現しない。
 
-## 6. Ambiguity Gate／承認待ち
+## 6. 採用済みDecision Gate／実行権限の保留
 
-### Blocking
+### Resolved（2026-10-20ユーザー採用）
 
-1. **統合の意味**：既存runnerを呼ぶ「共通ランチャー＋検証summary」のコード追加と、A3/A4/A5のGPU実験run許可を切り分ける。推奨は**まずランチャーとCPU dry-runだけを実装**、GPUは段階別ユーザー実行。
-2. **A3のデータと予算**：synthetic・224px・K65536・1025step×公式/自作か、real ImageNet1,025step fixtureを要求するか。推奨は**synthetic**（現在runnerのA3 docstring/親Gateの最小検証）。
-3. **A3/A4閾値**：両GateでA2の`rtol=1e-5/atol=1e-6`・離散exactを**事前固定するか**。推奨は固定採用。A4のrank>0の最初のresume前BN bufferは既存formal_resumeでinformationalな仕様を継承する。
-4. **A4再開point**：既存のstep2 checkpoint→step3に限定するか、長時間checkpointを要求するか。推奨は3step独立fresh復元を初回正式Gateとし、長いresumeは後段。
-5. **A5ペア予算**：20step pilot、OFF100/Light100、必要なら逆順100+100を別途。推奨は最初の220stepのscopeまでで、追加逆順は別検証。
-6. **Git/実行権限**：コードをGitHubリモートの`dev`へcommit/pushすることと、GPU runを起動することは別許可。ユーザーの今回の「まとめて実装」は研究コード修正意向として扱えるが、未承認のscientific delta・push・長時間runの包括承認とはしない。
+1. **統合方式**：既存のfixture generator、2GPU parity/bench runner、offline comparatorを呼び出す共通ランチャー＋Gate別summaryを後日最小実装する。既存CLIのロジックは再実装しない。CPU dry-runと軽量回帰テストまでは将来のengineering-taskの予定scope。**今回はspecのみ作成し、実装やcommit/pushはしない**。
+2. **A3**：synthetic fixture、224px、2GPU/global64、K65536、Meta公式M vs自作S1 meta_einsum、独立fresh1025step×2run。full trace stepは`[1,1024,1025]`、Queue初期stateの1024step完全置換と1025stepのwrapを別途判定する。ImageNet実画像1025stepは採用しない。
+3. **A4**：synthetic 3step、uninterrupted Self S1のstep2でnative checkpoint＋rank0/1 sidecar、同一checkpointを使うfresh resumed runのstep3。正式比較は`formal_resume`で**step3**（rank>0の再開前BN bufferは既存comparatorのinformation-only規則）。Benchmarkでのresumeを追加しない。
+4. **A3/A4判定基準**：事前固定 `rtol=1e-5, atol=1e-6, threshold_status=fixed`、離散状態exact。A3は`formal_implementation`、A4は`formal_resume`。bitwise率は別記録し、100%を無条件の必須成功条件にしない。
+5. **A5**：2GPU FP32、ImageNet train、worker8/rank、S1のnormal`meta_einsum`、20step monitor OFF pilot → 独立fresh100step OFF/100step Light（warmup10/window10）。逆順100+100stepは初回必須でない。負荷%に恣意的な上限を設定せず、実行可否とoverhead実測を分離する。
+6. **実行権限**：現ユーザー指示は**研究コードに一切追加せずspecを作る**もの。ランチャー/testの実装、GitHub研究コードcommit/push、GPU実験の起動、A3長時間の予約、A4 checkpoint生成は今回**行わない**。後日、engineering-taskへの別実装依頼とGateごとのGPU実行指示を受けるまで`NOT_STARTED/NOT_RUN`を保持する。
+
+### Implementation-readiness check
+
+- **blocking ambiguity（今回のspec内容）**：なし。以前の1〜5は上記の推奨条件をユーザーが採用し解消済み。
+- **blocking approval（実行行為）**：研究コード編集とremote push、GPU実験の実行は**現在不許可**。specの`approved`はそれらの操作許可ではない。
+- **non-blocking**：run directory suffix・ファイル名・dry-run commandの表示形式等は既存repoのstyleで決める。ただし科学的条件・default・artifact schemaは変更しない。
 
 ### Non-blocking
 
 - 既存repoと同じ命名規則でrun-idをつける／summaryの軽微な見出し、shellのログfile名。
 - 他の実験に影響しない範囲のコード配列・formatの細部。既存artifactやdefaultの意味は変えない。
 
-**Readiness**：上記blockingが未解決のため`draft`。採用後に仕様を`approved`へ昇格し、`engineering-task`で最小変更を実装する。ユーザーが「同じ推奨を採用する」と回答すれば1〜5の**設計推奨**は採用可能だが、**GitHub commit/pushとGPU runは別の明示承認**が必要。
+**Readiness：approved（設計条件と合否契約は解決済み）**。現ユーザー指示によりspec保存だけを行う。engineering-taskの実装、commit/push、GPU runには後日の独立した明示依頼が必要。
 
-## 7. Handoff / Current status
+## 7. Implementation Handoff / Current status
 
-- **Spec**：本ファイル（`draft`、2026-10-20）。
+- **Approved spec**：本ファイル（`approved`、2026-10-20ユーザーによる推奨条件採用）。
 - **既存実装の正本**：`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`、commit `dc502e416aa26ed4e0791767fa5a72f7843e399d`。GitHubと研究サーバdirtyは別扱い。
-- **更新方針**：最小オーケストレーションとdry-run testsを検討。MoCo/InfoNCE/trace/optimizer/Queueの本体変更なし。
+- **後日の変更scope**：最小共通ランチャー（A5-pilot/A4/A3/A5-pair明示ステージ、fresh output、fail-closed、報告）とCPU dry-run/非回帰テストのみ。MoCo/InfoNCE/trace/optimizer/Queueの本体変更なし。
 - **実装成功条件**：ステージ境界の独立性、出力衝突防止、停止伝播、設定/閾値/検証契約と非回帰。GPUによるA3/A4/A5実験結果は別Evidence。
-- **承認外**：公式Meta clone修正、既存baseline破壊、Queue/batch/precision変更、A3 1025step/M/S1 GPU jobの自動起動、A5 100step GPU job自動起動、10epoch/ViT/LoRA統合。
+- **今回実施しない**：研究コード直接追加、CPU/GPU test実行、公式Meta clone修正、研究コードcommit/push、GPU job起動、既存baseline変更、10epoch/ViT/LoRA統合。
+- **長時間runの許可状態**：未許可。A3（公式/自作各1025step）は特にresource/GPU時間/ログ容量の実測見積りと別の実行指示を要する。
+- **短時間検証**：後日の実装依頼でCPU dry-run/unit/non-regressionのscopeを再確認する。今回実施なし。
+- **Evidence**：A1/A2 PASSのみ引き継ぐ。A3/A4/A5 = NOT_RUN。GitHub上のコード基準commitと研究サーバの未committed状態は別。
+
+
+---
+
+## 8. 2026-10-20 保存・承認記録（最新Authority）
+
+ユーザーの「採用します。ただし、研究コードに直接追加せず、specを作成してください」という明示指示により、従来draftの推奨条件を採用し、既存の統合specを`approved`へ昇格した。**Research WorkspaceのMarkdown更新のみ**を行い、研究コードrepoのファイル/branch、Meta clone、NAS、GPU、checkpoint/run artifactは一切変更・実行していない。
+
+### ランチャーの後日実装・最低限の検証契約
+
+- **入力**：stage名（`A5-pilot`、`A4`、`A3`、`A5-pair`）、出力root。各stageのmodel/batch/K/seed/precision/thresholdは本specの固定値。別Gateへ実行の権限を暗黙に波及させない。MoCo runnerの既存Hydra CLIをそのまま起動する。
+- **デフォルト**：GPU未起動のplan/dry-runのみ。将来GPU実行を許可する場合でも、ユーザーがstageを個別指定した明示的モードを必須とする。単一の`all`指定で1025step A3へ無条件実行しない。
+- **出力**：個別runディレクトリとfixtureパス・SHA、各CLI command、resolved config、終了コード、run status、実行環境・provenance、比較reportパス、失敗時stageと原因、Gate別status/summary。
+- **失敗時**：出力衝突、commit dirty/mismatch、mode/threshold/fixture不一致、GPU不足、OOM/NCCL失敗、必要artifact欠損でfail closed。既存run出力を上書きせず、条件を自動変更しない。既存ランチャーのログとcheckpointを保持する。
+- **CPUのdry-run試験**：stageごとの組み立てCLIと固定config、A3/A4の`fixed`閾値・対応pair-kind、A5の`bench`と監視条件、独立fresh dir、出力既存・前段failの停止、`run_report`への適切な判定、GPU未起動保証を検証する。必要最小限の既存MoCoテストも非回帰で確認する。
+- **比較ルールの注意**：A3は`formal_implementation`で1〜1025の全stepに共通のsmall traceを持ち、`full_steps=[1,1024,1025]`の大きいtensorも両runで同じstepを収集する。A4は`formal_resume`に従いresume済み候補のstep3だけをformal比較し、rank>0の最初の`before_forward` BN buffer差を既存のinformational規則で扱う。Gate別新数値規則は加えない。
+- **A5 overheadの制約**：OFF/Light各100stepは順序効果やNAS cacheを含むため、throughput・メモリ・Data waitの実測値と差分を提示するだけで「絶対性能優位」などは主張しない。
+- **最終状態**：`spec=approved`、`implementation=NOT_STARTED`、`GPU A3/A4/A5=NOT_RUN`。後日の実装作業は`engineering-task`へhandoffし、長時間GPU実験とは独立に承認する。
