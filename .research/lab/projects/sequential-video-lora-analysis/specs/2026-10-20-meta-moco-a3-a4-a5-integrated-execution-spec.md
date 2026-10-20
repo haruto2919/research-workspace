@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: engineering-and-experiment
-status: approved
+status: implemented
 created: 2026-10-20
 last_updated: 2026-10-20
 title: "Meta MoCo A3/A4/A5 integrated execution orchestration on existing parity and bench runner"
@@ -13,10 +13,14 @@ meta_reference_commit: a419ef282fc9885015674e77f58c59447206a27f
 a2_evidence: ../experiments/2026-10-20-meta-moco-a2-imagenet-real-one-step-formal-gpu-parity-evidence.md
 parent_spec: 2026-10-17-meta-moco-v2-imagenet-ddp-parity-spec.md
 related_a5_draft: 2026-10-20-meta-moco-a5-imagenet-gpu-bench-monitor-overhead-experiment-spec.md
-implementation: NOT_STARTED
+implementation: IMPLEMENTED_UNCOMMITTED
+implemented_on: 2026-10-20
+implementation_committed: false
+engineering_cpu_gate: PASS
+implementation_record: ../experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md
 gpu_experiments: NOT_RUN
 approved_on: 2026-10-20
-research_code_edits_authorized_now: false
+research_code_edits_authorized_now: true  # 2026-10-20 user implementation request (launcher + CPU tests only)
 research_code_commit_push_authorized_now: false
 gpu_run_authorized_now: false
 approved_a3_a4_rtol: 1.0e-5
@@ -24,6 +28,8 @@ approved_a3_a4_atol: 1.0e-6
 ---
 
 # A3・A4・A5統合実行設計（approved／実装・実験未着手）
+
+**2026-10-20更新：ランチャー実装済み（未commit）・CPU検証PASS、GPU Gateは全てNOT_RUN。** 実装の詳細と解釈は§9と[実装・CPU検証記録](../experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md)。以下の本文は承認時点の記述のまま残す。
 
 > **現行状態：approved（設計のみ承認）、研究コード変更なし、GPU Gateは全てNOT_RUN。** ユーザーは2026-10-20に、前回の推奨条件（共通ランチャー＋dry-run、A3 synthetic 1025step、A4 step2→3 resume、A5 20step pilot＋OFF/Light各100step、A3/A4固定許容差）を明示採用し、**今回は研究コードに直接追加せずspecを保存すること**を指定した。既存MoCo本体・parity/bench runner・CPU comparatorを再利用し、3つのGateは**独立したrun**としてオーケストレーションする。後日の実装許可、研究コードGitHub commit/push、GPU実験起動は今回の依頼には含まれない。
 
@@ -151,3 +157,14 @@ FAIL／INVALID／BLOCKED／NOT_RUNを分離する。監視の百分率上限を�
 - **比較ルールの注意**：A3は`formal_implementation`で1〜1025の全stepに共通のsmall traceを持ち、`full_steps=[1,1024,1025]`の大きいtensorも両runで同じstepを収集する。A4は`formal_resume`に従いresume済み候補のstep3だけをformal比較し、rank>0の最初の`before_forward` BN buffer差を既存のinformational規則で扱う。Gate別新数値規則は加えない。
 - **A5 overheadの制約**：OFF/Light各100stepは順序効果やNAS cacheを含むため、throughput・メモリ・Data waitの実測値と差分を提示するだけで「絶対性能優位」などは主張しない。
 - **最終状態**：`spec=approved`、`implementation=NOT_STARTED`、`GPU A3/A4/A5=NOT_RUN`。後日の実装作業は`engineering-task`へhandoffし、長時間GPU実験とは独立に承認する。
+
+---
+
+## 9. 2026-10-20 実装記録（最新Authority）
+
+ユーザーの「このスペックに従って実装してください」により、§4・§8の実装scope（最小共通ランチャー＋CPU dry-run/validation tests）を`engineering-task`で実装した。詳細は[実装・CPU検証記録](../experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md)。
+
+- **追加**：`scripts/parity/run_moco_gates.py`（plan既定／`--execute`は1 stageのみ／`--summarize`は読み取りのみ）、`test/model/test_moco_gate_launcher.py`（23件）。既存ファイル・Hydra既定値・MoCo本体・runner・comparatorは無変更、新dependencyなし。
+- **検証**：新規23件PASS、5種のミューテーションをすべて検出、既存parity harnessの非回帰はCPUで実行（結果は実装記録）。GPUは不使用。
+- **実装時の解釈**：(1) 前段条件は採用順序の直列で、各stageは直前stageが同じroot・同じ研究commitでPASSしていることを要求する（A3がFAILするとA5-pairもランチャーからは起動できず、進めるかは新たな判断事項）。(2) A4のfull traceは比較stepの`[3]`。(3) Comet OFFは全stage。(4) fixtureはA4・A3でそれぞれ新規生成。(5) GPU競合は`nvidia-smi`だけで判定し、ランチャー自身はCUDA contextを作らない。(6) 研究repoがdirtyだと`--execute`はBLOCKEDになるため、ランチャーのcommit後でないと実行できない。
+- **状態**：`spec=implemented`、`implementation=IMPLEMENTED_UNCOMMITTED`、`GPU A5-pilot/A4/A3/A5-pair=NOT_RUN`。研究コードのcommit/push、GPU実行、A3長時間runの予約は未実施で、Gateごとの別指示が必要。

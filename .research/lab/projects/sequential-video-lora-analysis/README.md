@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: MoCo単体CIFAR-10 500step工学PASS。ImageNet実画像2GPU・ResNet50のMeta公式対自作1step A2は3,926/3,926 bitwise一致で正式PASS。表現品質・動画統合は未検証。
+summary: MoCo単体CIFAR-10 500step工学PASS。ImageNet実画像2GPU・ResNet50のMeta公式対自作1step A2は3,926/3,926 bitwise一致で正式PASS。A3/A4/A5段階ランチャーを実装（未commit・CPU検証PASS・GPU未実施）。表現品質・動画統合は未検証。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-20
@@ -51,6 +51,8 @@ last_updated: 2026-10-20
 
 2026-10-20、MoCo単体のMeta公式parity検証を進め、ImageNet-1Kの固定実画像64枚・224px・ResNet50・2GPU NCCL・localB32/K65536・FP32の**A2正式1step数値一致検証がPASS**した。Meta公式M1と自作S1（通常`meta_einsum` opt-in）の独立fresh実行が正常終了し、事前固定`rtol=1e-5, atol=1e-6`で比較した3,926エントリは**3,926/3,926 bitwise一致**、exact/float failures 0。先立つMeta公式M0/M0rの同一fixture再演も3,926/3,926 bitwise一致。Evidenceは[A2正式GPU結果](experiments/2026-10-20-meta-moco-a2-imagenet-real-one-step-formal-gpu-parity-evidence.md)と[承認済みA2 spec](specs/2026-10-20-meta-moco-a2-imagenet-one-step-parity-experiment-spec.md)。この結果は**指定条件の1stepの比較範囲だけ**を証明し、Queue一巡/長時間安定性、A5通常学習速度、特徴識別性、ViT/LoRA/動画統合の正しさを保証しない。次のA5資源・軽量監視検証は別spec・別承認とする。
 
+同日、承認済みの[A3/A4/A5統合実行spec](specs/2026-10-20-meta-moco-a3-a4-a5-integrated-execution-spec.md)に従い、既存のfixture生成・runner・comparatorを呼び出すだけの**段階ランチャー**（`scripts/parity/run_moco_gates.py`）とCPUテスト23件を追加した（未commit、既存ファイル無変更）。A5-pilot→A4→A3→A5-pairを1 stageずつ明示実行し、出力衝突・dirty・前段非PASS・GPU不足/使用中では何も書かずに停止する。CPUテストとミューテーション確認はPASSしたが、**GPU Gateは全てNOT_RUN**で、A3/A4/A5の数値一致・資源の結果はまだない。詳細は[実装・CPU検証記録](experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md)。
+
 実装の正しさと基盤の成立を検証した後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
 ## マイルストーン
@@ -92,3 +94,4 @@ last_updated: 2026-10-20
 | 2026-10-08 | MoCo loss振動とQuery LoRA勾配急増のためLinear Probeの解釈を保留。LoRA単体・MoCo単体を小さなステップで検証し、信頼できるLoRA実装を調査してから統合する方針を確認 |
 | 2026-10-15 | Standalone MoCoの実CIFAR-10 GPU Queue置換64stepとGate C 500stepが工学的PASS。特徴表現の識別性・時間情報の学習は未検証。結果はexperimentsのEvidence記録を参照 |
 | 2026-10-20 | Meta公式M0/M0r再演の3,926/3,926 bitwise一致後、事前固定FP32閾値によるImageNet実画像・ResNet50・2GPU×1stepのMeta公式M1対自作S1でFormal A2 PASS（3,926/3,926 bitwise）。A5/A3/A4・表現品質は別検証 |
+| 2026-10-20 | A3/A4/A5統合実行specに従い段階ランチャーとCPUテスト23件を実装（未commit、既存ファイル無変更）。CPU検証PASS、GPU Gateは全てNOT_RUN。詳細は[実装・CPU検証記録](experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md) |
