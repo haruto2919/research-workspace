@@ -20,7 +20,14 @@ b4_feature_evaluation: ADOPTED_LIGHTWEIGHT_HELDOUT_DIAGNOSTICS_KNN_OPTIONAL_2026
 comet_project_name: moco-imagenet-v2-reproduction
 comet_project_policy: ADOPTED_NEW_DEDICATED_PROJECT_AND_COMET_DOT_CONFIG_MANAGED_2026-10-20
 comet_project_creation: NOT_VERIFIED
-implementation: NOT_STARTED
+comet_destination_config: "repository .comet.config (project_name=moco-imagenet-v2-reproduction, user decision 2026-10-20); exported as COMET_CONFIG; API key stays in ~/.comet.config"
+b2_runtime_mode: ADOPTED_STRICT_DETERMINISTIC_BENCHMARK_OFF_TF32_OFF_2026-10-20
+b3_input_alignment: ADOPTED_SAME_SEED_PER_EPOCH_RANK_WITH_SAMPLED_INPUT_HASHES_2026-10-20
+b3_comet_mode: ADOPTED_LIVE_RANK0_LOCAL_JSONL_FIRST_2026-10-20
+b5_workers_checkpoints: ADOPTED_16_WORKERS_PER_RANK_EVERY_EPOCH_CHECKPOINT_KEPT_2026-10-20
+b1_stop_rule: IMPLEMENTED_AS_RECOMMENDED_HEADROOM_THRESHOLD_1024MIB_NOT_CONFIRMED
+implementation: IMPLEMENTED_CPU_VERIFIED_COMMITTED_d6f7acc_PUSHED_2026-10-20
+implementation_record: ../experiments/2026-10-20-meta-moco-v2-10epoch-runner-implementation-verification.md
 vram_gate: NOT_RUN
 ten_epoch_training: NOT_RUN
 comet_upload: NOT_RUN
@@ -184,3 +191,18 @@ E4の再現性契約：同じ固定val画像index・同じ前処理・同じ2048
 - **状態境界**：接続方式の整理は`B3`の入力stream完全一致やオンライン/事後送信方式の決定ではない。`status=draft`、未承認B1/B2/B3残部/B5、GPU/Comet run未実行を維持。
 
 Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experiment-management/configure-sdk/`。
+
+### B2・B3残部・B5採用記録と実装（2026-10-20）
+
+ユーザーは本specに従った実装を依頼し（「このスペックに従って実装してください」）、実装前の確認で次の推奨案を選択した。**この選択の対象はB2・B3残部・B5であり、GPU実行（V1/E1/E2/E3）とComet送信の実行許可ではない。**
+
+- **B2（実行モード）**：厳密再現モード。両実装とも`cudnn.deterministic=True`・`cudnn.benchmark=False`・TF32 off（`fp32_precision=ieee`）で、A2/A3と同じ設定。公式`main_moco.py`の`main_worker`（benchmark=True）とは異なるため、provenanceに記録する。
+- **B3（入力）**：同一seedで入力を揃える。epoch・rankごとに、DataLoader専用generator（workerのbase seed）、CPU global RNG（shuffle-BNのrandperm）、Python `random`を`derive_seed(seed, 名前, epoch, rank)`で固定する。DistributedSamplerは公式と同じseed0とset_epochを使う。拡張の分布は公式のままで、worker数が同じならMetaと自作が同じ2-view Tensorを受け取る。1step目と100stepごとに全rankの入力sha256を記録し、E1で照合する。
+- **B3（Comet）**：ライブ送信。rank0がローカルJSONLを先に書いてから送る。Cometの障害では学習を止めず、記録して送信だけを停止する。resumeは親runと同じexperimentを継続するため、クラッシュ直前のstepが重複して表示されることがある。事後再送ツールは作らない。
+- **B5**：16 worker/rank（公式`--workers 32`を2GPUで分割）。epoch終了ごとにnative checkpointとrank sidecarを保存し、全epochを保持する。
+
+**B1**は改めて確認していない。specの推奨どおり「自動で条件を下げず停止」で実装した。GPU runは§2の採用recipe以外を起動前に拒否し、V1ではいずれかのGPUのheadroom（総量−max reserved）が`vram_gate.min_headroom_mib=1024`未満ならBLOCKEDとする。**この1024MiBという閾値は実装時に置いた既定値で、ユーザー未確認**。
+
+**Comet宛先（最終形）**：研究repo直下の追跡済み`.comet.config`は、SDKの優先順位で`~/.comet.config`より強い。そのため、「`~/.comet.config`だけで宛先を管理する」という本specの想定どおりでは新projectへ送信されない。当初はユーザー提示のテンプレート形式の専用ファイルを`COMET_CONFIG`で指定する設計で実装した。しかしユーザーのcommit `3cade3d`で直下`.comet.config`の`project_name`が`moco-imagenet-v2-reproduction`へ変更され、専用ファイルとrunner用yamlは含まれなかった。確認のうえ、ユーザーは**直下`.comet.config`で管理する**方式を選択した（2026-10-20）。runner（`logging.comet_config: .comet.config`）は、このファイルを`COMET_CONFIG`として指定する。**この設定が続く間は、このrepoから明示的なproject指定なしで起動する他のComet実験（`train.py`、既存parity runなど）も`moco-imagenet-v2-reproduction`へ送られる**（§5の「既存projectと混在させない」と緊張関係にあり、ユーザー判断として記録する）。APIキーは引き続き`~/.comet.config`で管理する。送信前のpreflightでは、環境変数・`.env`を含めてSDKが解決する宛先が期待値と一致すること、APIキーが解決されることを確認する。一致しなければ学習もせずにfail-closedとする。オンライン確認では、workspaceへの到達性とprojectの事前存在も記録する。
+
+実装は`dev`の`3cade3d`（ユーザーcommit）と`d6f7acc`（yamlの復元とComet宛先の修正）としてorigin/devへpush済み。実装と検証の詳細は[実装・CPU検証記録](../experiments/2026-10-20-meta-moco-v2-10epoch-runner-implementation-verification.md)を参照。V1/E1/E2/E3・Comet送信・Comet project作成はいずれも**NOT_RUN**。E4軽量特徴診断の実装は今回の範囲外（§9 Handoffの「先に実装するもの」に含まれない）。
