@@ -34,7 +34,8 @@ v1_offline_comparison: INPUT_HASH_1_OF_1_AND_LOGGED_METRICS_BITWISE_PASS_2026-10
 e1_execution_authority: USER_APPROVED_META_AND_SELF_100STEP_WITH_COMET_ON_2026-10-20
 e1_execution_status: META_SELF_100STEP_COMPLETE_INPUT_HASH_2OF2_METRICS_BITWISE_2026-10-20
 e2_execution_authority: USER_APPROVED_META_AND_SELF_ONE_EPOCH_WITH_COMET_2026-10-20
-e2_execution_status: NOT_RUN
+e2_execution_status: META_SELF_EPOCH_COMPLETED_5004_STEPS_SAMPLED_METRICS_BITWISE_STATE_CHECK_PENDING_2026-10-20
+e2_partial_evidence: ../experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md
 e1_evidence: ../experiments/2026-10-20-meta-moco-v2-e1-imagenet-100step-comet-parity-evidence.md
 comet_destination_verified: E1_META_AND_SELF_EXPERIMENT_URLS_PRESENT_2026-10-20
 ten_epoch_training: NOT_RUN
@@ -294,3 +295,9 @@ Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experi
 - **E2成果判定**：Meta/self両方`status=completed`、`last_global_step=data.steps_per_epoch`、`completed_epochs=[0]`、epochs[0]`completed=true`、checkpoint実在、rank sidecar各2、canonical state SHA non-null、comet key/URL、errors空。比較で`contract_valid=True,both_completed=True,inputs_identical=True,metrics_bitwise_equal=True,epoch_states_identical=True,curve_agreement=bitwise`が理想値。差分が出た場合は具体的な最初のstep、metric、epoch状態、入力hashを調べてE3には進まない。
 - **Evidenceの境界**：E2で同一初期条件の1epoch再現が確立してもMoCoの学習済み特徴品質やMoCo v2標準200epochの再現は確立しない。E3 10epochの実行は新しいユーザー承認を必要とする。
 - **今回のGitHub操作**はResearch Workspaceに承認を保存するだけ。実際のGPU run、Comet送信、SSH local checkoutの更新はChatGPTから実施していない。
+
+### E2 1epoch比較ログの途中Evidence（2026-10-20、ユーザー提示）
+
+Meta公式・自作の比較器出力で`curve_agreement=bitwise`、`contract_issues=[]`、入力ハッシュ`51/51`一致、Loss・Positive/Negative/Hardest Cosine・LR・Queue Pointer・finiteはそれぞれ`502/502`一致（max_abs_diff=0.0）、Query Grad Norm`52/52`一致、epoch0は両者`completed=true,global_step=5004`、mean loss差0.0。
+
+ただし貼付が末尾で途切れ、**`epochs[0].canonical_state_equal`および`verdicts.epoch_states_identical`は未確認**。比較器はepoch SHA未記録時にも`curve_agreement=bitwise`を表示し得るため、現時点での承認済みE2全体の正式判定は**保留**する。`run_report.json`とCheckpoint/sidecar/Comet状態も必要に応じて照合。原本: [E2暫定実験結果](../experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md)。E3 10epoch実行は未承認であり、本追記はE3実行を許可しない。
