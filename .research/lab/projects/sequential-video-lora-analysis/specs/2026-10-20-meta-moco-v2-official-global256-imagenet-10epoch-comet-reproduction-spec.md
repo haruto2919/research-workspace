@@ -11,7 +11,7 @@ implementation_branch_at_read: dev
 implementation_commit_at_read: 914e736c2699e2e129211a888d1f19013dd1dd1a
 official_repository: facebookresearch/moco
 official_commit: a419ef282fc9885015674e77f58c59447206a27f
-source_brainstorm: ../../../secretary/notes/brainstorm/2026-10-20-meta-moco-comet-learning-curve-and-reproduction.md
+source_brainstorm: ../../../../secretary/notes/brainstorm/2026-10-20-meta-moco-comet-learning-curve-and-reproduction.md
 related_evidence:
   - ../experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md
   - ../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md
