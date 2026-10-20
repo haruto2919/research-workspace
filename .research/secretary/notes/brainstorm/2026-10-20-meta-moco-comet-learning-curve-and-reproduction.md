@@ -238,3 +238,32 @@ B4の採用を[10epoch公式設定比較spec（draft）](../../../lab/projects/s
 #### 記録のAuthorityと保存境界
 
 本メモは**brainstorm/exploratory**であって、spec変更やGPU本番を承認するものではない。今回の観測根拠はユーザー画像と過去のE1比較ログ。Research Workspaceの既存実験・specの正式状態は維持。研究コード、README、TODO、Comet、実験runには手を加えない。
+
+---
+
+### 2026-10-20 追加確認：Meta公式200epoch標準レシピと現在のE2設定の差分
+
+ユーザー質問：「今回meta公式と設定を合わせたと思うのですが、どこか違う部分があるのか」。公式の`facebookresearch/moco@a419ef282fc9885015674e77f58c59447206a27f`内`main_moco.py`/`moco/builder.py`/`README.md`と、自作リポジトリ`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`の`conf/moco_imagenet_10epoch.yaml`、`scripts/parity/moco_imagenet_10epoch.py`、`scripts/parity/moco_imagenet_parity.py`を静的照合（SSH実機のローカルdirty stateやrun時のresolved_config現物は未確認）。
+
+#### 直接確認した一致
+
+- ResNet50、MoCo v2のMLP head、128-d projector、InfoNCE temperature `T=0.2`（公式main_mocoデフォルトは0.07で`--moco-t 0.2`がv2指定）、Queue K65536、EMA m0.999。
+- ImageNet-1K train、two-view `aug-plus`レシピ（RandomResizedCrop 224 scale0.2–1.0、ColorJitter0.4/0.4/0.4/0.1 p0.8、grayscale p0.2、GaussianBlur0.1–2.0 p0.5、horizontal flip、ImageNet normalize）、global batch256、SGD initial LR0.03, momentum0.9, weight_decay0.0001、cosine-LRの式、FP32。
+- **E2のMeta referenceと自作の双方では上記だけでなく**GPU数2、local batch128、strict deterministic、seed0、同一state fixture、分散Sampler/workerシードとComet monitor定義もそろえる設計。E1ではログ化された入力hash2/2、metrics 11/11が一致。E2の自作runとの照合はまだ未確認。
+
+#### 公式公開例・defaultからの差分（重要度別）
+
+1. **学習期間**：公式`main_moco.py`のdefault/README公表代表的なpretrainは**200epochs**、研究runは**10epoch horizonで最初1epochをE2として実施**。10epochのepoch0は200epochでもLR=0.03で**epoch0中のLRは一致**。したがってユーザーが示したE2のLoss曲線の途中変化は**cosine期間差の学習率変化では説明できない**。epoch1以降のLRは10epochと200epochで異なる。
+2. **GPU構成/局所BatchNorm**：公式READMEのサンプル起動は8GPUでglobal256/local32（各プロセスのBN統計はlocal32）。今回2GPUでglobal256/local128。ModelはSyncBatchNormではなくShuffle BN、BNは原則プロセス局所のbatch統計を見る。8×32と2×128は同じgradient global batchでも**BN統計が異なり得る**。ただし公式`main_moco.py`も2GPU起動可能であり、ユーザーのMeta-vs-self comparisonは**公式モデルを同じ2GPU条件で動かしているため、この差は両実装間の差ではない**。
+3. **cuDNN Runtime**：公式`main_moco.py:321`は無条件に`cudnn.benchmark=True`。seed明示時`main():187-188`は`cudnn.deterministic=True`も設定する。自作10epoch runnerでは`cudnn.deterministic=True`、`benchmark=False`、TF32 off、FP32 strictを固定。benchmark設定は公式スクリプトと異なるが**2実装の比較条件は一致**。異なるcuDNN kernel選択や性能の影響の可能性はあるが、Lossの原因と断定できない。
+4. **seed/入力stream**：公式`--seed` defaultはNoneだが、現在runはseed0を明示し、epoch/rankごとにsampler/worker/CPU global/Python RNGを導出。乱数の初期状態・同一画像へのaugmentationの選択は公式defaultの独立runと一致する保証なし。今回Meta/selfは同じfixture・seed policyを揃えるための設計。公式のバイト列入力と同じとは主張しない。
+5. **runner/software環境/保存**：現在の`meta_reference`は公式`moco.builder.MoCo`や`main_moco.adjust_learning_rate`を同repoからimportするが、公式の`main_moco.py`のtraining entrypointをそのまま起動してはいない。独自Hydra runnerはrank0のComet/JSONL、Checkpoint sidecar、入力hash、timingを追加。公式README公表200epoch成果物の環境/Torch/CUDAデータ処理パスと完全同一とは断定不可。
+6. **worker数**：公式`--workers=32`は`main_worker`で2GPUなら16worker/GPU、8GPUなら4worker/GPU。今回16worker/GPUは**公式2GPU起動と対応**。よって「公式のworker数に合わせていない」は誤り。worker数やNAS/cacheもタイミングを変え得る。
+
+#### 研究上の判断（採用提案ではなく探索）
+
+- **数値実装parity baseline**：今回のMetaReference曲線を使用して問題なし。両runで条件を統一していることが最重要。
+- **Meta MoCo v2の公表した200epoch標準の学習品質baseline**：今回のE2 1epochだけでは成立しない。200epoch条件との差により曲線形状が違っても実装ミスとは限らない。E2までのLoss上昇/後半低下の原因としてepoch0 LR差を挙げない。
+- **追加で確認する価値**：E2のMeta/Selfで同一`resolved_config`の保持とcanonical end-of-epoch state SHAの一致、入力hashのサンプリング一致、checkpoint成功、Cometメトリクス。より公式200epochに近いtraining dynamicsが目的なら2GPUでも同等条件の200epoch参照runを**独立実験として設計**する必要があるが、計算コストと研究の本題への寄与を確認してから。**無断でE2/E3の設定やコードを変えない**。
+
+結論：主要MoCo v2レシピは一致しているが、公式代表例との差はepochs、GPU/local BatchNorm、cuDNN benchmark、seed/control/runner。現在MetaReferenceとSelfの差ではなく、**公表された標準200epoch exampleとの差**である点が最重要。
