@@ -1,11 +1,11 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: experiment
-status: draft
+status: approved
 title: "Meta MoCo v2 vs Self meta_einsum — A2 ImageNet-1K real-image 2GPU one-step FP32 parity"
 created: 2026-10-20
 last_updated: 2026-10-20
-authority: "User requested next stage after normal InfoNCE opt-in CPU PASS; fixed A2 threshold and GPU execution not yet approved"
+authority: "User adopted A2 fixed FP32 tolerance and fresh M1/S1 2-GPU 1-step formal parity on 2026-10-20"
 workspace_repository: haruto2919/research-workspace
 workspace_branch: main
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
@@ -14,13 +14,16 @@ implementation_commit: dc502e416aa26ed4e0791767fa5a72f7843e399d
 reference_repository: facebookresearch/moco
 reference_commit: a419ef282fc9885015674e77f58c59447206a27f
 input_evidence: "../experiments/2026-10-20-moco-normal-infonce-opt-in-cpu-verification.md"
-gpu_gate: NOT_RUN
-a2_formal_threshold: not_fixed
+gpu_gate: FORMAL_NOT_RUN
+a2_formal_threshold: fixed
+a2_rtol: 1.0e-5
+a2_atol: 1.0e-6
+a2_discrete_rule: exact
 ---
 
-# A2実験spec（draft）：ImageNet実画像・2GPU・1stepでMeta公式と自作MoCoを数値比較
+# A2実験spec（approved）：ImageNet実画像・2GPU・1stepでMeta公式と自作MoCoを数値比較
 
-> **状態：draft／正式なGPU実験未許可。** 既存のfixture生成・独立GPU runner・offline comparatorを使う**実験計画**であり、新規のMoCo演算実装specではない。A2の正式FP32閾値、GPU初回計測/diagnostic許可、最終run許可が未確定のため、現時点ではA2のPASS/FAILを出さない。変更・実行・承認の境界は第11節。
+> **現行状態：approved／正式M1/S1 GPU runは未実施。** 2026-10-20ユーザーが、M0/M0rの完全再現性診断後に`rtol=1e-5`、`atol=1e-6`、離散exact、fresh M1/S1（各2GPU×1step）正式比較を明示採用した。過去のdraft記述・候補欄については本書末尾の「承認記録」が優先する。研究コード変更・他Gate実行は許可しない。
 
 ## 1. 目的・主張の範囲
 
@@ -51,7 +54,7 @@ A2では**同じ初期重み・Queue・Rank入力2-view・Shuffle-BN乱数**で�
 
 A0の**正式完了**は本specのpreflightで以下を確認・保存した時点で判断する：`reference` import/shim元とhash、2GPU/NCCL collective通信（既存runが正常通過した場合も証拠となる）、fixture対象画像の全64枚のdecode、GPU rank/deviceとfree/peak、環境version、両worktree clean。全ImageNet 128万枚のdecodeはA2必須ではない。Val splitはA2のloss入力には使わない。
 
-## 4. 比較対象・不変条件（提案、未承認）
+## 4. 比較対象・不変条件（採用済み）
 
 | 軸 | A2の条件 |
 |---|---|
@@ -76,7 +79,7 @@ A0の**正式完了**は本specのpreflightで以下を確認・保存した時�
 4. 現在のGPU free、プロセス使用中でないこと、VRAMの見込み・出力先空き容量を記録。A2の`local32/K65536/224px`をGPU上で実際にfitするかは未実測。A2初回でOOMすれば**BLOCKED（resource feasibility）**としてそのまま報告し、条件変更は別承認。MetaとSelf片方だけ条件変更禁止。
 5. `fixture.pt`、run、comparisonはいずれもfresh directoryを使い、既存成果物上書きなし。`fixture_manifest.json`の初期state・input SHA-256と両runの`fixture_sha256`を検証する。
 
-## 6. 閾値決定のGate — **formal判定のblocking**
+## 6. 閾値決定のGate（M0/M0r診断完了・固定値採用済み）
 
 - **候補のみ**：A1で使用した `rtol=1e-5, atol=1e-6`。A2では**未固定**。暫定configの`verification.threshold_status=provisional`では、formal PASS/FAILは出せない。
 - 先に同一fixtureでMeta公式**2つの独立fresh rerun（M0、M0r）**を実行する案を推奨する。両方で環境/backend・full step・入力hashを固定し、`--pair-kind rerun`でbitwiseとfloat差（gradient、post-SGD、EMA、BN、Queue等）を調査する。
@@ -84,11 +87,11 @@ A0の**正式完了**は本specのpreflightで以下を確認・保存した時�
 - 対象tensorごとに固定閾値を設ける必要が判明した場合は、既存comparatorが全tensor共通閾値のみをサポートしている点とその影響を再評価し、**コード変更なら別spec/別承認**。未承認の新comparison規則を挿入しない。
 - provisional診断runとfixed判定runの結果を同じ正式runと見なさない。失敗後に閾値を緩めたり、optional traceを消してPASSへ誘導したりしない。
 
-### Decision Gate D1（未決・blocking）
+### Decision Gate D1（2026-10-20に解決済み。下記は承認前の記録）
 
 正式runに進む前に **(a)** A2用の具体的なfixed `rtol/atol`、**(b)** Meta rerun実施数とreproducibility要求、**(c)** 診断/正式run実行許可が必要。推奨は「M0×2で基準を調査→数値基準を事前固定→M1/S1 fixed正式比較」。現時点では基準値を推測で決めない。
 
-## 7. Runbook（**手順案**。このspecを保存しても実行許可にならない）
+## 7. Runbook（承認済み実験条件。SSH上の実行はユーザー側）
 
 次のshellは既存GitHubコードに一致する具体例であるが、`A2_RTL`/`A2_ATL`は未決なので正式runは実行不可。作業ディレクトリは`/mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora`、有効な`.venv`、自作commitは上記のものをpinする。
 
@@ -183,7 +186,7 @@ python -m scripts.parity.compare_moco_parity \
 - 旧A1 v2 artifactは新judge16で直接再判定できない既知制約。A2の新v3正式pairで扱う問題ではないため、旧artifactを書き換えない。
 - 長時間Queue one cycle（A3）、Checkpoint exact GPU resume（A4）、monitor OFF/light speed benchmark（A5）は**別実験・別GPU承認**。
 
-## 11. Ambiguity Gate / Gateと引き継ぎ
+## 11. Ambiguity Gate / Gateと引き継ぎ（承認前の履歴。最新状態は末尾の承認記録を参照）
 
 ### Blocking（承認・正式実行前）
 
@@ -203,7 +206,7 @@ python -m scripts.parity.compare_moco_parity \
 4. 別途GPU許可を受け、M1/S1正式run→offline formal comparison→`experiments/`へEvidence保存。
 5. A2 PASSならA5 GPU monitor OFF/lightのresource feasibility specへ。A2 FAILならfirst mismatchから原因切り分けへ。10epoch・動画・LoRAの本実験へ勝手に進まない。
 
-## 12. Research-spec handoff（現在はdraft）
+## 12. Research-spec handoff（旧draft時点の履歴）
 
 - **Spec**：本ファイル（ユーザー未承認、status draft）。
 - **対象GitHub code**：`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`、`dc502e416aa26ed4e0791767fa5a72f7843e399d`。
@@ -237,3 +240,28 @@ python -m scripts.parity.compare_moco_parity \
 Decision Gate D1への**推奨値**：`rtol=1e-5, atol=1e-6`、離散状態 exact、bitwise一致率は追加記録。これらはA1での既往固定値を初期候補として採り、A2で**自作S1の結果を見る前に**ユーザーが採否を決める。M0/M0rがbitwiseである事実は、M1/S1の一致やbitwise必須要件を意味しない。未承認のため本specの`status: draft`、`a2_formal_threshold: not_fixed`、`gpu_gate: NOT_RUN`（正式M1/S1の意味）はそのまま。M0/M0rはdiagnostic実施済みで、A2 formalは未実施。
 
 **Next approval**：ユーザーが推奨FP32閾値・離散exactを正式採用し、**新規fresh M1/S1各2GPU×1stepの正式判定run**を明示指示したら、別々の`verification.threshold_status=fixed`を付けて実行する。現時点では正式runを起動しない。既存runを後からfixedに書き換えることは禁止。
+
+---
+## 2026-10-20：A2正式閾値・M1/S1判定実験の明示承認（現行Authority）
+
+**ユーザーは、Meta公式M0/M0rの固定ImageNet fixture再演が3,926/3,926比較entryでbitwise完全一致した報告を受け、正式FP32閾値およびM1/S1の各2GPU・1step独立比較へ進む推奨を明示的に採用した。** 本節とfrontmatterが現在の承認状態を示し、第3〜12節のうち過去のdraft・未承認表記を置き換える。
+
+- **Spec status: approved**。未実施の正式M1/S1結果をPASSと記さない。
+- **固定浮動小数判定**：`verification.rtol=1e-5`、`verification.atol=1e-6`、`verification.threshold_status=fixed`。各float tensor/elementについて `abs(S1-M1) <= 1e-6 + 1e-5*abs(M1)`。整数、ハッシュ、形状/dtype、入力順、Shuffle、Queue pointer等の離散値はexact。bitwise率も併記するが100%一致は必須ではない。
+- **run条件**：既存検証済みfixture `.../log/moco_imagenet_parity/fixtures/a2_imagenet_20261020_084625/fixture.pt`（SHA256 `9edede9195eccef13e7ec8446880d6bfc6a550b11e96b466dbf047723d24b4ac`）、ImageNet実画像・224px・ResNet50+MLP・2GPU NCCL・local32/global64・K65536・FP32/AMP off/TF32 off・SGD初期LR0.0075・m0.999・T0.2・seed0・fresh1step full trace。
+- **reference M1**：`implementation=meta_reference`、固定Meta clone `a419ef282fc9885015674e77f58c59447206a27f`、fresh出力、`logging.comet_enabled=false`。
+- **candidate S1**：`implementation=self`、通常演算 `moco.info_nce_impl=meta_einsum`、`diagnostic.info_nce_impl=null`、同一fixture、fresh独立出力。
+- **比較**：CPU `compare_moco_parity.py --pair-kind formal_implementation --threshold-status fixed --rtol 1e-5 --atol 1e-6 --gate A2`。双方のconfig/report/provenanceに同じ閾値とfixture SHAが記録され、全rank/全phase/full step traceのprecondition/within-run PASSで初めてformal PASS。
+- **既完了Evidence**：[fixture・state/input/hash検証](../experiments/2026-10-20-meta-moco-a2-imagenet-fixture-generation-evidence.md)、[M0/M0r 2GPU再現性検証](../experiments/2026-10-20-meta-moco-a2-reference-m0-gpu-one-step-evidence.md)。M0/M0rは`threshold_status=provisional`の**診断run**でありfixedへ事後変更・昇格しない。
+- **Preflight/停止条件**：run直前の両repo clean/commitとGPU可用、fixtureハッシュを再確認。M0ではNCCL 2rankとVRAM peak 4016.38MiB/rank・reserved 4340MiB/rankで完了したが、S1のリソースは未測定。OOM/NCCL失敗/NaN/rank不一致では停止し、自動でbatch、K、precision、閾値、Meta source、traceを変更しない。
+- **境界**：この承認はM1/S1の2GPU×1step正式判定のみ。A3/A4/A5、10epoch、研究コード改修、ViT・LoRA・動画学習は別承認。ChatGPTはGitHub文書のみ更新し、SSHサーバでのrun起動・clone同期はしていない。
+
+### 最新判定状態
+
+| Subgate | State |
+|---|---|
+| Engineering/CPU | PASS |
+| ImageNet fixture generation / SHA / tensor checks | PASS |
+| Meta reference M0/M0r independent 2GPU 1step | COMPLETED / BITWISE 3926 of 3926 |
+| A2 numeric threshold | FIXED / APPROVED BEFORE M1-S1 |
+| M1 vs S1 formal implementation GPU parity | NOT_RUN |
