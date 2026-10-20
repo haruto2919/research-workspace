@@ -34,8 +34,8 @@ v1_offline_comparison: INPUT_HASH_1_OF_1_AND_LOGGED_METRICS_BITWISE_PASS_2026-10
 e1_execution_authority: USER_APPROVED_META_AND_SELF_100STEP_WITH_COMET_ON_2026-10-20
 e1_execution_status: META_SELF_100STEP_COMPLETE_INPUT_HASH_2OF2_METRICS_BITWISE_2026-10-20
 e2_execution_authority: USER_APPROVED_META_AND_SELF_ONE_EPOCH_WITH_COMET_2026-10-20
-e2_execution_status: META_SELF_EPOCH5004_ALL_COMPARE_VERDICTS_PASS_CANONICAL_MODEL_STATE_EQUAL_2026-10-20
-e2_partial_evidence: ../experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md
+e2_execution_status: META_SELF_EPOCH5004_COMPARISON_CANONICAL_STATE_CHECKPOINT_SIDECARS_COMET_REPORT_PASS_2026-10-20
+e2_evidence: ../experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md
 e1_evidence: ../experiments/2026-10-20-meta-moco-v2-e1-imagenet-100step-comet-parity-evidence.md
 comet_destination_verified: E1_META_AND_SELF_EXPERIMENT_URLS_PRESENT_2026-10-20
 ten_epoch_training: NOT_RUN
@@ -307,3 +307,14 @@ Meta公式・自作の比較器出力で`curve_agreement=bitwise`、`contract_is
 ユーザーが`moco_v2_e2_20261020_173541/comparisons/e2_20261020_205017/comparison_report.json`から次の値を追加提示：`contract_valid=True`, `both_completed=True`, `inputs_identical=True`, `metrics_bitwise_equal=True`, **`epoch_states_identical=True`**, `curve_agreement=bitwise`。`epochs[0]`は`completed=[True,True]`, `global_step=[5004,5004]`, `lr_equal=True`, `loss_mean_abs_diff=0.0`, **`canonical_state_equal=True`**。比較スクリプト上`E2 comparison PASS=True`。前段の`canonical_state_equal`未確認は解消。
 
 **E2比較契約の再現性GateはPASS**（記録scalar完全一致、input hash 51/51、canonical epoch-end model state SHA一致）。**ただしCheckpoint本体/rank sidecarsの実在性、Comet URL/errorsは最新貼付ログからはまだ独立確認できない**ので、長期E3の前にrun_reportとディスク上で別途確認する。モデルcanonical state一致と、Optimizer/RNG/Checkpointファイル全体の同一性は別の主張。ImageNetの表現学習品質も未評価。正本記録： [E2比較Evidence](../experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md)。**E3 10epochは未承認、未実行**である。
+
+### E2成果物・Comet検証完了：Gate PASS（2026-10-20）
+
+ユーザーが研究サーバでMeta/self E2各`run_report.json`を読み、Checkpoint本体とrank0/rank1 sidecarの実在を確認。両方`status=completed`, `last_global_step=5004`, `completed_epochs=[0]`, `run failures=[]`, `comet.errors=[]`で、それぞれ`ARTIFACT CHECK PASS`。**両runのcanonical state SHA-256は完全一致**：`2dc5e59947677ffcb9cadc9006947e415b992f2b42f09517f0f3b19b7e44abbc`。
+
+- Meta Comet：`https://www.comet.com/haruto2919/moco-imagenet-v2-reproduction/af69fe76ffde4e55abb73551f3a1096e`
+- Self Comet：`https://www.comet.com/haruto2919/moco-imagenet-v2-reproduction/728e58d18e3b40de9147197f7bbb7972`
+- 既存比較 `comparison_report.json` で`contract_valid/both_completed/inputs_identical/metrics_bitwise_equal/epoch_states_identical`がすべてTrue、`curve_agreement=bitwise`。入力hash 51/51地点、Loss等502/502地点、grad norm52/52地点で一致。
+- **E2の承認済み比較・保存契約を満たしたと判定**。ただしこれは模型のcanonical state SHA一致であり、native checkpoint形式・optimizer/RNG sidecarの全データの一致・resumeの正常動作・特徴品質を実証していない。Cometはrunner reportのURL＋errorsなしの確認であり、オンラインUIの最新メトリクスを別に再取得したわけではない。
+- 研究サーバのraw data/CheckpointはGitHub connectorから直接読めない。根拠は**ユーザー提示の実機検証ログ**。正本Evidence：[E2実験記録](../experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md)。
+- **E3（10epoch×2 run）は依然として未承認・未実行**。次の実験に進む場合は、所要時間・ストレージ・計測内容・表現診断の必要性を検討し、別のユーザー許可の後に実行する。
