@@ -29,9 +29,9 @@ b1_stop_rule: ADOPTED_FAIL_CLOSED_THRESHOLD_1024MIB_2026-10-20
 implementation: IMPLEMENTED_CPU_VERIFIED_COMMITTED_d6f7acc_PUSHED_2026-10-20
 implementation_record: ../experiments/2026-10-20-meta-moco-v2-10epoch-runner-implementation-verification.md
 v1_partial_evidence: ../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md
-vram_gate: META_REFERENCE_30STEP_PASS_SELF_PREFLIGHT_BLOCKED_2026-10-20
+vram_gate: META_AND_SELF_30STEP_BOTH_PASS_2026-10-20
 ten_epoch_training: NOT_RUN
-comet_upload: META_V1_DEFAULT_ENABLED_REAL_DELIVERY_UNVERIFIED_2026-10-20
+comet_upload: V1_DISABLED_BOTH_CONFIRMED_BY_RUN_REPORT_2026-10-20
 representation_evaluation: NOT_RUN
 ---
 
@@ -228,3 +228,16 @@ Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experi
 また、Meta公式の起動コマンドで本specの`logging.comet_enabled=false`が指定されておらず、YAML defaultは`true`。Cometの実送信有無・URLは未確認。厳密にComet OFFのV1ペアを揃える場合は、初回Metaのresource PASSを残しつつMeta OFFの別runを取り直す必要がある。追加の証拠と安全な対応方法は[partial V1実験記録](../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md)を参照。
 
 この更新は**Gate状態・Evidenceリンクのみ**であり、approvedなB1〜B5契約・研究コード・10epoch実験の許可範囲は変更しない。
+
+### V1 pair合格・元のMeta Comet懸念解消（2026-10-20）
+
+直前の「V1途中結果」は履歴として維持し、本追記を**最新のGate判定**とする。ユーザーがSSH研究サーバから`run_report.json`の集約情報とself V1学習ログを再提示したため、**MetaとSelfの30step両方PASS**を確認した。
+
+- campaign: `moco_v2_v1_20261020_162206`、同一fixture、FP32、2GPU×local128/global256、K65536、30step。
+- Meta: status completed / training_completed true / `vram_gate.status=PASS` / peak reserved 13026MiB（rank0/1）/ headroom 7069.875MiB（rank0/1）。
+- Self: status completed / training_completed true / `vram_gate.status=PASS` / peak reserved 13038MiB（rank0/1）/ headroom 7057.875MiB（rank0/1）。
+- **双方ともComet preflight enabled=false、experiment created=false、error count0**。前段の「Meta Comet ON可能性」は実reportにより否定され、同一V1 OFF契約を満たす。
+- 両実装のstep1/10/20/30でLoss等の出力値は一致。**全step入力一致・full state bitwiseではなく、観測したscalar一致の主張のみ**。offline compareのinput hash判定は別途必要。
+- Data waitがMeta側約75秒/rank、Self側約5秒/rankと大差。性能比較の主張は保留。
+- 正本Evidence:[V1両実装PASSの実験記録](../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md)。この記録は研究サーバの現物をGitHub connectorで取得したものではなく、ユーザーが提示したログ由来。
+- **V1 PASSED only**。E1 100step・E2 1epoch・E3 10epoch・Comet real send・E4軽量特徴診断は未実施。次のGPU実験実行には別の明示許可が必要。
