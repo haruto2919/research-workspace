@@ -31,6 +31,8 @@ implementation_record: ../experiments/2026-10-20-meta-moco-v2-10epoch-runner-imp
 v1_partial_evidence: ../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md
 vram_gate: META_AND_SELF_30STEP_BOTH_PASS_2026-10-20
 v1_offline_comparison: INPUT_HASH_1_OF_1_AND_LOGGED_METRICS_BITWISE_PASS_2026-10-20
+e1_execution_authority: USER_APPROVED_META_AND_SELF_100STEP_WITH_COMET_ON_2026-10-20
+e1_execution_status: NOT_RUN
 ten_epoch_training: NOT_RUN
 comet_upload: V1_DISABLED_BOTH_CONFIRMED_BY_RUN_REPORT_2026-10-20
 representation_evaluation: NOT_RUN
@@ -248,3 +250,17 @@ Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experi
 同一campaign・同一初期fixtureでMeta/Selfそれぞれ30step、GPU V1が両者PASSした後、ユーザーが研究サーバで`compare_moco_10epoch.py`を実行。比較器の`contract_valid=True`、`both_completed=True`、`inputs_identical=True`（**ハッシュした1stepのみ一致**）、`metrics_bitwise_equal=True`、`curve_agreement=bitwise`、`contract_issues=[]`を確認。Loss/positive-negative-hardest cosine/LR/queue_ptr/finiteは各4/4step、query_grad_normは2/2stepでscalar値が完全一致（max_abs_diff=0）。ただし`epoch_states_identical=None`で**終了epochのstate比較は未実施**。比較器の`bitwise`表示はfull stepのモデル全状態bitwise一致を示さない。V1は**計算資源+サンプル学習指標の再現性Gate PASS**であり、正式E1/E2/E3/E4の代替ではない。
 
 研究サーバの出力：`log/moco_imagenet_10epoch/moco_v2_v1_20261020_162206/comparisons/v1_20261020_164421/comparison_report.json`（GitHub connectorでは実体未確認）。[V1 Evidence](../experiments/2026-10-20-meta-moco-v2-v1-global256-gpu-feasibility-partial.md)参照。**E1の100step×2run、Cometライブ送信はV1実行許可に含まれない**ため、先行Gate結果を受けた別のユーザー実行合意を必要とする。
+
+### E1（各100step）実行承認と実行境界（2026-10-20）
+
+ユーザーはV1の比較器による結果（Meta/Self両実装completed、契約valid、記録指標bitwise一致、入力hash 1/1一致、epoch state未評価）の報告後、**「次に進みたいです」**と回答。直前の明示質問「E1としてMeta公式・自作それぞれ100stepのGPU学習とCometへの記録を開始してよいか」に対する回答であるため、**E1 GPU×2runおよび当該2runのCometライブ送信のみを承認**した。コード変更やE2 1epoch/E3 10epochへの実行許可を含まない。
+
+**共通固定条件**：新規campaignを起こし、同campaign内にMeta公式builderから生成した単一のcanonical初期state fixtureを置く。両runnerに`gate=E1 training.max_steps=100 logging.comet_enabled=true`と同一の`initial_state.fixture_path`を指定する。その他の採用recipe（ImageNet train、ResNet50 MoCo v2 MLP、2GPU×local128/global256、SGD LR0.03、FP32 strict、K65536、MoCo momentum0.999/temperature0.2、16worker/rank、seed0）は変更しない。V1のfixtureを改変/上書きしない。E1はV1からのresumeではなく**fresh initial state**から開始する。
+
+**安全Gate**：研究コード`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`のcheckoutがcleanでcommit固定、公式clone`facebookresearch/moco@a419ef282fc9885015674e77f58c59447206a27f`もclean、GPU0/1の他job有無、NAS/ImageNet存在、`~/.comet.config`等の秘密情報・認証をユーザー環境で確認。`PYTHONDONTWRITEBYTECODE=1`で前段の未追跡`.pyc`生成を抑止し、dirtyなら開始しない。Comet SDK preflightはrepository `.comet.config`とホームAPI keyから`haruto2919/moco-imagenet-v2-reproduction`へ届くことを確認する。Project未存在の場合はオンラインSDKの自動作成・権限結果を確認する。API keyは一切出力・commitしない。
+
+**実行順**：Meta公式100step → status/steps/Comet experiment key・URL・errorsを確認 → 正常なら自作100step → 両方完了時にoffline comparatorで同一campaign、sampler+fixture contract、1step/100step input SHAと10step毎のLoss/Cosine/LR/Queueおよび1/100stepのgradを比較。各runはHydraの独立日時付きdirectoryに保存し、JSONL/ArtifactはローカルSSOTとする。プロセスのエラー、Comet API接続不可、誤送信可能性があれば続行/再試行前に停止・調査する。
+
+**成功・報告**：Meta/Selfの`run_report.json`から`status=completed`・`training_completed=true`・100/100step・失敗なし、`preflight.comet.enabled=true`、意図したworkspace/project、Comet実験の`key/url`と`errors`、CPU/NAS data wait、GPU peakを確認。比較器は`contract_valid/both_completed/inputs_identical/metrics_bitwise_equal/curve_agreement/contract_issues`を報告する。入力hashは1stepと100stepの**計2箇所**であり、100stepすべてのtensor一致ではない。100stepはepoch未完了なので`epoch_states_identical=None`、checkpoint/state full bitwiseは**未検証**。Queue K65536は100stepで一巡せず、V1/E1のLoss曲線は特徴品質を示さない。
+
+**実行状況**：この決定記録の保存はGPU jobやCometへの実送信ではない。ユーザー研究サーバ側で起動して結果を返す。E2/E3/E4・コード変更・full runは未承認／未実行のまま。
