@@ -227,3 +227,13 @@ python -m scripts.parity.compare_moco_parity \
 **Approval scope / 実行権限の確認**：この採用は**A2の基本方針と診断準備の承認**。現時点ではA2 formal用の閾値（rtol/atol）は未固定であるため、**本spec全体のstatusはdraftを維持**し、正式比較runの許可・成功を意味しない。また研究サーバ上での実際のfixture生成、M0/M0r GPU診断、M1/S1 GPU正式判定の実行は、このGitHub編集では行っていない。GPU実験はユーザー実行または別途明示実行指示が必要。
 
 **次に進める内容**：研究サーバで再度Git/Meta clean、PyTorch CUDA/NCCL状態、出力先の空き領域を確認し、既存fixture generatorで1step real-image fixtureを**fresh directory**に作成する。画像64枚×2viewと初期state/hashを記録し、その実出力のpath/manifestをユーザーが提示したら、M0/M0r診断runのGPU可否・安全性を最終確認する。M0/M0rは数値許容差を決めるための**diagnostic**であり、A2正式PASSとはならない。
+
+---
+
+## 2026-10-20：M0/M0r再現性診断完了（正式閾値採用前）
+
+ユーザー提供のGPU runとCPU comparator出力により、固定fixture・Meta公式M0/M0rの両方が1step完了し、status付きwithin-run checkが全PASS（BN rank間差はINFO）、`--pair-kind rerun`は **judged 3926 / bitwise equal 3926、exact failures 0、close failures 0、first_difference/failure None**。比較器は`verification.threshold_status=provisional`ゆえ`BLOCKED`であり、再実行の数値不一致はなかった。詳細は[Meta M0/M0r GPU再現性Evidence](../experiments/2026-10-20-meta-moco-a2-reference-m0-gpu-one-step-evidence.md)。
+
+Decision Gate D1への**推奨値**：`rtol=1e-5, atol=1e-6`、離散状態 exact、bitwise一致率は追加記録。これらはA1での既往固定値を初期候補として採り、A2で**自作S1の結果を見る前に**ユーザーが採否を決める。M0/M0rがbitwiseである事実は、M1/S1の一致やbitwise必須要件を意味しない。未承認のため本specの`status: draft`、`a2_formal_threshold: not_fixed`、`gpu_gate: NOT_RUN`（正式M1/S1の意味）はそのまま。M0/M0rはdiagnostic実施済みで、A2 formalは未実施。
+
+**Next approval**：ユーザーが推奨FP32閾値・離散exactを正式採用し、**新規fresh M1/S1各2GPU×1stepの正式判定run**を明示指示したら、別々の`verification.threshold_status=fixed`を付けて実行する。現時点では正式runを起動しない。既存runを後からfixedに書き換えることは禁止。
