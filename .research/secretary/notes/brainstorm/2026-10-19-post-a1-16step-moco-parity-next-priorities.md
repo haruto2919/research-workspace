@@ -59,3 +59,4 @@ tags: [brainstorm, research, moco, imagenet, parity, lora, vit, sequential-loade
 - [Parent Spec A draft](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-17-meta-moco-v2-imagenet-ddp-parity-spec.md)
 - [Five-stage research plan](./2026-10-15-five-stage-lora-moco-research-task-plan.md)
 - [Post-MoCo integration roadmap](./2026-10-15-post-moco-gate-c-integration-roadmap.md)
+- [A5 ImageNet 2GPU bench監視OFF/Light実験spec（2026-10-20 draft）](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-20-meta-moco-a5-imagenet-gpu-bench-monitor-overhead-experiment-spec.md)
