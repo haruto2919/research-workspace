@@ -16,6 +16,7 @@ related_evidence:
   - ../experiments/2026-10-20-meta-moco-a3-synthetic-two-gpu-1025step-formal-implementation-evidence.md
   - ../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md
 approval: PENDING_REVIEW
+b4_feature_evaluation: ADOPTED_LIGHTWEIGHT_HELDOUT_DIAGNOSTICS_KNN_OPTIONAL_2026-10-20
 implementation: NOT_STARTED
 vram_gate: NOT_RUN
 ten_epoch_training: NOT_RUN
@@ -40,7 +41,7 @@ representation_evaluation: NOT_RUN
 
 1. **Implementation parity**：同じ初期状態/入力ならMetaと自作は同じ計算をするか（A3が対象）。
 2. **Learning dynamics reproduction**：実ImageNetで10epochのLoss・類似度・勾配/Queue推移と結果がMetaと自作で整合するか（本specの主目的）。
-3. **Representation learned**：学習後の画像特徴が初期値より有用か（最低限のheld-out評価を別のEvidenceとして必要。Lossの低下/一致だけでは証明できない）。
+3. **Representation learned**：学習後の画像特徴が意味的に有用か。**今回の10epoch本体Gateでは証明対象にしない**。固定held-out画像の特徴診断でcollapse等の異常兆候を調べるが、ImageNet kNN/Linear Probeは独立した任意評価とする（B4採用）。Lossの低下/一致や特徴分散の存在だけでは有用性を証明できない。
 
 この実験は「Meta公式MoCo v2の**200epoch標準結果**を再現した」とは表現しない。**MoCo v2レシピの10epoch短縮run**である。
 
@@ -118,12 +119,12 @@ representation_evaluation: NOT_RUN
 | E1 | 短いpaired canary（例100step） | 画像順序・初期state・augmentation policyの一致とLoss/grad/Queueを比較、Comet logging/ローカル保存試験。**数値一致の合否を設定に応じて定義** |
 | E2 | 1epoch pilot（2run） | sampler epoch進行・1epoch全batch・checkpoint/resume、実データ負荷、GPU/CPU/ディスク・時間再見積り。修正は明示的な設定改訂のみ |
 | **E3** | **Meta公式、Self各10epoch**（独立fresh run） | 10epoch完了（各50,040stepを目安）、同一recipe、epoch LR、Loss/pos/neg/grad/Queueの履歴、NaNなし、epoch checkpoint+SHA、Comet series・差分表示、失敗時はartifact保全。**学習曲線の類似性だけでbitwise成功としない** |
-| E4 | held-out特徴評価（研究上の確認） | 学習前・公式学習後・自作学習後の凍結backbone特徴を同じ評価protocolで比較。ImageNet val kNNを候補、Linear Probeは別確認。初期値より改善したか、公式と自作の差はどの程度か |
+| E4 | **軽量held-out特徴診断（B4採用済み）** | ImageNet valから固定した少数の画像をラベルを使わず選び、**学習前・公式10epoch後・自作10epoch後**の凍結ResNet50 backbone特徴を共通の前処理/eval modeで測る。**Feature variance・feature norm・異なる画像間cosine similarity分布**の有限性とcollapse兆候を記録し、公式/自作を比較する。**kNN/Linear Probeは今回の必須Gateには含めない**。数値しきい値とkNN精度による成功判定は設けない |
 
-**区別する合否**：`engineering_pass`、`vram_feasible`、`training_completed`、`curve_agreement`、`representation_quality_evaluated` を別々に保存し、一つのPASSへ無条件にまとめない。
+**区別する判定**：`engineering_pass`、`vram_feasible`、`training_completed`、`curve_agreement`、`lightweight_feature_diagnostics_completed`（異常兆候を含む観測）を別々に保存し、一つのPASSへ無条件にまとめない。`representation_quality_evaluated`は別途kNN/Linear Probe等の評価を実施した場合だけ記録する。
 
 **結果をどのように解釈するか**：
-- 同じ入力/初期値で両者が近い曲線を示しても、実画像10epochで学習に十分な特徴を獲得したとは限らない。
+- 同じ入力/初期値で両者が近い曲線を示しても、実画像10epochで学習に十分な特徴を獲得したとは限らない。E4の軽量診断はcollapseや数値異常の兆候を確認するだけで、意味的特徴の有用性を証明しない。
 - 10epoch後にLossが単調減少しないことだけで失敗扱いしない（negative分布・Queueの非定常性・augmentationが影響）。
 - 公式の200epoch/Linear Probe Accuracy（MoCo v2の論文レベルの数字）は**10epochの合格基準に用いない**。
 - 比較で差が出たら、同一state/augmentation順序、worker seed、GPU演算モード、optimizer、BN/Shuffle、Cometでのサンプリング時点を切り分ける。
@@ -143,12 +144,12 @@ representation_evaluation: NOT_RUN
 | **B1** | **V1でlocal128がOOMまたはVRAM安全余裕不足になった場合** | 公式Batch256/LR0.03を維持してSTOP。追加GPU等の別条件を提案、**global64やAMPへ自動降格しない**（今回のユーザー採用を守る）。この停止規則は提案で、V1実測までfeasibility自体は不明 |
 | **B2** | **公式の`cudnn.benchmark=True`などの実行モードとA3の厳密再現設定のどちらを優先するか** | 公式条件忠実を第一候補に両runで揃え、modeをprovenanceに保存。bitwiseはA3 formal Gateの既存証拠として別立て。ただし再現性優先なら両方benchmark OFF等で固定する代替案 |
 | **B3** | **どこまで完全に同じ学習入力を再生し、Cometをライブ送信するか** | **公式M/Selfを同一state＋同じImageNetサンプル順＋同じ2-view拡張で比べる**方式を推奨。非同期/事後アップロードで原runを壊さず、Cometには2系列・epoch/step・source hashを残す。augmentationの再生は公式transform分布を変えない実装で検証する。完全同期がコスト過大なら独立runの曲線類似と区別 |
-| **B4** | **10epochの表現品質を最低限どこで測るか** | 最初は固定ImageNet val kNN（学習前・公式後・自作後）を別Gateとして推奨。Linear Probeは必要なら次段階。10epochなので公式200epoch最終性能の数値閾値は指定しない |
+| **B4（採用済み／非blocking）** | **本研究での特徴評価の範囲** | **ユーザーが新推奨を採用：**固定少数のImageNet val画像で、学習前・公式10epoch後・自作10epoch後のResNet50 backbone特徴のvariance、norm、画像間cosine分布を**軽量診断**する。画像ラベルを使う正式なkNN/Linear Probeは**任意の別Gateとして延期**。分類能力・意味的な特徴品質の獲得を今回の10epoch結果の必須の主張にしない |
 | **B5** | **worker/Checkpoint/失敗時の運用細部** | 公式`--workers 32`相当（2GPU各16）を第一候補にし、VRAMだけでなくCPU/RAM/NASを測る。epoch毎native checkpoint＋rank sidecar、差分のないresume試験、失敗時はfresh outputを維持。保存上限・Comet命名/タグは実装前に固定 |
 
 `non-blocking`：CLI file名、local JSONL file名、Comet display nameの表記、既存helperの呼び出し構造等は既存repo規約に従う。ただしmetricキー、同一step同期、checkpoint/experiment identityを曖昧にしない。
 
-**Spec readiness: draft / BLOCKED FOR APPROVAL**。global256/local128/LR0.03/10epoch/公式MoCo v2/Comet比較/VRAM Gate必須は採用済み。B1のfail-closedはユーザー要求からほぼ導かれるが、B2〜B5の比較方式・副作用・品質評価はまだ採用待ち。**ユーザーが推奨方針を採用した後にapprovedへ昇格可能**。その時点でも実際のV1/E1/E2/E3のGPU実行は別許可。V1実機成功までは10epochを開始しない。
+**Spec readiness: draft / BLOCKED FOR APPROVAL**。global256/local128/LR0.03/10epoch/公式MoCo v2/Comet比較/VRAM Gate必須は採用済み。**B4（軽量特徴量診断を必須・kNNは任意）は2026-10-20ユーザーが採用済み**。B1の失敗時停止条件、B2のcuDNN運用、B3の入力再生/Comet方式、B5のworkers/Checkpoint等は未承認（B1/B2/B3/B5が残るblocking）。これらを解消するまでは`approved`へ昇格せず、実際のV1/E1/E2/E3 GPU実行も別許可。V1実機成功までは10epochを開始しない。
 
 ## 9. Handoff（approved後に使用）
 
@@ -156,4 +157,10 @@ representation_evaluation: NOT_RUN
 - **非対象**：A3 parityハーネスの演算変更、既存A5-pairの設計変更、ViT/LoRA/Sequential Loader、Meta公式200epoch checkpoint精度の再現主張。
 - **必要な検証**：CPU deterministic canary/epoch schedule/mapping/resume + 既存非回帰。短いGPU V1は後日別許可。
 - **大規模実験の開始条件**：V1 PASS、E1/E2を段階的PASS、同条件+clean immutable commit、資源見積り承認。10epochの2run、Comet送信は**NOT_RUN**。
-- **結果の報告**：公式/自作の条件差がないこと、全epoch history、Comet URL/experiment keys、Loss/cosine差、GPU/CPU/NAS/VRAM、freeze feature eval、確立したclaim/未確立のclaimを分ける。
+- **結果の報告**：公式/自作の条件差がないこと、全epoch history、Comet URL/experiment keys、Loss/cosine差、GPU/CPU/NAS/VRAM、学習前・両学習後の**固定held-out軽量特徴診断**、確立したclaim/未確立のclaimを分ける。kNN/Linear Probeの未実施は隠さず明記する。
+
+### B4採用記録（2026-10-20）
+
+ユーザー指示「新しい推奨案を採用します」を、直前の**B4：ImageNetの本格kNNを必須から外し、固定held-out画像による軽量特徴量診断を行う**という提案への明示承認として反映した。**この承認の対象はB4だけ**であり、B1/B2/B3/B5の承認、spec全体の`approved`化、コード変更、GPU実験、Comet送信の許可ではない。
+
+E4の再現性契約：同じ固定val画像index・同じ前処理・同じ2048次元backbone特徴位置・同じnormalization方針で、同一初期stateとMeta公式/自作の10epochモデルを比較する。測定対象は有限性、サンプル間のvariance、L2 norm分布、非同一画像対のcosine similarity分布。可能なら有効次元の補助診断も記録するが、測定が重い場合は必須化しない。ImageNetのvalidationクラスラベルを指標計算に使用しない。run reportに評価画像のindex/前処理/hash、checkpoint lineage、集計定義、結果を保存し、異常兆候・確立しない主張を明示する。固定サンプル数や実装上のファイル名はengineering review時に事前決定して記録する。
