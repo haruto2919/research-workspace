@@ -11,7 +11,9 @@ source_code_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 source_code_branch_at_review: dev
 source_code_commit_at_review: d6f7acc75ee92adcf7e6e3e65831d46759b9ed14
 official_reference: facebookresearch/moco@a419ef282fc9885015674e77f58c59447206a27f
-implementation_status: NOT_IMPLEMENTED
+implementation_status: IMPLEMENTED_CPU_VERIFIED_PUSHED
+implementation_commit: 7fc1f56a19fb00c8fce47fa23fe2e85d353b8a62
+implementation_record: ../experiments/2026-10-20-meta-moco-v2-5epoch-pair-launcher-implementation-verification.md
 five_epoch_gpu_run_status: NOT_RUN
 five_epoch_gpu_run_authority: NOT_GRANTED_BY_THIS_SPEC
 ---
@@ -93,3 +95,15 @@ offline comparator → loss/cosines/lr/grad/queue/inputs・epoch別canonical sta
 - **既存specとE2から継承**：画像/モデル/SGD/Queue/augmentation/FP32/deterministic/入力fixture/epoch checkpoint/safety Gate/Comet projectを維持。
 - **新しい設計選択**：5epoch Cosine horizon、E2からresumeしないfresh、同一Project内の別Experiment、fail-closed sequential launcher。いずれも従来の比較可能性を維持する解釈。2つの別Projectを欲する場合、追加の明示指示で再審査する。
 - **未実施**：この文書作成は実装、GPU実行、Comet送信、研究コードのcommit/pushを伴わない。長時間runの許可はない。
+
+## 7. 実装記録（2026-10-20）
+
+ユーザー依頼「このスペックに従って実装してください」により、§4の1〜3を`dev@d6f7acc`の上に実装した（**未commit**）。
+
+- runner：`gate=E5`を追加し、GPU runでは`E5`だけが`training.epochs=5`を受理する（V1/E1/E2/E3は10epochのまま）。モデル・InfoNCE・optimizer・transform・比較器は無変更。
+- ランチャー：`scripts/parity/run_moco_5epoch_pair.py`。既定は計画表示のみ、`--execute`でpreflight → fixture → Meta公式5epoch → 検証 → 自作5epoch → 検証 → 比較 → 集約。保存先は`log/moco_imagenet_5epoch/moco_v2_e5_<timestamp>/`。
+- CPU検証：関連3テストファイルで**108 passed**（新規：E5 Gate 8件、ランチャー25件）。計画モードを研究サーバで実行し、何も書き込まれないことを確認。
+- **未実施**：研究コードのcommit/push、`--execute`、5epoch GPU学習、Comet実送信。§3・§5の「GPU run Done」は別承認のまま。
+- **追記（同日）**：ユーザー許可により`dev@7fc1f56`（`dd0d8b3` feat＋`7fc1f56` test）へcommitし、`origin/dev`へpush。clean commitで計画モードのissuesなしを確認。`--execute`・5epoch GPU学習・Comet実送信は引き続き未実施・未承認。
+
+詳細は[実装・CPU検証記録](../experiments/2026-10-20-meta-moco-v2-5epoch-pair-launcher-implementation-verification.md)。

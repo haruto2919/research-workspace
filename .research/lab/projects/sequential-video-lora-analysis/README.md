@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: 2026-10-20 E2（Meta/Self各ImageNet1epoch/5004step）でinput hash51/51、記録Loss等502/502、grad norm52/52、epoch canonical state SHA一致、checkpointおよび両rank sidecar実在、Comet URL/errorsなしまでPASS。ユーザーが10epoch実験を取消し、Meta公式5epoch→自作5epochの自動逐次実行とComet別Experimentへ計画変更。新5epoch spec approved、コード未実装、GPU長時間run未実施・未承認。
+summary: 2026-10-20 E2（Meta/Self各ImageNet1epoch/5004step）でinput hash51/51、記録Loss等502/502、grad norm52/52、epoch canonical state SHA一致、checkpointおよび両rank sidecar実在、Comet URL/errorsなしまでPASS。ユーザーが10epoch実験を取消し、Meta公式5epoch→自作5epochの自動逐次実行とComet別Experimentへ計画変更。新5epoch spec approved。E5 Gateと逐次ランチャーを実装しCPUテスト108件PASS、dev@7fc1f56へpush済み。GPU長時間run未実施・未承認。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-20
@@ -116,3 +116,5 @@ last_updated: 2026-10-20
 | 2026-10-20 | E2 1epoch 5004stepのMeta/自作ペアについて、ユーザーが比較reportから全Verdict PASS（contract_valid、both_completed、inputs_identical、metrics_bitwise_equal、**epoch_states_identical**）を追加確認。epoch0 canonical state SHA一致、mean loss差0、51/51 input hashes、502/502指標等がbitwise一致。**E2比較PASS**。Checkpoint/rank sidecarsの存在、Comet deliveryはこの表示から未確認。E3 10epochは別承認。[E2 Evidence](experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md) |
 | 2026-10-20 | E2最終確認：ユーザーがMeta公式/自作それぞれのrun_reportとディスク実体を照合し、両方5004step完了・canonical state SHA `2dc5e599...`一致・checkpoint_epoch001.pt・rank0/1 sidecarの実在・Comet URL記録・errors=[]・failures=[]を確認。既存の51/51 input hash・502/502 logged metric・52/52 grad norm一致と合わせ、**E2比較・保存Gate PASS**。Checkpoint内容・Optimizer/RNG sidecarの全bitwise・Resume・画像特徴品質は未検証。E3 10epochは別承認。[E2 Evidence](experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md) |
 | 2026-10-20 | **研究方針更新**：ユーザーが長時間の10epoch比較を中止し、Meta公式5epoch→自作5epochの自動逐次学習へ変更。Cometは同一Projectの独立した2 Experimentとして記録。5epoch Cosine horizon、新規共通fixture、旧E2 Checkpointからresumeしない、公式が成功しなければ自作を起動しないGateを採用。[5epoch逐次比較spec](specs/2026-10-20-meta-moco-v2-imagenet-5epoch-sequential-comet-comparison-spec.md)を作成し、旧10epoch E3実行契約はsuperseded。**実装・Git push・5epoch GPU実験は未実行**。 |
+| 2026-10-20 | 5epoch specに従い、runnerに`gate=E5`（GPU runで5epochを受理する唯一のGate。V1〜E3は10epochのまま）と、Meta公式→自作を1本ずつ実行して各runの完了・checkpoint/sidecar・Comet記録を確認してから次へ進む逐次ランチャー`run_moco_5epoch_pair.py`（既定は計画表示のみ）を実装。CPUテストは関連3ファイルで108件PASS（新規33件）。計画モードは研究サーバで何も書き込まないことを確認。**研究コード未commit、`--execute`・5epoch GPU学習・Comet実送信は未実施**。[実装・CPU検証記録](experiments/2026-10-20-meta-moco-v2-5epoch-pair-launcher-implementation-verification.md) |
+| 2026-10-20 | ユーザー許可により5epochランチャー実装を`dev`へcommit（`dd0d8b3` feat、`7fc1f56` test）し、`origin/dev`へpush。clean commitで計画モードを再実行し、issuesなし（研究repo・公式clone clean、config契約・ImageNet train確認PASS）。GPU空き確認・Comet preflightは`--execute`時のみで未確認。**5epoch GPU学習とComet実送信は未実施・未承認**。[実装・CPU検証記録](experiments/2026-10-20-meta-moco-v2-5epoch-pair-launcher-implementation-verification.md) |
