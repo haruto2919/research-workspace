@@ -86,3 +86,56 @@ Authorityの参照先：
 **最有力（未承認）**：既存A3のstep-Loss等をCometで2系列に重ね、次に同一初期stateとDataLoader/augmentation/optimizer契約を守る実ImageNet matched MoCo pretraining比較を別Gateで設計し、特徴表現評価を別Gateで追加する。Cometの記録の成功と、モデルが有用な表現を学習したかは明確に分けて判断する。
 
 研究コード・spec・README・TODO・Comet実験はこのbrainstorm段階では変更しない。ユーザーが明示的にspec化を求めた場合に`research-spec`へhandoffする。
+
+---
+
+## 2026-10-20 追記：Meta公式v2レシピ・10epochのユーザー希望
+
+ユーザーから新たな明示方針：
+
+> 実ImageNetでのStep B（公式Metaと自作の学習挙動をComet比較）を、公式の設定に合わせ、**10epoch**実行したい。
+
+**確定**：対象はMoCo v2、Meta公式と自作の両run、ImageNet-1K実画像、10epoch、Comet Loss等の比較。**未確定**：2GPUでのglobal batch256を維持するか、公式推奨のlinear LR scalingによりglobal64へ調整するか。ユーザー指示は方針であり、実験runや研究コード変更の許可、spec approvedを意味しない。
+
+### 固定公式ソースによる確認
+
+Meta公式clone正本commit：`facebookresearch/moco@a419ef282fc9885015674e77f58c59447206a27f`。
+
+- `README.md`に記載の公式8GPU ImageNet pretrainコマンド：ResNet50、`--lr 0.03 --batch-size 256`。MoCo v2へ切り替えるため`--mlp --moco-t 0.2 --aug-plus --cos`を追加。READMEには4GPUの場合`--lr 0.015 --batch-size 128`というlinear LR scaling推奨あり。
+- `main_moco.py`：デフォルトepoch 200、SGD momentum0.9/weight decay 1e-4、moco dim128/K65536/momentum0.999、MoCo v2 T0.2はopt-in、RandomResizedCrop224(scale=.2-1), ColorJitter(.4,.4,.4,.1) p=.8, grayscale .2, GaussianBlur .5, horizontal flip, ToTensor, ImageNet normalization。公式はepochごとに`train_sampler.set_epoch(epoch)`、`adjust_learning_rate(optimizer,epoch,args)`、一epochのloader全体をtrainし、epoch checkpointを保存。`cos` schedulerは`lr0×(1+cos(pi×epoch/args.epochs))/2`。
+- **200epochでのMoCo v2 Linear evaluationの公式性能と、10epoch短縮学習の性能を同一視しない**。10epochをschedulerの全期間とする候補を推奨。200epoch schedulerの最初の10epoch切り出しなら別experimentとして区別。
+
+### 公式Global Batchと2GPU調整のblocking choice
+
+| 案 | Global Batch | 2GPU local batch | 初期LR | 適合とリスク |
+|---|---:|---:|---:|---|
+| **strict official example** | 256 | 128 | 0.03 | 8GPU向け公式global batch/LRをそのまま維持。RTX A4500 20GiB×2でlocal128のVRAMは未測定、OOMの可能性あり。事前の2GPU pilotで実測し、変更には再決定が必要。 |
+| **official scaling recipe（運用第一候補）** | 64 | 32 | 0.0075 | 公式READMEがglobal256→128でLRを半減する方針を2GPU/global64へ拡張。既存A2/A3/A5-pilotの検証済みbatch/K/FP32に整合。ただし公式例global256そのものではなく2GPU向け縮小構成と明記。 |
+
+単なるgradient accumulationでlocal32×4をglobal256に見せても、BN統計、DDP Shuffle-BN、Queue更新タイミング、Key EMAの頻度などが変わるため、**同じ公式レシピと断定しない**。global256の実機feasibilityが確定するまで速度・VRAMを推測で保証しない。
+
+### 10epochフルImageNetコストの概算
+
+ImageNet train = **1,281,167画像**（先行ユーザー実測）、2GPU global64でDistributedSampler + per-rank batch32/drop_lastなら`floor(ceil(1281167/2)/32)=20018` update/epoch、**200,180 update/run、Meta＋自作で400,360更新**。A5-pilot測定は**約80.96 images/s（2GPU合計）**で、10epochあたり約`1281167×10/80.96≈158,246 sec≈44h/run`、順次2runなら**約88h**となる。ただし20step pilotの一window値なので、長時間でのNAS/cache/worker/Comet/epoch保存・公式M実装速度に外挿できない。正式budgetは100step→1epoch pilotの実測で再推定。global256を選ぶならupdate数が変わり、A5-pilotのglobal64 throughputをそのまま使用しない。
+
+### 現行コードの拡張境界
+
+`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` `scripts/parity/moco_imagenet_parity.py`はMetaReferenceAdapterとSelfAdapterの共通runner、`CometRun`のrank0送信（Loss/positive-negative cosine/Queue pointer/LR、条件付きgrad+update norm）を実装している。しかし`bench_loop`は**両adapter `build(None)`で初期状態共有なし／`set_epoch(0)`と`set_epoch_lr(0)`で学習率更新なし／`run_bench_steps(max_steps)`で1epoch iteratorを消費して終わり／`bench`にはresume/checkpoint禁止**。単純に`training.max_steps`を増やして10epochにしてはならない。`run_kind=parity`は同一canonical fixtureで始まるものの、全step traceを書くA3専用で、10epoch full ImageNetの実用的なデータ管理とログ容量に向かない。`run_moco_gates.py`のA5-pairはComet OFF/自作のみのmonitor負荷比較なので、今回の実ImageNet公式vs自作の目的とは分離する。
+
+新規10epoch専用experiment contractでは、epoch-aware DataLoader/sampler, LR scheduler,同じ初期stateの厳密なマッピング,同じ変換系列とデータ順序,独立fresh run+multi-epoch resume, epoch checkpoints/sidecars, run manifest/hash, local artifactが正本でCometは可視化層、異なるComet run名/タグ・共通metric keys、学習時毎10step Loss/pos-neg cosine/LR、毎100step grad norm、epoch集約の安定性/finiteを推奨。実行順序は短いcanary→1epoch確認→承認した10epochのM/S1。Comet実験keyが異なるものを誤比較しない。
+
+### 検証の主張を区別
+
+1. **数値の正しさ**：A3 synthetic 1025step 58,790/58,790エントリ bitwise PASSは既存の証拠。
+2. **実画像10epochの学習挙動再現**：Loss/positive-negative cosine/LR/grad/Queue等の曲線・epoch指標が整合するか。初期state/入力streamが完全一致しなければbitwise一致を判定基準にしない。
+3. **有用特徴獲得**：同じ画像・分割を使う学習前→後、Meta後→自作後のImageNet val kNN／後段Linear Probeなどが必須。Loss一致だけでは「MoCoの特徴学習成功」の主張は不可。
+
+### 現在の判断・handoff
+
+**採用（ユーザー）**：Meta公式MoCo v2のrecipeを基準に実ImageNet 10epoch学習を両実装で比較し、CometでLoss等を見たい。
+
+**推奨候補（未承認）**：global64/local32 + LR0.0075（公式linear scaling）、cos horizon10epochs、同一初期state/data order/aug、10step scalar記録、100step grad、0step update clone、epoch checkpoint、事後のComet比較、固定held-out特徴品質Gate。短期pilotと1epochで必要資源を評価。
+
+**blocking decision**：strict公式例global256/LR0.03（2GPU local128の実機VRAM pilot必須）と2GPUスケーリングglobal64/LR0.0075のどちらを「公式に合わせた」と呼ぶか。
+
+**研究コード/既存spec/README/TODO/Comet/研究GPU runは今回変更なし**。ユーザーがspec作成を明示した段階で`research-spec`を使い、正式10epoch実験を実装可能な契約にする。長時間GPU runは別途明示承認。
