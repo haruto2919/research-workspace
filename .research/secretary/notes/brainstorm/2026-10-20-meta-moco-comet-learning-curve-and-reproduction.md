@@ -181,3 +181,38 @@ ImageNet train = **1,281,167画像**（先行ユーザー実測）、2GPU global
 ユーザーは直前に検討した**「ImageNetのkNN評価を必須にせず、固定した少数のheld-out画像でFeature variance・norm・画像間cosine等の軽量診断を行う。kNN/Linear Probeは必要時の独立Gateとして保留する」**案を明示採用した。10epochのMeta公式/自作・Comet比較の背景研究目的は変えない。
 
 B4の採用を[10epoch公式設定比較spec（draft）](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-20-meta-moco-v2-official-global256-imagenet-10epoch-comet-reproduction-spec.md)に反映済み。**B1/B2/B3/B5は未承認、spec statusはdraftを保持**。研究コード変更・GPU run・Comet送信はいずれも未実行。この判断により、今回の10epochで主張するのは学習挙動の公式再現性と軽量な異常診断までであり、画像分類精度や意味的特徴の有用性の実証ではない。
+
+---
+
+### 2026-10-20 19:38 JST 追記：Meta E2 1epochスクリーンショットの学習挙動の解釈
+
+ユーザー提供のCometスクリーンショット（`moco-imagenet-v2-reproduction` / `meta_reference-E2-moco_v2_e2_20261020_173541`）にある6曲線を**画像から目視で分析**。Comet raw-history/SSH上の`run_report.json`/checkpointは今回取得できないため、以下のstep・値は**概数**であり、E2が正式PASSやmeta/selfが一致したという結果ではない。元の画面はChatGPTの会話添付でありGitHubへ画像を転載していない。
+
+#### 画像から観測したこと（近似、Evidence level: visual)
+
+- `loss`：step1約6.4→初期急上昇→概ねstep500–2500で9.8–10.1付近（step約2200で局所高値）→step3000以降は下降、step5000近傍で約9.1。**初期step1よりは高い**が、後半の局所ピーク比で約1低下。
+- `positive_cosine_mean`：約0.95からstep600–1000頃約0.1に低下→step1800頃約0.4→step2000–2800に一時低下/停滞→step5000近傍で約0.65–0.7に回復。
+- `negative_cosine_mean`：初期約0.2超→step200–1200に約-0.15→step2000頃に約+0.1→後半は0近く。**終盤で平均的なnegative cosineよりpositive cosineの方が大きい**。
+- `hardest_negative_cosine_mean`：初期ほぼ1→約0.15まで低下→step1900頃約0.55→一時低下→後半0.85–0.9へ上昇。**hardest negative > positive の傾向**に注意。
+- `query_grad_norm`：step1の約11から次の表示点（step100）付近で急減、その後非ゼロで漸増しstep5000近傍では1前後。**step後半も勾配は観測**。current code `conf/moco_imagenet_10epoch.yaml`ではgrad normはstep1・100毎・最後で採取するため、plot上の急変時点/細かな変動は未観測。current code `train_step()`で`loss.backward(); optimizer.step()`後のgradient tensor normが測られる。
+- `queue_ptr`：約256step周期で0→65536を鋸歯状に循環。global256, K65536と整合。**256stepで初期Queue置換完了（学習収束とは別）**。末尾5004step時は(5004×256) mod 65536=35840で、画面の約3.6万とも整合。
+
+#### 解釈（仮説・確定しない）
+
+1. **Lossは1epoch後半で下降し始めている**。step1からの単調減少ではなく、Queue更新を含む非定常な初期段階を経て後半改善するパターン。step256後も約2000stepにわたり高止まりするため、**「Queue一巡だけで全て説明できる」という仮説は不十分**。特徴更新、hard-negative分布、EMA Keyの遅れ等も候補。
+2. 正例類似度の回復と平均的な負例との距離拡大（cosine margin）は**一定の表現分離の兆候**だが、semantic usefulnessの証拠でもlearning stabilityの保証でもない。hardest negativeは終盤0.9近くでpositive0.65より高い。約65k個の最大類似度を取る構造ゆえ、偶然のhard negative、same-class/dataset near-duplicate等のfalse negativeや特徴集中特性の可能性を検討。ただし原因は未確認。
+3. `query_grad_norm`が早期に小さくなったとしてもstep100での値は**勾配消失の永続化ではない**。後半で非ゼロ・増加しており、少なくともこのグラフだけから「勾配がなくてLossが下がらない」とは説明できない。一方、update normを記録していないためパラメータ更新の大きさは直接未評価。
+4. 10epoch学習のepoch0 LRは一定0.03の設定であり、後半Loss下降を**学習率低下によるものと断定できない**。Queue以外のモデル表現・負例難易度・Key EMA等を疑う余地。
+5. `hardest_negative_cosine_mean`の実装定義は現在の`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`, `scripts/parity/moco_imagenet_10epoch.py:492`で `mean(max(logits[:,1:])) * T`。クエリごとに65536 negativesの最大cosineを取り、そのbatch平均。平均負例cosineと数学的意味が異なる。最大が正例より高くてもそれだけで学習故障とは判定しない。
+6. E2の目的は**公式と自作の1epoch実装再現性**（epoch checkpoint/canonical model-state、logged metrics/inputs、Comet）が主。スクリーンショットは**Meta一方の曲線**のみで、Self runとの一致もE2 full-epoch Gate PASSもこの画像からは未確認。
+
+#### 優先する追加評価案（提案・未採用）
+
+- まずMeta E2の`run_report.json` / `epochs.jsonl`を確認し、1epoch completed / finite / checkpoint + canonical state hash / Comet errorsを判定。Self E2完了後に既存`compare_moco_10epoch.py`を実行、`contract_valid/both_completed/inputs_identical/metrics_bitwise_equal/epoch_states_identical`を独立に確認。**E3に自動移行しない**。
+- `loss`の移動平均（100〜200step）を表示し、step256〜1000、1000〜2500、2500〜5004の区間平均と傾き/分散を比べる。Step 1の大きな初期差を含めた単純比較を避ける。
+- positive–negative cosine差、positive–hardest-negative cosine差とその割合（hardest negativeがpositiveを超えるクエリ比率）を確認。負例最大の上昇が単に大きいK=65536の極値なのか、false negative、類似画像、collapse兆候なのか切り分ける。必要なら固定held-out feature variance / feature norm / inter-sample cosine分布を軽量診断する。ImageNet kNNはB4通り任意であり、今回必須に昇格しない。
+- 学習率に加えてoptimizer update_normやparameter delta、Key EMA遅延を観測するのは原因調査の候補。ただし研究コード/本番計測項目を変更するには別spec・ユーザー承認が必要。
+
+#### 境界
+
+**現時点で「MoCoが意味的に有用な画像特徴を獲得した」「自作もE2でbitwise一致した」「学習は収束した」などは未確立。** 観測値はアップロードされたComet画面の目視概算のみ。Brainstormの探索記録であり、approved specの合格閾値や実行許可、研究コード、README、TODOを変更しない。
