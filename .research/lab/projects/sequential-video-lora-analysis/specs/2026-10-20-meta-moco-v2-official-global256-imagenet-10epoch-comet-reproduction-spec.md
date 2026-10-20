@@ -103,7 +103,7 @@ representation_evaluation: NOT_RUN
 
 **実装提案（承認待ち）**：既存adapter、transforms、model state mapping、report/provenance/comet logger、checkpoint helperを再利用した**10epoch専用runner**を別のconfig/entrypointとして追加する。学習ループはepoch0..9、DistributedSampler.set_epoch、公式1epoch全batch、cosine LR、DDP/EMA/Queue、rank0 metrics記録、epoch checkpoint、RNG/sampler sidecar、epoch end/final manifestを実装。new CLIの正式名や責務分離は既存コードstyleに沿う。**Meta公式コード本体や元parity実験のロジックを編集しない**。
 
-## 5. 比較条件とComet計測契約（Blocking B3で最終選択）
+## 5. 比較条件とComet計測契約（当初候補・採用内容は後続記録を正とする）
 
 **2実装共通で必須**：
 - model / Query-Key weights / BN buffers / Queue / optimizer初期状態のcanonical mappingからの作成と検証、開始時SHA（Meta公式由来固定fixture/stateを推奨）。
@@ -147,7 +147,9 @@ representation_evaluation: NOT_RUN
 - 期間が長いためNAS cache/worker wait、GPU使用・温度、ログ容量、checkpoint retentionをpilotで評価。tmux/session、長時間スケジュール、停止/再開の責務を明確にする。
 - **No unauthorized action**：このspecの保存をもってコード実装/テストrun/GPU実験/Comet通信許可としない。V1 pilot、E1、E2、E3はそれぞれ別の実行合意が必要。
 
-## 8. Ambiguity Gate（未承認の推奨条件）
+## 8. Ambiguity Gate（当初の提案履歴・採用記録を優先）
+
+**以下の表は当初の提案として保存している歴史的記述です。2026-10-20の採用決定は末尾の「B2・B3残部・B5採用記録」と「V1 GPU短時間検証への進行承認」、およびfrontmatterを正とします。B1〜B5の承認は現在完了しています。**
 
 | ID | Blocking question | 推奨する選択と理由 |
 |---|---|---|
@@ -215,4 +217,4 @@ Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experi
 - V1の合格判断：Meta/Selfそれぞれ予定30stepを完了、loss有限でQueue/EMA動作に異常なし、両rankで`total_memory_mib − max_reserved_mib >= 1024`。`nvidia-smi`で他GPUプロセスの占有を事前確認する。OOM/NCCL異常/余裕不足ではSTOPし、BatchやAMPは変更しない。
 - V1後に両runの`run_report.json`からstatus・training_completed・vram_gate.status・per-rank headroom・GPUピーク・throughput・data waitを確認する。1件でもBLOCKEDなら停止。E1 100step、E2 1epoch、E3 10epoch、Comet実送信はV1の許可に含めない。
 - 事前の実機CPU testはユーザー提示ログで52/52 PASS、GitHub code `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` `d6f7acc75ee92adcf7e6e3e65831d46759b9ed14`がclean。今回のGitHubでの作業はspecのみで、GPU job・Comet・研究コード変更は行わない。
-- **`approved`は仕様承認であって、V1/E1/E2/E3や表現品質が実証されたことを意味しない**。実装済みE4軽量特徴診断は別扱い。
+- **`approved`は仕様承認であって、V1/E1/E2/E3や表現品質が実証されたことを意味しない**。E4軽量特徴診断は**未実装**で、別の評価Gateとする。
