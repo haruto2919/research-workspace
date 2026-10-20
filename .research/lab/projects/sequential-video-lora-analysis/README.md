@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: MoCo単体Meta公式との数値parity（A2実ImageNet1step、A3 synthetic1025step）がbitwise PASS。10epoch用runnerはdev@d6f7accでCPU52/52 PASS。ImageNet Global Batch256/2GPU FP32のV1（各30step）は両run VRAM PASS、記録指標一致。E1（Meta/自作各100step）は双方completed、入力hash2/2一致、Loss等11/11・grad norm2/2のbitwise一致（最大絶対誤差0）、両方Comet実験URLあり。epoch stateは未評価。E2はユーザー提示比較ログでMeta/自作各5004step完了、入力hash51/51・記録Loss等502/502・grad norm52/52がbitwise一致。1epoch canonical model state判定とcheckpoint/Comet整合は未確認、正式E2判定保留。E3（10epoch）は別承認待ち。
+summary: MoCo単体Meta公式との数値parity（A2実ImageNet1step、A3 synthetic1025step）がbitwise PASS。10epoch用runnerはdev@d6f7accでCPU52/52 PASS。ImageNet Global Batch256/2GPU FP32のV1（各30step）は両run VRAM PASS、記録指標一致。E1（Meta/自作各100step）は双方completed、入力hash2/2一致、Loss等11/11・grad norm2/2のbitwise一致（最大絶対誤差0）、両方Comet実験URLあり。epoch stateは未評価。E2はユーザー提示比較ログでMeta/自作各5004step完了、入力hash51/51・記録Loss等502/502・grad norm52/52がbitwise一致。1epoch canonical model stateもbitwise同一SHAと確認され、E2比較器の全VerdictがPASS。Checkpoint/rank sidecar実在性とComet状態の独立確認は残る。E3（10epoch）は別承認待ち。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-20
@@ -113,3 +113,4 @@ last_updated: 2026-10-20
 | 2026-10-20 | E1（Meta公式と自作の実ImageNet各100step、global256、2GPU、FP32、Cometライブ）はユーザー提出ログで両run completed、契約valid、入力hash2/2一致、Loss等の全11地点・grad norm2地点でbitwise一致（max_abs_diff 0）。Comet実験リンク2件あり。Partial epochのためepoch state未評価、特徴品質未確認。次のE2（1epoch）は別承認待ち。[E1実験Evidence](experiments/2026-10-20-meta-moco-v2-e1-imagenet-100step-comet-parity-evidence.md) |
 | 2026-10-20 | ユーザーがE1再現性比較PASSを踏まえ、E2（Meta公式と自作各1epoch、ImageNet-1K/2GPU×local128/FP32、Cosine10epoch schedule・1epochで停止、Cometライブ、checkpoint/canonical state比較）のGPU実行のみ承認。仕様を更新済み、実験実行・結果は未確認。E3 10epochは別承認が必要。[E2採用実行契約](specs/2026-10-20-meta-moco-v2-official-global256-imagenet-10epoch-comet-reproduction-spec.md) |
 | 2026-10-20 | E2：Meta公式・自作ともImageNet1epoch 5004step完了。入力hash51/51、Loss等の記録指標502/502、query_grad_norm52/52がbitwise一致、epoch mean loss差0。比較器の`curve_agreement=bitwise`を確認。ただし`canonical_state_equal`行が貼付断片から欠けているため**E2正式PASSは保留**。Checkpoint/Comet実験の整合確認後に確定し、E3は別承認。[E2暫定Evidence](experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md) |
+| 2026-10-20 | E2 1epoch 5004stepのMeta/自作ペアについて、ユーザーが比較reportから全Verdict PASS（contract_valid、both_completed、inputs_identical、metrics_bitwise_equal、**epoch_states_identical**）を追加確認。epoch0 canonical state SHA一致、mean loss差0、51/51 input hashes、502/502指標等がbitwise一致。**E2比較PASS**。Checkpoint/rank sidecarsの存在、Comet deliveryはこの表示から未確認。E3 10epochは別承認。[E2 Evidence](experiments/2026-10-20-meta-moco-v2-e2-imagenet-one-epoch-pair-partial-evidence.md) |
