@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 record_type: experiment-evidence
-status: partial
+status: completed
 date: 2026-10-20
 experiment: meta-moco-v2-imagenet-10epoch-v1
 campaign: moco_v2_v1_20261020_162206
@@ -9,15 +9,15 @@ implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_commit_expected: d6f7acc75ee92adcf7e6e3e65831d46759b9ed14
 official_reference_commit: a419ef282fc9885015674e77f58c59447206a27f
 source_of_evidence: user-pasted-terminal-and-report-summary
-official_meta_v1: PASS_WITH_COMET_CONFIG_DEVIATION
-self_v1: PREFLIGHT_BLOCKED_NOT_RUN
-pair_v1: INCOMPLETE
-comet_delivery: UNKNOWN_META_ENABLED_BY_DEFAULT
+official_meta_v1: PASS
+self_v1: PASS
+pair_v1: PASS_RESOURCE_FEASIBILITY_ONLY
+comet_delivery: DISABLED_BOTH_PER_RUN_REPORT
 ---
 
-# V1 VRAM feasibility：Meta公式PASS / 自作preflight停止（途中経過）
+# V1 VRAM feasibility：Meta公式・自作ともに30step PASS（最終結果）
 
-> 本記録はユーザーが2026-10-20にSSH研究サーバから貼り付けた**学習コンソール・実験reportの抜粋**に基づく。ChatGPTはSSHサーバ上のrun artifactsを直接検証しておらず、コンソールに存在しない情報を補完しない。**Meta公式のV1はPASS、自作は学習開始前に公式clone cleanチェックで停止。V1全体は未完了。**
+> 本記録はユーザーが2026-10-20にSSH研究サーバから貼り付けた**学習コンソール・run_report抜粋**に基づく。ChatGPTはSSHサーバ上のrun artifacts自体を直接検証していない。**最終結果はMeta公式・自作のV1ともにPASS**。以下の途中経過に続き末尾の「V1最終追記」が新しい判定である。
 
 ## 承認済み契約とrun identity
 
@@ -57,3 +57,52 @@ comet_delivery: UNKNOWN_META_ENABLED_BY_DEFAULT
 次のGate E1/E2/E3は**未承認・未実行**。Meta公式pilotでVRAM余裕があっても自作pilotの代わりにはならない。もしMetaのComet-ONが確認されたら、V1のComet-OFFプロトコルとの差分を明示し、strictly identical pilot data/throughput comparisonの際は別のMeta OFF runを取得する。ここでは既存artifactを削除・上書きしない。
 
 **Authority**：ユーザー提供のrun terminal+summary > GitHub上で未確認の実機現物。GitHub codeの静的実装はrun結果そのものではない。記録は今後の自作成功後に続報追記する。
+
+---
+
+## V1最終追記：2026-10-20 16:39 JST受領、両実装PASS
+
+**前段の「self NOT_RUN・combined INCOMPLETE・Comet有効可能性」は新しい証拠によって解消した歴史的記述であり、現在の判定ではない。** ユーザーが研究サーバのrun summaryを再確認したことに基づく。
+
+### 自作V1（新しい実測ログ）
+
+- run：`log/moco_imagenet_10epoch/moco_v2_v1_20261020_162206/2026-10-20_16-34-13-790251_self_V1`
+- 環境：`PYTHONDONTWRITEBYTECODE=1`設定、`CUDA_VISIBLE_DEVICES=0,1`。Metaと**同じcampaign/fixture**で再実行。
+- `run_report`から`status=completed`、`verdicts.training_completed=true`、`vram_gate.status=PASS`、完了/計画 step `30/30`、`issues=[]`。
+- 両rankのVRAM: peak reserved `13038.0 MiB`、headroom `7057.875 MiB`、peak allocated `12520.07861328125 MiB`。
+- 実行時間 `121.4313339979999 sec`、global throughput `63.245619949514 images/s`、rank0 data wait `4.645293254929129 sec`、rank1 `4.888334309027414 sec`。
+- Step 1/10/20/30：Metaとlossは`6.441793441772461` / `7.939069747924805` / `8.579168319702148` / `8.940801620483398`で一致。同じstepのpositive/negative cosine、hardest-negative cosine、queue_ptr（256,2560,5120,7680）、LR 0.03、有限性、step1/30のquery grad normの表示値も一致。**サンプリングしたscalarログ値の一致**であって全パラメータbitwise一致の証明ではない。
+- 自作reportのComet preflight enabled=false、Experiment keyなし、error count0。
+
+### Meta公式のComet状態についての訂正
+
+- 前段ではMeta起動コマンドに`logging.comet_enabled=false`が視覚上省略されているため送信可能性を示したが、ユーザーが**実際のrun_reportから確認**したところ`preflight.comet.enabled=false`、Experiment keyなし、error count0。
+- **両実装でComet OFFが正式な実行結果により確認された。** V1のComet-OFF契約を満たし、前段で示した「Comet OFFのためMetaを必ず取り直す」は**不要**。
+- なぜMetaがOFFであったか（実際のoverride/環境の反映過程）は提示ログのみでは不明。V1を成立させる必要条件であるOFF自体は確認済み。
+
+### V1最終比較
+
+| 計測指標 | Meta公式 | 自作 |
+|---|---:|---:|
+| `status`, `training_completed`, `vram_gate.status` | `completed / true / PASS` | `completed / true / PASS` |
+| completed/planned steps | 30/30 | 30/30 |
+| rank0 peak reserved | 13026.0 MiB | 13038.0 MiB |
+| rank1 peak reserved | 13026.0 MiB | 13038.0 MiB |
+| rank0/1 headroom | 7069.875 MiB | 7057.875 MiB |
+| rank0/1 peak allocated | 12525.765 MiB | 12520.079 MiB |
+| total elapsed epoch partial | 205.156 s | 121.431 s |
+| global images/sec | 37.435 | 63.246 |
+| data wait rank0 | 74.575 s | 4.645 s |
+| data wait rank1 | 75.899 s | 4.888 s |
+| Comet preflight / Experiment / errors | OFF / None / 0 | OFF / None / 0 |
+| issues | [] | [] |
+
+### Evidence範囲と次のGate
+
+- **V1 resource feasibility PASS（Meta + self）**：global256、2GPU、FP32、224pxで30stepが完走。両rankともheadroom≥1024MiB。旧自作preflightブロックは`__pycache__`由来で、現runでは解除された。
+- **学習演算再現性の補助根拠**：提示scalarログ値が一致。同一サンプル/2view入力が等しかったかは、`metrics.jsonl`の入力sha256と`compare_moco_10epoch.py`の実行結果による**別途検証が必要**。現実の全step state bitwiseまで確立したと主張しない。
+- **処理速度は未確定**：MetaのDataLoader待ち約75秒/rank vs 自作約5秒/rank。NAS/page cache・初回読み込み・worker起動など差があり得る。V1の数値から自作が1.69倍高速であるという性能主張をしない。
+- **E1はまだ未許可**：次に実施するなら、公式と自作のV1 report/metricsをoffline comparatorで照合し、V1 Gate成立の最終チェック後、別のE1（Meta/Self 100step）の実行合意を取得する。E1ではComet API実送信とsampled input hash、Queue一巡有無、metric整合を検証する。E2/E3/E4も未実施。
+- raw evidenceは研究サーバの`log/moco_imagenet_10epoch/moco_v2_v1_20261020_162206`。SSHローカルの物理ファイルやlogsのSHAはGitHubから直接確認不能。本Research Workspace記録はユーザー提示値の要約である。
+
+**最終状態：pair V1 = PASS_RESOURCE_FEASIBILITY_ONLY。V1までは成功、10epoch学習や表現品質を実証していない。**
