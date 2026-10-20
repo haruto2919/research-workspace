@@ -139,3 +139,7 @@ ImageNet train = **1,281,167画像**（先行ユーザー実測）、2GPU global
 **blocking decision**：strict公式例global256/LR0.03（2GPU local128の実機VRAM pilot必須）と2GPUスケーリングglobal64/LR0.0075のどちらを「公式に合わせた」と呼ぶか。
 
 **研究コード/既存spec/README/TODO/Comet/研究GPU runは今回変更なし**。ユーザーがspec作成を明示した段階で`research-spec`を使い、正式10epoch実験を実装可能な契約にする。長時間GPU runは別途明示承認。
+
+### 2026-10-20 research-spec handoff（現在のユーザー採用範囲）
+
+新規[Meta公式MoCo v2・Global Batch256・2GPU/local128・LR0.03・ImageNet 10epoch・Comet再現比較のdraft spec](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-20-meta-moco-v2-official-global256-imagenet-10epoch-comet-reproduction-spec.md)に昇格候補を整理。ユーザーが採用した設定は固定したが、比較入力/公式cuDNN運用/Cometアップロード/held-out表現評価・運用詳細の推奨は承認待ちであり、**specはdraft**。コード実装・VRAM pilot・10epoch・Comet送信はまだ実行していない。本文の探索的候補は引き続き履歴として保持する。
