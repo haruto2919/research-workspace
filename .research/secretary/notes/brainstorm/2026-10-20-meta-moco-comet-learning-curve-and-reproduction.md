@@ -216,3 +216,25 @@ B4の採用を[10epoch公式設定比較spec（draft）](../../../lab/projects/s
 #### 境界
 
 **現時点で「MoCoが意味的に有用な画像特徴を獲得した」「自作もE2でbitwise一致した」「学習は収束した」などは未確立。** 観測値はアップロードされたComet画面の目視概算のみ。Brainstormの探索記録であり、approved specの合格閾値や実行許可、研究コード、README、TODOを変更しない。
+
+---
+
+### 2026-10-20 19:38 JST 追加壁打ち：今回のMeta E2を基準曲線として採用してよいか
+
+問い：ユーザーはComet画像からMeta E2のLossが初期上昇→高止まり→後半低下、Hardest Negative高値などを観察した後、**「この挙動の公式MoCoを基準曲線として良いの？」**と相談。
+
+#### 結論（scope限定の推奨、正式specの変更ではない）
+
+**Meta公式MoCo v2モデルを当研究の統一比較runnerで実行した結果を、自作MoCoの数値/学習挙動を比較する「条件付き参照曲線」として採用することは推奨**。ただし**MoCo v2の公認標準学習曲線・適正な特徴品質・収束の検証済み基準曲線**とは呼ばない。
+
+- 採用済み設定はImageNet-1K, 2GPU×local128/global256, FP32、MoCo v2 ResNet50+MLP/T0.2/K65536/m0.999、SGD initial LR0.03、**10epoch cosine horizonの第1epochのみ**、strict deterministic cuDNN/benchmark off/TF32 off。ユーザーがMeta公式cloneからreference modelをロードする専用runnerを使用しているため、**Meta upstreamのmain_moco.pyをそのまま実行した200epoch標準結果ではない**。
+- official clone `facebookresearch/moco@a419ef2`のREADMEにはMoCo v2実行時`--mlp --moco-t 0.2 --aug-plus --cos`を指定し、公開された代表的なImageNet事前学習・Linear evalは200epoch。今回の1epoch曲線を公開済み200epoch学習の期待形として一般化しない。公式公式のtraining optionsと精度・cuDNN設定は今回の採用実装から一部変更されているが両実装間は揃えることが目的。
+- **検証目的1（採用）**：「同一条件でMetaReference vs 自作が同じ計算/更新/観測履歴になるか」。A2/A3正式parityとE1の100step入力hash2/2・記録scalar bitwise一致が既存Evidence、E2が完了すればepoch canonical state/Checkpoint等を追加検証できる。
+- **検証目的2（未立証）**：「学習条件が十分で、MoCoが意味的に有用な特徴を獲得しているか」。E2画像ではstep2500以降のLoss低下とpositive cosine回復は学習進行の兆候、Hardest NegativeがPositiveを超えること・初期の急激なgrad減少・1epoch全体の初期とのLoss比較は追加診断を要する。InfoNCEが低下してもsemantic usefulnessやcollapse不存在は未証明。
+- **別解・反例**：同一初期重み/同一データ/同一設定でMetaもSelfも悪い表現に収束した場合、Loss一致だけではそれを見抜けない。10epoch cosine scheduleは「公式200epochの最初の10epoch」とも異なる。逆に1epoch中Hardest Negativeが正例より高くても、K65536の最大値統計・false negativesのせいかもしれず直ちに故障と判断しない。
+- **推奨判断手順**：まずMeta E2の終了・finite・canonical checkpoint、次にSelf E2の1epoch、offline comparatorで入力hash/metric/epoch model state SHA、Cometリンクを確認。これをPASSさせるまでは「E2数値再現完了」を宣言しない。次の独立した学習健全性診断では前半/後半の100–200step移動平均、positive–negativeとpositive–hardest negative cosine margin、held-out固定画像のfeature variance/norm/inter-sample cosineを測る。これらはあくまで異常検知で意味的品質の証明ではない。kNN/Linear ProbeはB4方針どおり任意で保留。
+- **未承認の候補**：10epoch E3のrunについては別承認が必要、さらに公式公開200epoch性能への近似を主張するなら別条件の長期trainとkNN/probe等を設計する。現時点の結果だけで公式スクリプトを改変したり、本番実験のLR/Queue設定を変えない。
+
+#### 記録のAuthorityと保存境界
+
+本メモは**brainstorm/exploratory**であって、spec変更やGPU本番を承認するものではない。今回の観測根拠はユーザー画像と過去のE1比較ログ。Research Workspaceの既存実験・specの正式状態は維持。研究コード、README、TODO、Comet、実験runには手を加えない。
