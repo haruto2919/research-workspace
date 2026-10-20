@@ -8,13 +8,16 @@ spec: ../specs/2026-10-20-meta-moco-a3-a4-a5-integrated-execution-spec.md
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_branch: dev
 implementation_base_commit: dc502e416aa26ed4e0791767fa5a72f7843e399d
-implementation_committed: false
+implementation_committed: true
+implementation_commit: 914e736c2699e2e129211a888d1f19013dd1dd1a
 implementation_new_files:
   scripts/parity/run_moco_gates.py: 8bf2cedc6ad5699986411f59dd670d4118110f59bbedccf77a0c22abfc280574
   test/model/test_moco_gate_launcher.py: 70e9195ba0db2487176288683d6995549c9e2bee490553638c438b685f77f83b
 existing_files_changed: none
 engineering_cpu_gate: PASS
-gpu_gates: {A5-pilot: NOT_RUN, A4: NOT_RUN, A3: NOT_RUN, A5-pair: NOT_RUN}
+cpu_fast_regression: "29 passed in 15.05s (23 new launcher + 6 existing parity selected); full existing parity suite NOT_CONFIRMED"
+gpu_gates: {A5-pilot: PASS, A4: NOT_RUN, A3: NOT_RUN, A5-pair: NOT_RUN}
+a5_pilot_evidence: 2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md
 reference: facebookresearch/moco@a419ef282fc9885015674e77f58c59447206a27f
 reference_clone: /mnt/HDD12TB-1/ishikawa/facebookresearch-moco
 ---
@@ -23,12 +26,12 @@ reference_clone: /mnt/HDD12TB-1/ishikawa/facebookresearch-moco
 
 2026-10-20のユーザー依頼「このスペックに従って実装してください」に基づき、[A3/A4/A5統合実行spec](../specs/2026-10-20-meta-moco-a3-a4-a5-integrated-execution-spec.md)の§4・§8で承認された**最小共通ランチャー**と**CPU dry-run／validation tests**を研究コードへ追加し、CPUで検証した。
 
-**GPUは使っていない。** A5-pilot・A4・A3・A5-pairのGPU Gateはすべて`NOT_RUN`。研究コードの追加は**未commit**で、commit・push・Comet送信・checkpoint生成は行っていない。既存ファイル（MoCo本体、runner、comparator、fixture builder、Hydra config）は無変更。
+**以下の初期実装記録は、実装直後の時点の説明として保持する。** その後研究コードはdev@`914e736c...`へcommit/push済みとなり、A5-pilotの実GPU 20stepはユーザー提供terminal上で**PASS**となった。A4・A3・A5-pairは引き続きNOT_RUN。後続の正式GPU証拠は[A5-pilot GPU Evidence](2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md)を優先する。
 
 ## 環境と基準
 
 - 実装root：`/mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora`、branch `dev`
-- 開始時HEAD：`dc502e416aa26ed4e0791767fa5a72f7843e399d`（specの基準commitと一致、clean）。現在もHEADは同じで、新規2ファイルだけが未追跡（`git diff`は空）
+- 開始時HEAD：`dc502e416aa26ed4e0791767fa5a72f7843e399d`（specの基準commitと一致、clean）。**これは実装開始時の記録**であり、その後のHEADは`914e736c2699e2e129211a888d1f19013dd1dd1a`（ユーザー提供terminalでcleanかつorigin/dev一致）
 - Python 3.12.3、torch 2.14.0+cu130、hydra 1.3.7、omegaconf 2.3.1、pytest 9.1.1（`.venv`）。テストは`CUDA_VISIBLE_DEVICES=""`でCPUのみ
 - 公式clone：`a419ef2`のまま、`git status`差分なし
 
@@ -86,7 +89,7 @@ reference_clone: /mnt/HDD12TB-1/ishikawa/facebookresearch-moco
 |---|---|
 | 新規 `test/model/test_moco_gate_launcher.py` | **23 passed**（約15秒） |
 | ミューテーション確認（意図的にバグを入れ、該当テストが落ちることを確認後に復元） | 5/5で検出：出力衝突検査の削除、A5-pair OFFのmonitor変更、Queue turnover検査の無効化、前段PASS検査の無効化、失敗時の停止の無効化 |
-| 既存 `test/model/test_moco_parity_harness.py`（非回帰） | REGRESSION_RESULT |
+| 既存 `test/model/test_moco_parity_harness.py`（非回帰） | **代表6件PASS（新規23件と合わせて29 passed / 15.05秒 / exit0、ユーザー提供terminal）**。全件回帰は**未確認** |
 | `gpu_check`をこの機械の`nvidia-smi`で実行 | `CUDA_VISIBLE_DEVICES=0,1`はissueなし（compute process 0件）、`0`と未設定は拒否 |
 | 4 stageのplan（既定動作） | rootを作らず、上表どおりのコマンドを出力。研究repoが未追跡ファイルでdirtyなことを正しくBLOCKED理由として表示 |
 | flake8（max-line-length 120） | 命名系プラグイン（FNE、既存コードにも同種あり）以外は指摘なし |
@@ -119,3 +122,11 @@ A3は各1025stepのparity run 2本（毎step trace保存）で長時間になる
 - A3の実行時間・ログ容量の実測見積り（spec §2.4）は未実施。planは空きディスク容量（`disk_free_gib`）を記録するだけで、閾値は設けていない。
 - 研究コードのcommit・push、Research Workspaceのcommitは行っていない。
 - A3/A4/A5のPASSは、この記録の時点では何も主張しない。
+
+## 2026-10-20追補：コミットとA5-pilot実GPUの後続Evidence
+
+- 初期記録にある「未commit」「GPU全Gate NOT_RUN」は**実装直後に限る履歴記述**。GitHubおよびユーザー端末で、研究コード`dev@914e736c2699e2e129211a888d1f19013dd1dd1a`へ新規2ファイルがcommitされ、研究サーバもcleanであることを確認した（既存MoCo/runner/comparator/configを変更せず）。研究サーバのファイルがGitHubへ自動同期されるとは主張しない。
+- 新規ランチャー23件＋旧parity harness選択6件の軽量CPU回帰は**29 passed in 15.05s、EXIT_CODE=0**（ユーザー貼付けログ）。`test_moco_parity_harness.py`**全件**の結果は未確認であり、全件PASSではない。
+- 2026-10-20 11:46頃の事前planはcommit/Meta clone両方clean、`issues=[]`。ImageNet実画像・2GPU・20step bench（`S1_off20`）をランチャー経由で実行し、`A5-pilot PASS: every step completed and every check holds`を確認。
+- A5-pilot stage path：`log/moco_imagenet_parity/gates/a345_20261020_114641/A5-pilot`。測定されたGPU VRAM peak・throughput・Data wait値は**未受領**であり、今後`stage_summary.md`/`run_report.json`から追記する。別[実験Evidence](2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md)参照。
+- 後続A4/A3/A5-pairのGPU Gateは全てNOT_RUN。正式比較や本計測PASSを先取りしない。
