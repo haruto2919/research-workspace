@@ -221,3 +221,26 @@ FAIL／INVALID／BLOCKED／NOT_RUNを分離する。監視の百分率上限を�
 - 予定：synthetic fixture生成 → Meta公式M 1025step → 自作S1 `meta_einsum` 1025step → `formal_implementation`でfixed tolerance `rtol=1e-5,atol=1e-6`比較。full traceは`[1,1024,1025]`、残りstepでもsmall trace収集。
 - **A3の状態 = NOT_RUN**。`plan`出力に含まれる`mode = plan only`は学習・ディレクトリ作成なし。A3の実行は長時間になるため、A4ランチャーの`stage_summary.json.steps.*.elapsed_sec`、A4 `run_report.json`の`ranks[*].history[*].metrics.step_time_sec_with_tracing`から短時間の参考負荷をまず抽出するのが次の低リスク作業。その値も数stepの参考値で、A3 2050stepの実行時間を保証しない。
 - 2GPU空き、SSHセッション維持、ログ監視、runの中断時のstage dir再実行不可（既存出力を上書きしない）が実行時の運用上の注意点。
+
+### 2026-10-20 A4のwall timeとper-step timer実測（A3時間見積りの参考、A3未実行）
+
+ユーザーが同一キャンペーン`a345_20261020_114641`の`A4/stage_summary.json`と`A4/runs/S1_uninterrupted/run_report.json`を研究サーバで読み出した結果を記録する。**A4の実測**であり、A3所要時間の測定ではない。
+
+| A4 substep | elapsed_sec（ランチャーCLI経過時間） |
+|---|---:|
+| fixture生成 | 4.7462330749985995 |
+| S1_uninterrupted（3step + step2 checkpoint） | 15.149783412998659 |
+| S1_resumed（step3へ再開） | 13.686772599001415 |
+| formal_resume比較 | 24.694862504999037 |
+
+| A4 S1_uninterrupted step | rank0 step_time_sec_with_tracing | rank1 |
+|---|---:|---:|
+| 1 | 1.669537815003423 | 1.6930223829986062 |
+| 2（small trace） | 0.5712046459957492 | 0.5707497939947643 |
+| 3（full trace） | 0.9550959080006578 | 0.957690654999169 |
+
+計測境界：GitHub研究コード`scripts/parity/moco_imagenet_parity.py`のparity runnerは、GPU同期後からforward/backward/SGD/trace hooksを経て次のGPU同期までを`step_time_sec_with_tracing`に計上するが、**`tracer.finish()`と`torch.save(... step_*.pt)`はこのtimerの後**。実際のCLI wall timeには起動/終了・artifact書き出し等を含む。したがってこのstep時間だけでA3の所要時間を確定できない。
+
+通常small traceのstep2に近い0.571秒を仮に**すべての2050step**に適用すると、`2050×0.571 ≈ 1171秒 ≈ 19.5分`。これはGPU計測区間の**机上外挿**に過ぎず、両run起動、full trace×6、各stepのCPU trace serialization/保存、fixture生成、1025step分の正式比較、ディスクI/O、環境変動を含まない。**A3実行時間の見積り下側の参考に留め、保証値や実測値とはしない**。A4比較の24.7秒を単純に1025倍または3倍することもできない（full traceは3step×2run、small traceは全step）。
+
+A3は前段A4 PASS・clean commit・`issues=[]`でplan可能と確認済みだが、GPU本番は`NOT_RUN`のまま。長時間実行時は`tmux`などでSSH切断に備え、同じcampaign rootとcommitを使い、`--execute`は別途明示的に開始する。stageディレクトリが存在すると再実行は拒否され、既存runを勝手に削除・上書きしない。
