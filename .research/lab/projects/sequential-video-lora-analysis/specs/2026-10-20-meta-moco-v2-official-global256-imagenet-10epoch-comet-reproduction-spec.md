@@ -18,7 +18,7 @@ related_evidence:
 approval: PENDING_REVIEW
 b4_feature_evaluation: ADOPTED_LIGHTWEIGHT_HELDOUT_DIAGNOSTICS_KNN_OPTIONAL_2026-10-20
 comet_project_name: moco-imagenet-v2-reproduction
-comet_project_policy: ADOPTED_NEW_DEDICATED_PROJECT_2026-10-20
+comet_project_policy: ADOPTED_NEW_DEDICATED_PROJECT_AND_COMET_DOT_CONFIG_MANAGED_2026-10-20
 comet_project_creation: NOT_VERIFIED
 implementation: NOT_STARTED
 vram_gate: NOT_RUN
@@ -109,7 +109,7 @@ representation_evaluation: NOT_RUN
 - 10stepごと：`loss`（学習のmini-batch InfoNCE）、`positive_cosine_mean`、`negative_cosine_mean`、`lr`、`queue_ptr`、finiteなど。可能なら`hardest_negative_cosine_mean`。
 - 100stepごと：`query_grad_norm`。full Query param cloneを必要とする`query_update_norm`はoverhead/必要性を測ってから別途選択し、全step計測しない。
 - epochごと：sample-weighted mean loss、例数、global step、duration、GPU peak allocated/reserved、checkpoint SHA、再開有無。
-- Comet projectは**今回の専用新規project `moco-imagenet-v2-reproduction`（ユーザー採用済み）**とし、従来のActivityNet/動画LoRA等のprojectへ混在させない。公式と自作は**同一project内の別experiment**・同一groupとし、role=`meta_reference`/`self_meta_einsum`、image resolution、epoch数、global batch、LR、K、seed、Git commit、state/input policyを明記する。グラフは2系列オーバーレイ＋差分、epoch-wise summaryを作る。metricの定義とサンプリングstepを統一する。設定ではSDKの暗黙デフォルトに依存せず、`comet_project`を明示する。projectの作成・所有workspace・権限は初回送信前のpreflightで実環境から確認する。
+- Comet projectは**今回の専用新規project `moco-imagenet-v2-reproduction`（ユーザー採用済み）**とし、従来のActivityNet/動画LoRA等のprojectへ混在させない。公式と自作は**同一project内の別experiment**・同一groupとし、role=`meta_reference`/`self_meta_einsum`、image resolution、epoch数、global batch、LR、K、seed、Git commit、state/input policyを明記する。グラフは2系列オーバーレイ＋差分、epoch-wise summaryを作る。metricの定義とサンプリングstepを統一する。**認証情報・workspace・project_nameの接続設定は研究サーバの`~/.comet.config`の`[comet]`に一元管理する**。`cfg.logging.comet_project=null`を既存パスで保持し、Comet SDKへ`project_name=None`を渡すことで設定を参照する。**初回送信前に設定ファイル・環境変数等を考慮した実際の宛先project/workspaceが期待値と一致するか検証し、不一致なら送信しない**。experiment名/タグ/科学メタデータはコード側で管理する。projectの作成・所有workspace・権限は実環境で確認する。
 - **local artifactがSSOT**：各runの軽量history（JSONL等）、checkpoint、epoch summary/manifestを先に原子保存。Comet通信の失敗でGPU学習を破綻させず、イベントidとsource hashを使って再送/二重送信を抑える。credential/API keyはログ/Repo/Comet parameterに記録しない。
 - Cometライブ送信 vsローカルに保存して後からアップロードの運用選択はユーザー承認待ち。比較可視化とscientific Gateを混同しない。
 
@@ -172,4 +172,15 @@ E4の再現性契約：同じ固定val画像index・同じ前処理・同じ2048
 
 ユーザーは「既存のComet projectを使わず新規に作成する」案を採用。正式な**project name**を`moco-imagenet-v2-reproduction`と固定する。Meta公式と自作MoCoを別々のExperimentとして同じprojectへ送信し、比較画面ではLoss・Positive/Negative cosine・Grad等を同一step/epoch軸で重ねる。
 
-今回の決定は**送信先の研究仕様**であり、Cometサービスでprojectを実際に作成したという証拠ではない。Comet workspace/権限とproject存在は初回送信前に確認し、存在しない場合は適切なworkspaceに新規作成する。設定`logging.comet_project`あるいは新規専用runnerの同等項目へproject名を明示し、`.comet.config`に暗黙依存しない。**B3の共通入力再生方式・ライブ送信か事後登録かは未承認のまま**。本specは引き続き`draft`。
+今回の決定は**送信先の研究仕様**であり、Cometサービスでprojectを実際に作成したという証拠ではない。Comet workspace/権限とproject存在は初回送信前に確認し、存在しない場合は適切なworkspaceに新規作成する。**Comet APIキー、workspace、project_nameは研究サーバの`~/.comet.config`で管理し、認証情報をコード・GitHubへ置かない。**既存コードの`logging.comet_project=null`を尊重し、Comet SDK設定から宛先を取得する。送信前に`project_name=moco-imagenet-v2-reproduction`かつ意図したworkspaceかを検証し、相違・設定欠落ならfail-closedで送信しない。全体のhome default設定の変更が既存実験に及ぼす影響も確認する。**B3の共通入力再生方式・ライブ送信か事後登録かは未承認のまま**。本specは引き続き`draft`。
+
+### .comet.config中心の管理方針（2026-10-20、ユーザーの運用認識を反映）
+
+ユーザー確認：「コメットは.comet.configで管理する想定ですがその認識であってますか？」。Comet公式SDKの設定仕様と研究コード`conf/moco_imagenet_parity.yaml`、`scripts/parity/moco_imagenet_parity.py`を照合。`[comet] api_key / workspace / project_name`は研究サーバの`~/.comet.config`で管理可能。`logging.comet_project: null`で`Experiment(project_name=None)`に到達する既存実装はSDKの設定を参照する。本研究の採用project名は`moco-imagenet-v2-reproduction`。
+
+- 実験間で変えない接続先・秘密情報：`~/.comet.config`（GitHub非追跡）。API keyの値をrun reportやChatGPTへ表示しない。
+- 実験ごとに変わる実験名、tags、run provenance、metricsのキー/step定義：研究コードの設定とComet logへ記録。
+- **preflight必須**：存在・認証・Cometの実際のworkspace/project識別子を検証し、環境変数やコードの明示overrideで別projectへ誤送信されないよう停止。ユーザー指定projectの存在/作成は未確認。
+- **状態境界**：接続方式の整理は`B3`の入力stream完全一致やオンライン/事後送信方式の決定ではない。`status=draft`、未承認B1/B2/B3残部/B5、GPU/Comet run未実行を維持。
+
+Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experiment-management/configure-sdk/`。
