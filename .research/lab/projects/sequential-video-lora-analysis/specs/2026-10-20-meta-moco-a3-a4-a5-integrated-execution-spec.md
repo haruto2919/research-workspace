@@ -13,12 +13,15 @@ meta_reference_commit: a419ef282fc9885015674e77f58c59447206a27f
 a2_evidence: ../experiments/2026-10-20-meta-moco-a2-imagenet-real-one-step-formal-gpu-parity-evidence.md
 parent_spec: 2026-10-17-meta-moco-v2-imagenet-ddp-parity-spec.md
 related_a5_draft: 2026-10-20-meta-moco-a5-imagenet-gpu-bench-monitor-overhead-experiment-spec.md
-implementation: IMPLEMENTED_UNCOMMITTED
+implementation: IMPLEMENTED_COMMITTED
 implemented_on: 2026-10-20
-implementation_committed: false
+implementation_committed: true
+implementation_commit: 914e736c2699e2e129211a888d1f19013dd1dd1a
 engineering_cpu_gate: PASS
+engineering_cpu_fast_regression: "29 passed (new launcher 23 + parity selected 6); existing full suite not verified"
 implementation_record: ../experiments/2026-10-20-meta-moco-a3-a4-a5-gate-launcher-implementation-verification.md
-gpu_experiments: NOT_RUN
+gpu_experiments: "A5-pilot PASS; A4 NOT_RUN; A3 NOT_RUN; A5-pair NOT_RUN"
+a5_pilot_evidence: ../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md
 approved_on: 2026-10-20
 research_code_edits_authorized_now: true  # 2026-10-20 user implementation request (launcher + CPU tests only)
 research_code_commit_push_authorized_now: false
@@ -168,3 +171,15 @@ FAIL／INVALID／BLOCKED／NOT_RUNを分離する。監視の百分率上限を�
 - **検証**：新規23件PASS、5種のミューテーションをすべて検出、既存parity harnessの非回帰はCPUで実行（結果は実装記録）。GPUは不使用。
 - **実装時の解釈**：(1) 前段条件は採用順序の直列で、各stageは直前stageが同じroot・同じ研究commitでPASSしていることを要求する（A3がFAILするとA5-pairもランチャーからは起動できず、進めるかは新たな判断事項）。(2) A4のfull traceは比較stepの`[3]`。(3) Comet OFFは全stage。(4) fixtureはA4・A3でそれぞれ新規生成。(5) GPU競合は`nvidia-smi`だけで判定し、ランチャー自身はCUDA contextを作らない。(6) 研究repoがdirtyだと`--execute`はBLOCKEDになるため、ランチャーのcommit後でないと実行できない。
 - **状態**：`spec=implemented`、`implementation=IMPLEMENTED_UNCOMMITTED`、`GPU A5-pilot/A4/A3/A5-pair=NOT_RUN`。研究コードのcommit/push、GPU実行、A3長時間runの予約は未実施で、Gateごとの別指示が必要。
+
+---
+
+## 9. 2026-10-20実装・実機runステータス更新（後続Authority）
+
+以前の本文の「今回はコードを変更しない」「GPU未許可/未実行」は**当初のspec承認時点**での権限境界である。その後、別の明示的なユーザー実装依頼により、統合ランチャーとテスト2ファイルが研究コード`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`に追加され、`914e736c2699e2e129211a888d1f19013dd1dd1a`としてcommitされた（ユーザー端末でlocal HEAD・cleanとGitHub origin/dev一致を確認）。承認済み設計と元の科学条件は変更しない。
+
+軽量CPU確認は**29 passed / 15.05秒 / exit0**（新規ランチャー23テスト＋既存parityの代表6テスト）。**既存parity harness全件**の完了結果は未確認であるため、全件回帰PASSとはしない。
+
+**A5-pilotのみ2026-10-20に実GPUでPASS**：campaign `a345_20261020_114641`、ImageNet実画像、RTX A4500×2、20step、normal`meta_einsum`、monitor OFF。ランチャー標準判定`A5-pilot PASS: every step completed and every check holds`はユーザー提供terminalに基づく。raw`run_report.json`のGPUピーク/throughput値は未受領。[正本GPU Evidence](../experiments/2026-10-20-meta-moco-a5-pilot-real-imagenet-two-gpu-20step-evidence.md)参照。
+
+**A4、A3、A5-pairは引き続きNOT_RUN。** 次はこの**同じcampaign root**でA4の`plan`を行い、`previous stage A5-pilot = PASS`、`issues=[]`を確認した後に、A4の別GPU実行をユーザーが明示決定する。A3（各1025step）とA5-pair（OFF/Light各100step）の実行結果を推測で補わない。
