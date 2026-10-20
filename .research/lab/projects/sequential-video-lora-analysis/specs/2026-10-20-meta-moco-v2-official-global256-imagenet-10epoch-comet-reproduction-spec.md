@@ -5,7 +5,7 @@ status: approved
 created: 2026-10-20
 last_updated: 2026-10-20
 title: "Meta MoCo v2 Official Global Batch 256 ImageNet-1K 10-Epoch Reproduction and Comet Comparison"
-authority: "User approved B1-B5 and staged V1/E1 execution on 2026-10-20; E2/E3 are not separately authorized. Latest E1 results are user-shared experiment evidence, not Github-observed GPU runs."
+authority: "User approved B1-B5, staged V1/E1 execution and E2 one-epoch Meta/self GPU+Comet execution on 2026-10-20; E3 10epoch remains unauthorized. E1 success is user-shared experiment evidence, not Github-observed GPU runs."
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_branch_at_read: dev
 implementation_commit_at_read: 914e736c2699e2e129211a888d1f19013dd1dd1a
@@ -33,6 +33,8 @@ vram_gate: META_AND_SELF_30STEP_BOTH_PASS_2026-10-20
 v1_offline_comparison: INPUT_HASH_1_OF_1_AND_LOGGED_METRICS_BITWISE_PASS_2026-10-20
 e1_execution_authority: USER_APPROVED_META_AND_SELF_100STEP_WITH_COMET_ON_2026-10-20
 e1_execution_status: META_SELF_100STEP_COMPLETE_INPUT_HASH_2OF2_METRICS_BITWISE_2026-10-20
+e2_execution_authority: USER_APPROVED_META_AND_SELF_ONE_EPOCH_WITH_COMET_2026-10-20
+e2_execution_status: NOT_RUN
 e1_evidence: ../experiments/2026-10-20-meta-moco-v2-e1-imagenet-100step-comet-parity-evidence.md
 comet_destination_verified: E1_META_AND_SELF_EXPERIMENT_URLS_PRESENT_2026-10-20
 ten_epoch_training: NOT_RUN
@@ -278,3 +280,17 @@ Comet SDK公式ドキュメント：`https://www.comet.com/docs/v2/guides/experi
 - Lossはstep1 6.441793→step100 9.806382だが、Queue置換途中・短時間runのため特徴学習成功/失敗の主張には使わない。
 - [E1原本Evidence](../experiments/2026-10-20-meta-moco-v2-e1-imagenet-100step-comet-parity-evidence.md)参照。
 - **本更新でE2/E3の実行許可は生じない**。E2では1epoch完走・epoch checkpoint・canon state SHA一致・データ待ち/長期安定性を判断する。E2の実行には別のユーザー承認を要する。E3 10epochはさらに別Gate。
+
+### E2（Meta公式・自作それぞれ1epoch）個別実行承認（2026-10-20）
+
+ユーザーはE1結果（100step双方完了、入力hash 2/2地点、記録scalar bitwise、Comet両URLあり）の報告と直前の質問「E2としてMeta公式・自作それぞれ1epochの実験へ進めてよいか」に対し、**「次に進めます」**と回答した。よって**E2 GPU×2本＋同runのComet送信を許可**、**E3 10epoch・E4評価・研究コード改変は許可しない**。
+
+- **実験recipeは固定**：ImageNet-1K train / ResNet50 MoCo v2 MLP / world_size2 / local_batch128（global256）/ SGD LR0.03,momentum0.9,weight_decay0.0001 / MoCo K65536,m0.999,T0.2 / FP32 strict deterministic, TF32 off / 16 workers/rank / seed0 / 10epoch cosine horizon。CLIは `gate=E2 training.stop_after_epoch=1 training.max_steps=null training.resume=null logging.comet_enabled=true logging.online_check=true`。**training.epochs=10のまま**1epochで止める。E1のrun/fixtureを再利用しない。
+- 単一の**新規**初期state fixture（`build_moco_parity_fixture fixture.kind=synthetic training.local_batch_size=128`で公式builder由来の初期重みのみ生成）を新キャンペーン `log/moco_imagenet_10epoch/moco_v2_e2_<timestamp>/initial_state/fixture.pt`に固定。実学習のImageNet画像はrunner DataLoaderから読み込む。公式と自作に**同じfixture**を指定する。
+- **preflight**：研究コード `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` が公式の現行commit `d6f7acc75ee92adcf7e6e3e65831d46759b9ed14` でclean、Meta公式clone `a419ef282fc9885015674e77f58c59447206a27f` clean、`PYTHONDONTWRITEBYTECODE=1`、GPU0/1に競合処理がないこと、NAS train 1000-class/1,281,167 sample、`df`容量、Comet専用project preflightを確認。キャッシュdirty、OOM、コミット違い、Comet到達不可、Checkpoint保存失敗時は他の実装を起動しない。設定を黙って変更しない。
+- **実行順**：Meta公式1epoch → `run_report.json` status, full epoch, `checkpoint_epoch001.pt`・各rank sidecar、canonical state SHA、Comet key/URL/errors、peak memoryを確認 → 自作1epoch → offline comparator。記録は各runner固有の日時run dirへ保存しE1/V1は上書きしない。長時間接続切断に備えてSSH上でtmuxなどの運用を推奨（未導入なら強制しない）。
+- 現行`train_epochs()`は `stop_after_epoch=1,max_steps=null`でImageNet1epoch全stepを処理し、完了時のみ`checkpoint_epoch001.pt`と`canonical_state_sha256`を`epochs.jsonl`へ保存する。`compare_moco_10epoch.py`で`epoch_states_identical=True`を得るには双方のcanonical state SHA一致が必要。**CheckpointファイルSHAは実装固有の書式・metadataがあるため、ファイルバイト列同士が等しいことを条件にしない**。オプティマイザ・Queue・RNGの内部項目はこの比較器の包括的bitwise確認範囲に含まれない。
+- dataset=1,281,167、DistributedSampler world2→rank640,584、DataLoader`drop_last=True`/local batch128により**5004step/epoch（想定）**。実数はrun_report内の`data.steps_per_epoch`を正とする。Hashを記録するStep1と以後100stepごと（5000まで）を比較、Loss等はStep1と10stepごと/lastを比較。サンプリング比較であり5004step全入力bitwise保証ではない。
+- **E2成果判定**：Meta/self両方`status=completed`、`last_global_step=data.steps_per_epoch`、`completed_epochs=[0]`、epochs[0]`completed=true`、checkpoint実在、rank sidecar各2、canonical state SHA non-null、comet key/URL、errors空。比較で`contract_valid=True,both_completed=True,inputs_identical=True,metrics_bitwise_equal=True,epoch_states_identical=True,curve_agreement=bitwise`が理想値。差分が出た場合は具体的な最初のstep、metric、epoch状態、入力hashを調べてE3には進まない。
+- **Evidenceの境界**：E2で同一初期条件の1epoch再現が確立してもMoCoの学習済み特徴品質やMoCo v2標準200epochの再現は確立しない。E3 10epochの実行は新しいユーザー承認を必要とする。
+- **今回のGitHub操作**はResearch Workspaceに承認を保存するだけ。実際のGPU run、Comet送信、SSH local checkoutの更新はChatGPTから実施していない。
