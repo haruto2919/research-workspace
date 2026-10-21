@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: 2026-10-22 ViT-B/16＋DistributedMoCo Full FT/LoRAはG3 1/10stepで工学Gate両モードPASS（FT headroom 1749.875MiB）。正規化Query feature std急減（FT step10 約6e-6）の原因切り分けのため、固定probe（ImageNet 64枚、CLS/z_q/q×更新0/1/2/10回）とstep1更新量の診断を実装し、CPU D0〜D3 PASS（研究コード未commit）。GPU診断run（D4）は未許可。ActivityNet 10秒manifest 117,522枚。
+summary: 2026-10-22 ViT-B/16＋MoCo診断：Full FT/LoRAのG3は両モードPASS。Query Collapse診断を実装しCPU D0〜D3 PASS、GPU D4はLoRA 10stepで工学PASS（peak reserved 12338MiB/rank、VRAM Gate PASS）。固定64画像のstep1でCLS統計ほぼ維持、Projector出力cos p50が0.319→0.993へ急増・raw norm 2.27→153（方向集中）。Full FT D4と2run比較・因果検証は未完了。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-22
@@ -73,6 +73,9 @@ last_updated: 2026-10-22
 
 2026-10-22、承認済みの[Query Collapse診断spec](specs/2026-10-22-vit-moco-query-collapse-diagnostic-spec.md)に従い、診断を研究コードへ実装した（`dev@2c26991`上の未commit差分。新規の診断module・診断用preset・CPUテスト33件と、runnerへの最小hook）。ImageNet trainから決定的に選んだ64枚の固定probeについて、ViT CLS、Projector出力、正規化Queryを、optimizer更新0/1/2/10回の時点でそれぞれ測る。あわせて、step1のgrad・parameter・update量をBackbone（LoRAはA/B）とProjectorに分けて記録する。診断は専用presetを指定したときだけ動き、出力先も別になる。**CPU Gate D0〜D3はPASS**：診断の有無で学習traceがbitwise一致し、診断OFFは変更前のコードとcheckpointのバイト列まで一致し、全テストの失敗ID集合は変更前後で同一だった。実ImageNet・実ViT-BのCPU preflight（学習なし）では、両modeのstep0特徴がbitwise一致した。**GPU診断run（D4）は未許可のため未実施**で、実行前に研究コードのcommitが必要（runnerはdirtyなrepositoryからのGPU runを拒否する）。Collapseの原因や表現品質はまだ判断していない。[実装・CPU検証記録](experiments/2026-10-22-vit-moco-query-collapse-diagnostic-implementation-cpu-verification.md)
 
+
+2026-10-22、[Query Collapse診断D4 ImageNet GPU Evidence](experiments/2026-10-22-vit-moco-query-collapse-d4-imagenet-gpu-diagnostic-evidence.md)にユーザー提示のLoRA 10step `run_report.json`と`diagnostic_summary.json`集計を追記。**LoRA単独のD4工学GateはPASS**（両GPU peak reserved 12338MiB、headroom 7757.875MiB、frozen base不変、DDP rank state一致、probe ranks一致、`engineering_status=PASS`）。固定64画像はstep0→1でCLSのcosine中央値が0.03194→0.03192とほぼ維持される一方、**Projector raw出力の画像間cosine中央値が0.31879→0.99317**へ急上昇。正規化前`z_q`のrow norm中央値も2.266→153.144へ増大し、方向の集中はL2正規化前から発生。`q`のstdは0.07263→0.00715へ低下。Projectorのstep1相対update norm 1.4399、LoRA Bの初期norm0に対する巨大比率は無意味。AdamW lr0.03原因の可能性は高まったが未証明。**Full FT診断・両mode比較・D5解釈は未完了**。GitHubから研究サーバのraw JSON原本は直接確認していない。
+
 ## マイルストーン
 
 - [ ] 研究方針を整理する
@@ -137,3 +140,4 @@ last_updated: 2026-10-22
 | 2026-10-21 | ViT DDP G3 10stepでLoRA/Full FTともconsole上完走・finite、Queue pointer 2560。ただしnormalized Query feature stdはstep10で0.01096 / 0.00000606へ低下（Collapse疑い）。run_reportのVRAM/final checksと原因診断が未了、20stepは慎重に判断。[G3 10step Evidence](experiments/2026-10-21-vit-ddp-moco-g3-imagenet-10step-console-evidence.md) |
 | 2026-10-22 | ViT DDP G3 10stepのLoRAとFTについてrun_report集計でVRAM/最終チェックもPASS、全10step同一入力を確認。Peak reservedは12338/18346 MiB/rank。FT feature std≈6e-6のcollapse疑いは未解消、表現評価は保留。[10step Evidence](experiments/2026-10-21-vit-ddp-moco-g3-imagenet-10step-console-evidence.md) |
 | 2026-10-22 | Query Collapse診断spec（B1〜B5）を実装（未commit）。固定probe 64枚でCLS/z_q/qを更新0/1/2/10回時に測定し、step1の更新量も記録。CPU D0〜D3 PASS（新規33件、診断の有無で学習traceがbitwise一致、全テストの失敗ID集合は変更前後で同一）。実データCPU preflightで両modeのstep0特徴がbitwise一致。specは`implemented`。GPU D4は未許可・未実施。[実装・CPU検証記録](experiments/2026-10-22-vit-moco-query-collapse-diagnostic-implementation-cpu-verification.md) |
+| 2026-10-22 | Query Collapse診断D4のLoRA 10stepはユーザー提示run_reportとdiagnostic_summary集計で工学PASS。fixed64画像のstep1でCLSはほぼ維持、Projector raw出力の画像間cos中央値は0.319→0.993、raw normは2.266→153と増大。Full FT D4・compare CLI・因果判定は保留。[D4 GPU Evidence](experiments/2026-10-22-vit-moco-query-collapse-d4-imagenet-gpu-diagnostic-evidence.md) |
