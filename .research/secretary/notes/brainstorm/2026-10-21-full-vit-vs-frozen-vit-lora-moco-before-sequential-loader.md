@@ -71,3 +71,35 @@ tags: [brainstorm, research, vit, moco, full-fine-tuning, lora, representation-e
 ## Specへの接続（2026-10-21）
 
 ユーザーがB2（自作DistributedMoCo利用）・B10（初期共通Optimizer/LR、後段方式別LR探索）・B11（複数GPU DDP）を採用したため、[ViT DDP MoCo Full FT / LoRA切替・Smokeのdraft spec](../../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)を作成。未決の数値・データ条件があるため、specは`draft`のまま。研究コード変更、GPU実行は未許可。
+
+## 追記：Optimizerの客観的再評価（2026-10-21 12:13 JST）
+
+### 新たな相談とEvidence
+
+ユーザーは、公式ResNet50 MoCo v2/E5のSGD設定をViT Full FT / Frozen ViT＋LoRAにも引き継ぐべきか、AdamWとSGDのどちらが総合的に適するかを客観評価するよう依頼した。この相談は**推薦を求めたものであり、AdamWの採用承認ではない**。既存[ViT DDP切替draft spec](../../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)のB10（両方式で初期Optimizer種・LRを揃える）は維持し、最終Optimizer種はまだ未確定とする。
+
+- Meta [MoCo v2公式 main_moco.py](https://github.com/facebookresearch/moco/blob/a419ef282fc9885015674e77f58c59447206a27f/main_moco.py)ではResNet50/ImageNetのOptimizerはSGD（既存E5もSGD）である。
+- Meta [MoCo v3公式CONFIG.md](https://github.com/facebookresearch/moco-v3/blob/main/CONFIG.md)はViTモデルのpretrainingをAdamW（ViT-B例：LR 1.5e-4、WD 0.1、warmup 40epoch）で実施している。**MoCo v3と今回のMoCo v2式Queue付き・事前学習済みViTのFine-Tuningは別条件**なので、その数値を流用しない。
+- [Chen et al., ICCV 2021, An Empirical Study of Training Self-Supervised Vision Transformers](https://openaccess.thecvf.com/content/ICCV2021/html/Chen_An_Empirical_Study_of_Training_Self-Supervised_Vision_Transformers_ICCV_2021_paper.html)はViTの自己教師あり学習でoptimizer/LR/patch embeddingなどを検証し、安定性がaccuracyへ影響することを示す。MoCo v3のViTをAdamW baselineとした。
+- [Kumar et al., ICLR 2024, How to Fine-Tune Vision Models with SGD](https://proceedings.iclr.cc/paper_files/paper/2024/hash/e9cbf616dac568a9cb3342761125db24-Abstract-Conference.html)は複数のpretrained視覚モデルFine-TuningタスクでAdamWがSGDより良い条件がある一方、最初のembedding層をfreezeするとSGDの差が解消・逆転し得ることとメモリ利点を報告。ただし本研究のMoCo v2/LoRAと同一実験ではない。
+- 現行コード `scripts/smoke/smoke_vit_lora_cifar10.py` の独立LoRA単体（分類head付き）ではAdamWを使用済み。ただしこれはMoCo＋ViTでの性能検証ではない。
+- `self_supervised/moco/ddp_moco.py`はMoCo演算に特定Optimizerを要求しない。一方、ResNet50 parity専用runnerはSGDを固定しているため、ViT専用runを分離してResNet50 E5の再現契約を維持する。
+
+### 比較・推論・推薦（未採用）
+
+| 評価軸 | SGD | AdamW |
+| --- | --- | --- |
+| 既存ResNet50 E5設定の連続性 | 高い | 異なる |
+| ViT MoCoの公式先例 | v2はResNet中心 | v3 ViTで公式採用 |
+| pretrained ViT Full FTの初期候補 | LRやembedding層への配慮が必要な場合あり | 安定性・Fine-Tuning実績から有力 |
+| LoRA＋Projector | LR調整で可能、現研究では未検証 | 既存LoRA単体smokeで利用済み、MoCo時は未検証 |
+| optimizer stateメモリ | momentum SGDは約1個分/学習parameter | AdamWは1次・2次momentで約2個分/学習parameter |
+| 科学的な公平性 | どちらも双方の方式で同じoptimizerを使えば成立 | 同左。方法ごとのLR最適性は別に検証 |
+
+**第一候補：AdamWをViT Full FT・LoRA共通の初期Optimizerにする。** ただし、FullFTとLoRAで同一初期LR・schedulerを用いる条件統制pilotと、後続の等しいLR探索予算での性能比較を区別する。AdamWに一律高WDを設定せず、対象parameter group/decay除外、warmup、LR、seed、global batch、AMP、特徴evalを事前に固定する。AdamWがVRAMに収まらない場合はBatch・mixed precision・SGDを比較対象として再検討し、FullFTとLoRAで異なるglobal batchにした結果を公平な同条件比較として扱わない。
+
+**SGDの価値：** MoCo v2/E5とのOptimizer連続性、メモリ削減、ViT+MoCoで同等の表現評価を達成できる可能性。SGDの低性能を最初から断言しない。実際にどちらが本研究で良いかは、同一画像・seed・初期ViT/Projector・DDP global batch・学習量を使用し、両Optimizerに適切なLR探索を与え、有限Loss/勾配、更新norm、学習速度・ピークVRAM、heldout CLS Linear Probe/kNNなどで判断する必要がある。LoRA/FullFTへの適合性やベストLRは**未実測・未採用**。
+
+### research-specへの引き継ぎ候補
+
+B10 numerical blocking：AdamWかSGDの採用、同一初期LRの値、Weight Decayのparam-group規則、warmup・cosine horizon、GPU/Batch/AMP条件を次のspec Gateで決める。新しい提案を現行draftの承認やGPU実行許可とみなさない。
