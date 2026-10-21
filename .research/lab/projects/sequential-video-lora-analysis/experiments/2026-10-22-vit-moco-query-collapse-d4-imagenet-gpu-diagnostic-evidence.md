@@ -2,8 +2,8 @@
 project: sequential-video-lora-analysis
 date: 2026-10-22
 record_type: gpu-diagnostic-user-console-evidence
-status: lora-d4-engineering-pass-full-ft-console-completed-gate-pending
-evidence_level: user-pasted-local-console-plus-run-report-and-diagnostic-summary
+status: d4-both-modes-engineering-pass-d5-descriptive-analysis-causal-unverified
+evidence_level: user-pasted-local-console-run-report-diagnostic-summary-and-compare-runs
 research_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 research_branch: dev
 github_dev_head_observed: 312c121975d68e860d5f89bf38ed26aab23b0981
@@ -174,3 +174,106 @@ CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke \
 5. これらが揃ってから研究的解釈D5。今のログのみでFull FTのCLS Collapse・Projector原因・学習率原因を断定しない。
 
 **Evidence境界**：今回の添付はユーザーが研究サーバで取得したコンソール出力であり、ChatGPTはFull FT GPU run、診断summary原本の閲覧、ローカルdirty/commitの確認を行っていない。後続のrun report集計受領までD4全体は正式PASSではない。
+
+
+## 2026-10-22追記：D4両方式工学PASSとD5記述的解析
+
+### 受領した新しいEvidenceと範囲
+
+2026-10-22、ユーザーが研究サーバのローカル`run_report.json`／`diagnostic_summary.json`（LoRA/Full FT）を読み、`compare_runs`で比較したPythonコンソール出力を提示した。数値の正本は研究サーバローカルartifactであり、ChatGPTはJSON原本の存在・git実行時HEAD・dirty状態を直接検証できていない。前節の「Full FT工学Gate正式判定待ち」はその時点の記録であり、以下の最新判定が優先する。
+
+実行run：
+- LoRA：`log/moco_vit_query_collapse/lora/imagenet/2026-10-22_04-02-22-441192`
+- Full FT：`log/moco_vit_query_collapse/full_ft/imagenet/2026-10-22_04-20-32-327570`
+
+### D4 工学Gate確定（両モードPASS）
+
+| Gate項目 | LoRA | Full FT |
+| --- | --- | --- |
+| `run_report.status` | completed | completed |
+| `vram_gate.status` | PASS | PASS |
+| `diagnostic_summary.engineering_status` | PASS | PASS |
+| `diagnostic_summary.reasons` | [] | [] |
+| `diagnostic_summary.ranks_feature_identical` | true | true |
+| `final_checks.ranks_hold_rank0_state` | true | true |
+| `max_reserved_mib`、rank0/1 | 12338 / 12338 | 18346 / 18346 |
+| `headroom_mib`、rank0/1 | 7757.875 / 7757.875 | 1749.875 / 1749.875 |
+| `uniformity_warnings` | [] | **step10 rank0/rank1のみ警告** |
+
+2GPUいずれも、採用spec閾値の`headroom_mib >= 1024`を満たす。Full FTは余裕が **725.875MiB** しかなく、条件を増やしてのGPU runへ無断延長しない。Full FT `frozen_base_unchanged=true`は `frozen_start.parameters=0` のため**ViTの凍結を意味しない**（Full FTではBackbone学習対象）。
+
+両run比較CLI結果：
+- `train_inputs_identical=true`（全比較step）、`probe_inputs_identical=true`
+- `step0_features_bitwise_equal={cls:true,z_q:true,q:true}`
+- `comparable=true`
+- `Both engineering gates PASS: True`、`D4 ready for D5: True`
+
+**判断**：D4のengineering Gateは両modeでPASS。比較の同一初期特徴・同一probe画像・各stepの学習入力は支持された。一方これは**表現品質の成功Gateではない**。
+
+### D5 記述的解析（固定64画像・rank0、更新前0 / 更新後1,2,10）
+
+全stageで同じ64画像を測定。Cos値は異なる画像ペア（対角なし）の中央値/p95。CLSおよびProjector raw `z_q`とL2正規化Query `q`を区別する。
+
+| mode | stage | step | mean_dim_std | offdiag_cos_p50 | offdiag_cos_p95 | row_norm_median |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| LoRA | cls | 0 | 0.84602243 | 0.03193889 | 0.12177811 | 24.406504 |
+| LoRA | cls | 1 | 0.84420229 | 0.03191668 | 0.12312916 | 24.352452 |
+| LoRA | cls | 2 | 0.84453843 | 0.03189353 | 0.12340274 | 24.503950 |
+| LoRA | cls | 10 | 0.53418804 | 0.26869782 | 0.97221464 | 15.535676 |
+| LoRA | z_q | 0 | 0.16664858 | 0.31879016 | 0.44875288 | 2.266191 |
+| LoRA | z_q | 1 | 3.01726534 | 0.99316858 | 0.99647618 | 153.143883 |
+| LoRA | z_q | 2 | 7.08429824 | 0.99523325 | 0.99781284 | 375.800476 |
+| LoRA | z_q | 10 | 40.37776154 | 0.99406232 | 0.99946187 | 655.405887 |
+| LoRA | q | 0 | 0.07263176 | 0.31879016 | 0.44875288 | 1.0 |
+| LoRA | q | 1 | 0.00715257 | 0.99316858 | 0.99647618 | 1.0 |
+| LoRA | q | 2 | 0.00581795 | 0.99523325 | 0.99781284 | 1.0 |
+| LoRA | q | 10 | 0.00764293 | 0.99406232 | 0.99946187 | 1.0 |
+| Full FT | cls | 0 | 0.84602243 | 0.03193889 | 0.12177811 | 24.406504 |
+| Full FT | cls | 1 | 0.11770424 | 0.98495289 | 0.99659101 | 25.351545 |
+| Full FT | cls | 2 | 0.04551157 | 0.99830853 | 0.99984338 | 24.479593 |
+| Full FT | cls | 10 | 0.00186125 | 0.99999748 | 0.99999949 | 28.272040 |
+| Full FT | z_q | 0 | 0.16664858 | 0.31879016 | 0.44875288 | 2.266191 |
+| Full FT | z_q | 1 | 0.30611520 | 0.99994166 | 0.99998633 | 155.822460 |
+| Full FT | z_q | 2 | 0.57858195 | 0.99999757 | 0.99999979 | 586.084100 |
+| Full FT | z_q | 10 | 0.14518664 | approx 1.0 | approx 1.0 | 5394.1868 |
+| Full FT | q | 0 | 0.07263176 | 0.31879016 | 0.44875288 | 1.0 |
+| Full FT | q | 1 | 0.00071494 | 0.99994166 | 0.99998633 | 1.0 |
+| Full FT | q | 2 | 0.00016083 | 0.99999757 | 0.99999979 | 1.0 |
+| Full FT | q | 10 | **4.51817047e-6** | **0.9999999985225709**（warningレコードのより高精度値） | approx 1.0 | 0.99999999 |
+
+注：上表の`approx 1.0`はユーザーのprintが`:.8g`で丸めた値であり、floatのbitwise完全一致を主張しない。
+
+**結果A：Full FT CLSは最初の更新直後に強く方向が集中した。** CLS cos p50は0.03194→0.98495→0.99831→0.99999748、stdは0.8460→0.1177→0.0455→0.00186。raw CLS normはstep0 24.41→step1 25.35→step10 28.27で**零ノルム化ではない**。ViT Backboneの表現方向の多様性が失われた兆候を、fixed probeにより直接確認。
+
+**結果B：LoRA CLSは初期2stepでは方向多様性維持、Projector rawでは方向が集中した。** LoRA CLS cos p50 0.03194→0.03192→0.03189、std 0.8460→0.8442→0.8445。一方`z_q` cos p50 0.31879→0.99317、raw std 0.16665→3.0173、raw norm中央値2.266→153.144。L2 normalize前の`z_q`で既に方向集中が成立するので、正規化単独の原因ではない。
+
+**結果C：両modeともProjector出力の方向集中、Full FTでより極端。** Full FT `z_q` cos p50 0.31879→0.99994166、q std 0.07263→0.00071494（step1）→4.518e-6（step10）。LoRAではq step1 std0.007153、step10 0.007643で、強い方向集中はあるがFull FTほどではない。警告Rule（q std<1e-4 AND cos p50>0.999）はFull FT step10のみ真、LoRAは偽。heuristicが偽でもLoRAの同方向性0.993を軽視しない。
+
+### Step1 optimizer更新監査
+
+| mode | group | grad_norm | update_norm | relative_update |
+| --- | --- | ---: | ---: | ---: |
+| LoRA | lora_A | 0 | 0.00002386859 | 2.98034654e-6 |
+| LoRA | lora_B | 0.0309570922 | 11.50100481 | 1.15010048e13（B初期norm=0で分母epsilon） |
+| LoRA | projector | 2.1856347045 | 24.90061088 | **1.439908435** |
+| Full FT | backbone | 1.3921865068 | **277.44090050** | **0.3600864710** |
+| Full FT | projector | 2.1856346752 | 24.90060874 | **1.439908310** |
+
+- **Projectorのstep1更新は両方式でほぼ同一の大きさ**（絶対norm約24.90、更新前normに対し相対約1.44）。同条件のAdamW `lr=0.03`で非常に大きいパラメータ更新という有力な機構的説明。
+- **Full FT Backboneの相対更新0.3601**はViTの全trainable parameter群に対するaggregateノルム比。これがCLSの急速な方向均一化に関係する可能性が高いが、更新normの大きさだけでは因果断定しない。
+- LoRA B `relative_update=1.15e13`はゼロ初期化の分母epsilonによる機械的値で、更新倍率の研究的尺度に使用しない。A grad0と微小updateは初期LoRAとAdamW weight decayで説明可能。
+- Full FTとLoRAはBackboneもProjectorも各stepで同時に更新するため、**「Projectorだけが原因」「ViTだけが原因」「lr0.03が唯一の原因」とは言えない**。この観測からの**局在化**と更新要因の**因果同定**を分離。
+
+### D5時点の推論と次の実験候補（未承認）
+
+- **最有力候補**：AdamW初期LR0.03（warmupなし）がViTとProjectorに対して過大で、初回に各群の大きなupdateを生み、方向集中へ寄与した可能性。SGD用のLR値とAdamW LRの数値は最適条件として互換とみなせない。ただし**LRを減らした対照実験が未実施なので未検証仮説**。
+- **反例・別説明**：Projectorのoutputが特定方向へ写像する初期過渡、ViTの更新・正規化、EMA Key/QueueとInfoNCEの相互作用、stochastic training minibatchに対する短期過学習、AdamWの最初のstep特性。初期QueueはK65536のうちstep10で2560だけが実Keyになっており、後期表現学習・下流性能を10stepから判定できない。
+- **次の比較設計候補**：元の`lr=0.03`を保存したまま、**(i) AdamW低LRを両group同時に変える**対照、**(ii) ViT/LoRAとProjectorでLRを分離する**群別ablation、必要なら **(iii) projector-frozen／backbone-frozen**の短時間probe ablation。最初はLoRA＋Full FTの同一64画像・同一比較条件・更新1/2/10回・CPU/GPU Gateを対にして観測。学習率候補・実行回数・GPU枠は別specでユーザー判断を必要とする。実行条件を黙って変更しない。
+- **現段階では**20stepや5epochへの延長、ActivityNet/Sequential Loader本統合、Full FT対LoRAの性能ランキングを推奨しない。まず低LRまたは分離学習率の因果切り分けを先行。
+
+### Status と非主張
+
+- **D4 GPU工学・モード比較：PASS**（ユーザーが表示したlocal summary集計に基づく）。
+- **D5記述的局在化：支持あり**（Full FTではViT CLS側から、LoRAではCLS初期多様性を保ちつつProjector側から、強い方向集中）。`D5 causal attribution`は**未検証**。
+- **未成立**：低LRがCollapseを防ぐ、表現品質が向上する、online videoで動的情報を学習できる、LoRAがFull FTより優れた表現を獲得した、など。
+- **Research Workspace記録のみ**。ChatGPTはGPU新run・研究コード編集・研究コードcommit/pushを行っていない。次の実験条件をこの文書だけで承認したことにはしない。
