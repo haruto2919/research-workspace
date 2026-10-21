@@ -3,8 +3,12 @@ date: 2026-10-22
 project: sequential-video-lora-analysis
 record_type: diagnostic-implementation-and-experiment-spec
 topic: vit-moco-query-collapse-diagnostic
-status: draft
-approval: pending
+status: approved
+approval: approved
+approved: 2026-10-22
+approved_scope: B1-B5 diagnostic design and CPU engineering contract
+gpu_run_authorized: false
+code_change_requested_in_this_turn: false
 source_brainstorm: ../../../../secretary/notes/brainstorm/2026-10-22-vit-moco-g3-collapse-diagnostic-roadmap.md
 related_spec: 2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md
 evidence: ../experiments/2026-10-21-vit-ddp-moco-g3-imagenet-10step-console-evidence.md
@@ -17,7 +21,7 @@ implementation_reference_commit: 2c269915f0c5036fa2a460959fdf401d54456026
 
 ## 1. 結論、目的、承認状態
 
-**Status: draft（未承認・実装不可）**。本書は2026-10-22の「Collapse診断用specを作成したい」というユーザー依頼に基づく**新規診断計画案**であり、ユーザーによる実装・GPU実験承認ではない。以下に記す推奨値・計測契約は承認候補であり、§12のBlocking事項を確定しないまま `approved` に変更しない。
+**Status: approved（2026-10-22、B1〜B5の採用をユーザーが明示承認）**。本書は元のdraftを2026-10-22の「採用します」により承認済みに変更した。B1〜B5の計測契約は実装用に採用したが、**この会話では研究コード変更・GPU診断run・GitHubコードcommit/pushは実行しない**。GPU実験はB6として引き続き実行時の個別承認を必要とする。
 
 目的は、2026-10-21のImageNet-1K・2GPU・10stepで観測された **L2正規化後のMoCo Query出力のバッチ内分散急減**を、(a)事前学習ViTのCLS、(b)Projector正規化前出力、(c)正規化後Queryのどこで、(d)どのoptimizer更新時点で生じるか、同一固定入力で再現・局在化すること。
 
@@ -46,7 +50,7 @@ implementation_reference_commit: 2c269915f0c5036fa2a460959fdf401d54456026
 
 ## 3. Decision Contract：今回の対象・対象外
 
-### 対象（提案）
+### 対象（採用済み）
 
 1. **固定probe画像でのfeature診断**：2つの学習方式について同一画像・同一前処理の出力を、更新前後で観測する。
 2. **3つの観測位置**：`cls = backbone_q(pixel_values)` [B,768]、`z_q = projector_q(cls)` [B,128]、`q = F.normalize(z_q,dim=1)` [B,128]。
@@ -64,7 +68,7 @@ implementation_reference_commit: 2c269915f0c5036fa2a460959fdf401d54456026
 - GPUのメモリGateを通すための暗黙のbatch縮小・AMP有効化・解像度変更・Queue縮小・GPU数変更。
 - 元のMoCo forward（EMA/Queue enqueue）、Optimizer更新数式やLoRA injectionの意味論の変更。
 
-## 4. 計測対象と統計の計算契約（提案）
+## 4. 計測対象と統計の計算契約（B1/B2/B4/B5で採用済み）
 
 **固定probe dataset**：ImageNet-1K `train` を読み取り専用で使用。通常のImageFolderのstable sample listとseed0から決定的に画像indexを選び、**計64枚**を採用する案。同じ64枚を両modeと両rankで用い、index・相対path・クラス・選択seed・データ集合の`samples_sha256`・実入力テンソルSHA256を出力。これは診断用の固定サンプルであり、ImageNet validationや下流性能評価ではない。低多様性の偶然を避けるため、同じ画像重複indexは禁止する。
 
@@ -100,7 +104,7 @@ implementation_reference_commit: 2c269915f0c5036fa2a460959fdf401d54456026
 6. Step毎の既存run `metrics.jsonl`（train batchに対する更新前forward指標）と新規 `probe_metrics.jsonl`（固定probeに対する更新後forward指標）を別ファイルにし、`global_step`の意味を混ぜない。
 7. 対応するrankが同じprobeを得るので、診断ヘッダにはprobe selection policy・actual sample SHA・checkpoint hash・Query初期param hash・seed・git HEAD／dirty状態を保存する。
 
-## 6. 実装候補と影響範囲（承認後のみ）
+## 6. 実装契約と影響範囲（B3採用済み。コード変更は別依頼）
 
 **最小差分方針**：既存MoCo数式・DDP runner通常経路を変更せず、既存runnerに「診断有効時だけ呼ばれる計測hook」を挿入する。既定の診断OFF時は現行G3の同じ入力／損失／checkpoint／出力の意味を保つ。新しい汎用学習エンジン、MoCo再実装、独立した大規模training loopを追加しない。
 
@@ -113,7 +117,7 @@ implementation_reference_commit: 2c269915f0c5036fa2a460959fdf401d54456026
 
 **禁止**：`self_supervised/moco/{standalone_moco,ddp_moco,vit_ddp_moco}.py`の損失、EMA、Queue動作への介入。ResNet50側 `scripts/parity/*` の変更。元G3既存report schemaを破壊する変更。診断がOFFの状態で余分なforwardが動く設計。
 
-## 7. 出力と追跡可能性（提案）
+## 7. 出力と追跡可能性（採用済み）
 
 診断runは元G3と**別output namespace**（例：`log/moco_vit_query_collapse/<mode>/imagenet/<timestamp>/`）に新規保存し、過去の`log/moco_vit_ddp_smoke/`を上書きしない。Hydraのoverrideによるoutput dir変更で衝突が起きないこと、同名dirはfail-closedであることを確認。
 
@@ -125,7 +129,7 @@ implementation_reference_commit: 2c269915f0c5036fa2a460959fdf401d54456026
 - `update_metrics.jsonl`：step1でのbackbone / projector（LoRAはA/Bを分離）のgradient norm / parameter norm / update norm（測定できた範囲を明示）。
 - `diagnostic_summary.json`：engineering status、観測された特徴統計の時系列、強い均一化の**兆候フラグ**、未成立の研究主張、failure/VRAM gateと関連run ID。
 
-`mean_dim_std`やpairwise cosineは浮動小数の閾値を事前に科学的な「Collapse成功/失敗」と決め打ちせず、分布と比率を報告。例えば `q.mean_dim_std<1e-4` かつ offdiag cosine p50`>0.999` は**警告候補**に過ぎず、研究上の確定判定には使用しない（閾値の正式採用は§12 Blocking）。
+`mean_dim_std`やpairwise cosineは浮動小数の閾値を事前に科学的な「Collapse成功/失敗」と決め打ちせず、分布と比率を報告。例えば `q.mean_dim_std<1e-4` かつ offdiag cosine p50`>0.999` は**警告候補**に過ぎず、研究上の確定判定には使用しない（B5承認：科学的な絶対閾値は採用せず、heuristicは警告に限定）。
 
 Checkpointの追加保存は本diagnostic scopeの必須要件にしない（既存`checkpoint_steps=[]`維持）。本結果は保存時点の統計を主Evidenceとし、モデル重みの追加解析・再利用には別設計が必要。
 
@@ -153,13 +157,13 @@ Checkpointの追加保存は本diagnostic scopeの必須要件にしない（既
 
 ## 10. 実装・実験の順序と実行境界
 
-1. `draft`レビュー、§12 Blocking解消、**ユーザーがspecを明示承認**して `approved` として保存。
+1. **完了（2026-10-22）**：ユーザーがB1〜B5を採用し、spec statusを`approved`へ更新。B6のGPU実行は別許可として維持。
 2. 別途許可された範囲で研究コード `dev` に最小差分実装（新規feature stats、probe hook、CPU tests）。コードを編集した場合、対応するengineering-task workflowとcode commit/pushの承認境界を守る。
 3. CPU artificial/tiny2rank gloo regressionを実行し、研究Workspaceに検証結果を記録。実装完了を示すstatus移行は必須Gate通過後のみ。
 4. GPU runは**明示的な別許可**が出たときのみ、研究サーバでGPU ID/空き/clean HEAD/データのpreflight後に実行。LoRAとFTを順番にfresh 10stepで診断し、同一サンプル・入力hash・rank整合・VRAMを比較。
 5. run resultを`experiments/`へEvidenceとして保存。観測箇所が特定できたら、低LRによる因果仮説検証の別spec、または現行G3 20step継続の可否を改めて決定。
 
-**この文書保存のみで、コード変更・Git commit/push・GPU run・データdownload・Comet通信を実行してはならない。**
+**承認済みspecは後続のengineering-taskに引き継げるが、今回のユーザー発話は設計採用のみである。研究コード変更・Git code commit/push・GPU run・データdownload・Comet通信は今回実施しない。**
 
 ## 11. 既存baselineとの互換性・非回帰
 
@@ -168,35 +172,35 @@ Checkpointの追加保存は本diagnostic scopeの必須要件にしない（既
 - 新規probe実行によって学習データの巡回順・augmentation乱数・同一stepの学習viewsが変わらないことをチェック。計測実行のあり／なしで**同一seedと入力の学習トレース**が一致するようにする（bitwiseが成立しない場合は誤差の実測と根拠を示し、無断で許容差を拡大しない）。
 - `+diagnostics.enabled=true`等のCLI項目と出力namespaceは新規に追加しても、既存実行引数は変更しない。追加診断の再現性をcheckpoint／resumeの暗黙な改造で実現しない。
 
-## 12. Ambiguity Gate（ユーザー未承認・実装開始前に解消）
+## 12. Ambiguity Gateの解消と承認範囲（2026-10-22）
 
-**Blocking** — 次の推奨値は設計候補であり、ユーザー承認が必要。未採用のまま実装コード・GPU runを開始しない。
+**設計BlockingはB1〜B5の採用により解消済み。** ユーザーが本draftのB1〜B5の推奨条件に対して「採用します」と明示した。下表を診断実装用の**確定契約**として扱う。B6は「実行時の許可Gate」として残るが、specをapprovedにすることを妨げる未解決の設計項目ではない。**GPU診断runの許可が出たことにはならない**。
 
-| ID | 決めること | 推奨候補と理由 |
+| ID | 判断 | 採用した値・境界 |
 | --- | --- | --- |
-| B1 | 固定probeの画像集合・枚数・前処理 | ImageNet trainの決定的64枚（seed0、重複なし）、Resize256/CenterCrop224/processor正規化。学習側random augmentationの影響をprobe比較から除外 |
-| B2 | 測定時点・測定位置・mode・学習レシピ | 両mode各10step fresh、probe0/1/2/10、CLS/raw projection/normalized q、現行lr0.03等固定。低LR比較は別spec |
-| B3 | 計測の実装形態・元runner互換性 | 既存runnerの診断OFFを既定とするoptional hook＋診断専用小module。MoCoコアを編集しない。run directoryは別namespace |
-| B4 | 追加の更新量計測範囲・資源上限 | 最低限step1でBackbone（FT）/LoRA A,B（LoRA）/Projectorを別集計。CPU snapshot方式、GPU full-param clone禁止。詳細moduleを増やすなら事前にscopeを固定 |
-| B5 | 警告判定の閾値と報告契約 | 固定閾値は科学的PASS条件にしない。feature stdとpairwise cosineを原値で示し、heuristicフラグは「警告」のみ |
-| B6 | GPU診断runの個別許可 | specの承認・コード実装承認・GPU実行承認は別。GPUの費用・占有が発生するため実行時点で明示許可が必要 |
+| B1 | **採用済**：固定probeと前処理 | ImageNet trainの決定的64枚（seed0、重複なし）、Resize256/CenterCrop224/HF processor正規化、RGB固定。固定probeは学習側random augmentationと切り離す |
+| B2 | **採用済**：観測点と学習条件 | Full FT / LoRA fresh各10step、同じ固定probeでoptimizer更新0/1/2/10回時、CLS768・Projector raw128・normalized Query128。元のAdamW lr0.03、global batch256、2GPU、FP32を維持。低LR比較はscope外 |
+| B3 | **採用済**：実装・互換性 | 元runnerの診断OFFをデフォルトに保ち、診断有効時のみoptional hook＋専用小moduleで測定。MoCoコアの損失・Queue・EMAには介入しない。別namespaceに成果物保存 |
+| B4 | **採用済**：optimizer更新量 | step1でFull FT ViT / LoRA A・B / Projectorのgrad・parameter・update量を分離測定。CPU snapshotを優先し、GPU上の全parameter二重cloneは禁止。余分な測定範囲を追加する場合は別判断 |
+| B5 | **採用済**：Collapse評価 | 特徴std、行ノルム、画像間offdiagonal cosine等の原値・分布を正本とする。heuristicなCollapse疑い表示は警告に限定し、科学的な成功/失敗の絶対閾値にはしない |
+| B6 | **実行許可Gate（未許可）** | specの承認とGPU利用は別。GPUの2rank×10step診断runは、ユーザーが実行を明示許可するまで実施しない。今回の承認はB1〜B5の仕様だけ |
 
-**Non-blocking** — 既存styleに合わせれば研究主張・外部契約を変えない範囲：局所helper名、CPU統計を作る関数分割、テストファイル名、JSONのkeyを既存reportに衝突させない追加キー、記録表の表示順序。テンプレート参照`.company/templates/requirements-spec-template.md`は本研究Workspaceのmainで未発見であったため、既存採用specのfrontmatter/節構成に整合させて本draftを記述した。
+**Non-blocking（設計上残件なし）**：局所helper名、テストファイル分割、JSONキー衝突のない追加フィールド順などは既存styleに従う。spec template参照`.company/templates/requirements-spec-template.md`はGitHubのmainでは未発見のため、既存採用specの形式で記述。これによる研究条件の曖昧さはない。
 
-## 13. Spec Gate判定とImplementation Handoff
+## 13. Spec Gate（approved）とImplementation Handoff
 
-- **Readiness**: 計測対象・実装境界・再現性・成功/停止条件は案として具体化済み。B1〜B6が未承認のため `draft`、研究コード変更不可。
-- **Breaking changes**: 既存G3実行引数・既存成果物を変える変更は採用しない。新規診断OFFのデフォルト状態を維持。既存基準specをsupersedeしない。
-- **GPU検証境界**: ユーザーの今回の依頼は**spec作成のみ**。GPU run、code change/commit/push、Comet通信は承認されていない。
-- **Handoff to engineering-task（承認後）**:
-  - approved spec: 本ファイルが `approved` へ更新された場合に限定
-  - purpose: CLS/Projector/qの更新前後固定probe診断でCollapse発生箇所と時点を特定
-  - code: `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`、設計調査時SHA `2c269915f0c5036fa2a460959fdf401d54456026`
-  - change scope: optional diagnostics hook、fixed-probe helper、CPU tests、診断専用sidecars
-  - preserve: G3元レシピとMoCoコア、E5、従来config/CLI/report、既存checkpoint
-  - validation: D0-D3 CPUを先行、GPU D4は別許可
-  - excluded: 高LR修正、最適化、長時間学習、動画/Sequential Loader、表現優劣の主張
-  - unverified: feature collapseの因果特定、LRの最適値、GPU診断でのmemory headroom、表現性能
+- **Readiness: approved（2026-10-22）**。§12 B1〜B5のblocking設計項目をユーザーが採用し、観測対象・scope・再現性・success/fail/stop条件が確定した。B6はGPU実行時の別許可であり、現在 **NOT_AUTHORIZED**。
+- **Breaking changes: なし**。従来G3のCLI・正常系・checkpoint/Queue/EMAの算術・出力schemaは維持し、診断OFFが既定。2026-10-21の採用specをsupersedeしない。
+- **コード変更境界**：承認済み仕様は後続のengineering-taskで実装可能な契約。**今回の「採用します」はB1〜B5の設計承認であり、GitHubコードの変更・commit/pushまで実行する依頼ではない**。研究コードの編集は後続の明示実装依頼に従う。
+- **GPU検証境界**：実装後もD4 GPUの実行は明示の個別許可が必要。D0-D3のCPU engineering確認とD4 GPUとを混同しない。
+- **Implementation handoff**:
+  - approved spec: 本ファイル（2026-10-22承認）。
+  - purpose: CLS/Projector/raw q/normalized qの固定probeによる、更新0/1/2/10回時のCollapse局在化。
+  - code: `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`、2026-10-22の調査基準`2c269915f0c5036fa2a460959fdf401d54456026`。ローカルの現在HEAD・dirtyは実装開始時に別途確認。
+  - allowed design scope: optional diagnostics hook、fixed-probe helper、CPU tests、診断用JSON sidecars。元runner/G3の後方互換維持。
+  - verification: D0→D1→D2→D3 CPUを先行。D4 GPUは別許可、D5解釈は観測後。
+  - excluded: 学習率の変更、5epoch/20step/ActivityNet本実験、ResNet50 E5、性能優劣の主張。
+  - unresolved **research questions** (not spec blockers): LRが崩壊原因か、CLS vs Projector、Query vs Key影響、表現品質の改善策。
 
 ## 14. 根拠・関連文書
 
@@ -206,3 +210,10 @@ Checkpointの追加保存は本diagnostic scopeの必須要件にしない（既
 - [2026-10-15 MTG](../meetings/2026-10-15-mtg.md)
 - [Runner](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/scripts/vit_moco/moco_vit_ddp_smoke.py)
 - [MoCo Query/Key/Projectorの元コード](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/self_supervised/moco/standalone_moco.py)
+
+## 15. Decision history（2026-10-22）
+
+- 依頼：「Collapse診断用のspecを作成したい」→ B1〜B6の案を含むdraftをResearch Workspace mainへ作成。
+- 承認：「採用します」→ **直前の会話で確認したB1〜B5の推奨条件を採用**。2026-10-22、statusを`approved`へ移行。
+- **B6は独立したGPU許可Gateとして未許可のまま**。元G3で行われた過去の10step実行承認は、この新診断runへの包括許可にはならない。
+- コードの変更、CPUテスト、GPU run、コードcommit/push、Comet通信は今回未実施。specを`implemented`へ移行するのは、後続で実装・必須GateのEvidenceを確認したときだけ。
