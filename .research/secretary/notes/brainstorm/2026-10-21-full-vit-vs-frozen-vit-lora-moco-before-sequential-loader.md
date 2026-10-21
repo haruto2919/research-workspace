@@ -109,3 +109,46 @@ B10 numerical blocking：AdamWかSGDの採用、同一初期LRの値、Weight De
 直前のOptimizer比較への回答に対し、ユーザーが「採用します」と明示したため、**ViT＋MoCo Full FT / Frozen ViT＋LoRAの共通OptimizerにAdamWを採用**する。初期の条件統制比較は同じ初期LR・同じschedulerで行い、将来的な表現性能比較では方式別LR探索を可能とする既決の方針を維持する。以前の節にある「未採用」は、その時点の探索状態を記した履歴であり、本追記以降はAdamWの採用が優先する。
 
 保存先の[DDP ViT-MoCo Full FT / LoRA切替のdraft spec](../../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)のB10とAmbiguity Gateを同期した。**LR具体値・weight decay対象と値・scheduler/warmup・GPU Batchは未決**。ResNet50公式parityのSGDは変更しない。spec全体のapproved、研究コードの変更、GPU実行は依然として未許可。
+
+## 追記：ActivityNetフレームの低類似度を狙った時間間隔抽出（2026-10-21）
+
+### ユーザー指示として確定した方向性
+
+ユーザーは、Full ViT＋MoCo対Frozen ViT＋LoRA＋MoCoの**通常DataLoader・単一フレーム入力の段階**では、同一動画から抽出したフレーム同士の類似度が「なるべく低くなることが想定される時間間隔」を設けたいと明示した。目的は近接・重複フレームを避けて視覚的多様性を高めることと解釈する。ただし**具体秒数・フレーム上限数・類似度閾値は未採用**であり、現行の[ViT DDP切替draft spec](../../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)はB6/7/8を未決のまま保持する。
+
+### 確認済み実装・研究文脈
+
+- 研究コード`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev`の`scripts/smoke/smoke_activitynet_vit_clip_feature.py`はSequentialDatasetの**最初の16連続frame**を読む経路であり、今回の「疎間隔・通常DataLoader学習」が既に実装された証拠ではない。
+- `dataset/video_folder.py`には`RandomClipSampler`/`RandomSampler`があるが、動画clip抽出であって**ActivityNet単一frameを一定秒数で疎抽出する確定済み経路とは別**。
+- 現行E5はImageNet画像学習、2GPU×local128、K=65536。新ViT用のActivityNet frame Manifest/selectionは別設計。
+- 動画の冗長性によるsampling最適化は先行研究でも問題とされる：[MGSampler (ICCV 2021)](https://openaccess.thecvf.com/content/ICCV2021/html/Zhi_MGSampler_An_Explainable_Sampling_Strategy_for_Video_Action_Recognition_ICCV_2021_paper.html)、[Exploring Video Frame Redundancies (CVPRW 2023)](https://openaccess.thecvf.com/content/CVPR2023W/VDU/html/Yoon_Exploring_Video_Frame_Redundancies_for_Efficient_Data_Sampling_and_Annotation_CVPRW_2023_paper.html)。ただしActivityNet上で最適秒数が既知という根拠ではない。
+
+### 案の比較・懸念
+
+| 案 | 長所 | 短所・留意点 | 評価 |
+| --- | --- | --- | --- |
+| 固定秒数間隔（例10秒）＋全体順序をshuffle | 仕様・Manifest・再現性が簡潔。時間的に近すぎる画像を抑制 | 静止カメラなどでは間隔が空いても高類似度。短い動画と長い動画で枚数不均衡 | 初期候補 |
+| 長い固定秒数（例30秒以上） | 見かけの時間隔は大きくなる | フレーム総数低下、行動区間の見落とし、同一Frameのepochまたぎ再出現とK=65536との競合 | 根拠なしに固定しない |
+| 動画長で等間隔（動画あたり固定16/32frame） | 動画別の学習重みを揃えやすい | 長短動画で実際の時間差が違い、短い動画は近接フレームになり得る | 最小時間隔制約と組み合わせる候補 |
+| 画像特徴が最も異なるframeを動的選択 | 直接類似度を下げられる | pretrained encoder依存の選択bias、アクション重要frameの脱落、追加推論計算、代表性損失 | 現段階の初期方針には採らない |
+| 短い診断で固定秒数間隔を選定 | 実データに即した根拠と再現性が得られる | 実際の動画試料・読込コストが要る。実行は別許可 | **最有力** |
+
+### 最有力案（未承認・未実施）
+
+1. ActivityNet training splitの事前に固定した多様な動画（例えば100〜200本）で、**候補時間差5/10/20/30秒**のフレームペアを抽出する。総数・速度の実測前には具体間隔を正式固定しない。
+2. 学習に使う前の**同一pretrained ViT-B/16 CLS[768]**をeval modeで計算しL2 normalize。フレームペアcosine similarityを時間差bin別に比較する。cosine medianだけでなくp90（似たまま残る上側tail）、有効抽出枚数、カバレッジ（時間範囲/アクション区間は診断に留める）を記録し、必要ならSSIM・thumbnail目視を補助。CLS cosineが視覚的冗長性や動作の本質を完全に表すわけではない。
+3. **類似度低下が頭打ちになる中で、保持フレーム総数が十分な最小時間間隔**を選ぶ。極端に長くして全フレーム数を犠牲にしない。秒数は結果を見て固定、Manifest（video ID、path、duration、timestamp、frame index、sampling policy、seed、file hash、split）を凍結する。
+4. 本学習でのフレーム抽出は固定し、**DDPのDistributedSamplerで読み出し順序だけをepoch毎にshuffle**。Full FTとLoRAは同じManifest、同じtwo-view augmentation policy、同じglobal batch、同じinitial pretrained/projectorと学習量を比較契約とする。
+5. 通常画像MoCo Positiveは**同一フレームの2-view**。別時間フレームはPositiveにしない。K=65536と動画ごとの保持枚数のバランス、sample ID・video ID別Queue監査、same-video/semantic false negativeの有無を記録する。**同一動画のNegative除外は未採用**であり、後段の別比較方針とする。
+6. 全10,024 training動画が使用可能と仮定した場合、K65536を上回る画像数には平均7枚/動画以上、2Kを上回るには平均14枚/動画程度が必要な計算になる。実際の有効動画数・フレーム数はローカルデータ実体でのみ確認可能。これは厳密なMoCo理論要件ではなく、epoch跨ぎの同一画像Negativeが残ることを避けるための診断目安。
+7. この段階は**frame-level画像表現学習**であり、時間隔を広げただけで動的/時間順序特徴を学んだとは主張しない。Sequential Loader、16-frame chunk、時間順序感度は後の独立Gate。
+
+### 未検証の仮説と反例
+
+- 仮説：5秒より10/20/30秒の方が同一動画frameの高類似度pair比率が下がる。**ActivityNet全般で単調低下するかは未検証**。
+- 反例：固定カメラ／長い同場面では30秒離しても類似。場面転換後では数秒で低類似。間隔を伸ばしすぎるとdatasetがQueueサイズを下回ったり学習対象の行動部分を落とす。
+- 追加確認：異動画間で同じ行為をするframeも高類似になりうるため、時間間隔だけでMoCoのfalse negativesを解消できない。
+
+### research-specへ渡す事項
+
+**ユーザー採用の目的**：近接フレームを避け、同一動画内のフレームの視覚的類似度を低くする。**未決**：具体的な秒数、許容する抽出枚数分布、類似度診断を必須とするか、抽出間隔確定の基準、video ID由来negative診断。実際の診断GPU実行・コード変更は未許可。現行specに自動昇格させない。
