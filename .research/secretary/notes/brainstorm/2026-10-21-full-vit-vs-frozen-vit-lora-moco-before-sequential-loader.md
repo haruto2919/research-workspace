@@ -103,3 +103,9 @@ tags: [brainstorm, research, vit, moco, full-fine-tuning, lora, representation-e
 ### research-specへの引き継ぎ候補
 
 B10 numerical blocking：AdamWかSGDの採用、同一初期LRの値、Weight Decayのparam-group規則、warmup・cosine horizon、GPU/Batch/AMP条件を次のspec Gateで決める。新しい提案を現行draftの承認やGPU実行許可とみなさない。
+
+## 追記：AdamWの明示採用（2026-10-21）
+
+直前のOptimizer比較への回答に対し、ユーザーが「採用します」と明示したため、**ViT＋MoCo Full FT / Frozen ViT＋LoRAの共通OptimizerにAdamWを採用**する。初期の条件統制比較は同じ初期LR・同じschedulerで行い、将来的な表現性能比較では方式別LR探索を可能とする既決の方針を維持する。以前の節にある「未採用」は、その時点の探索状態を記した履歴であり、本追記以降はAdamWの採用が優先する。
+
+保存先の[DDP ViT-MoCo Full FT / LoRA切替のdraft spec](../../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)のB10とAmbiguity Gateを同期した。**LR具体値・weight decay対象と値・scheduler/warmup・GPU Batchは未決**。ResNet50公式parityのSGDは変更しない。spec全体のapproved、研究コードの変更、GPU実行は依然として未許可。
