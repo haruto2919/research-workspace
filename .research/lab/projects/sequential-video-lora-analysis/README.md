@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: 2026-10-21 ViT-B/16＋自作DistributedMoCoのFull FT / LoRA切替（DDP）を承認spec通り実装。CPUでG0/G1/G2/G4/G5がPASS、ActivityNet 10秒間隔manifest（117,522枚）を生成。研究コードは`dev` `2c26991`へcommit・push済み、2GPU pilot（G3）とVRAM適合は未確認。E5のMoCo 5epoch parityはPASS済み。
+summary: 2026-10-21 ViT-B/16＋自作DistributedMoCoのFull FT / LoRA切替を実装しCPU G0/G1/G2/G4/G5 PASS。ImageNet実データ・2GPU×各128・FP32のG3 1stepは両方式PASS（LoRA peak 12038MiB、Full FT 16862MiB/rank）、10/20stepと表現品質は未検証。ActivityNet 10秒manifest 117,522枚生成済み。研究コードdev@2c26991。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-21
@@ -63,6 +63,8 @@ last_updated: 2026-10-21
 
 実装の正しさと基盤の成立を検証した後、学習済みLoRAに時間情報・動作情報が保持されているかを動画生成やVLMなどで評価する。その後、静的・動的情報の分離、直交化、LoRA空間での変換・組み合わせを検討する。LoRAの最終的な活用方法は探索段階にある。
 
+2026-10-21、[G3 ImageNet 2GPU・1step実験Evidence](experiments/2026-10-21-vit-ddp-moco-g3-imagenet-1step-console-evidence.md)にユーザー提示の実行ログおよびrun_report集計を追記した。LoRA・Full FTともに1step completed、smoke_completed=true、VRAM Gate PASS、failures=[]、rank間state一致・frozen checks=true、入力sha一致。GPU rankあたりpeak reservedはLoRA 12038 MiB、Full FT 16862 MiBで、headroomはそれぞれ8057.875 / 3233.875 MiB。これはG3 **1stepのみの合格**であり、10/20stepや長期学習の安定性・表現品質は未検証。研究サーバのローカルJSON実体はGitHubから直接確認していない。
+
 ## マイルストーン
 
 - [ ] 研究方針を整理する
@@ -87,6 +89,7 @@ last_updated: 2026-10-21
 
 | 日付 | 内容 |
 |------|------|
+| 2026-10-21 | ViT Full FT / LoRAのG3 ImageNet 2GPU・1stepは両方式PASS。rank0/1のVRAM Gate、final state、入力hashの一致をユーザー提出ローカルレポート集計で確認。GPU peak reservedは12038/16862 MiB。10/20stepは未実施。[G3 Evidence](experiments/2026-10-21-vit-ddp-moco-g3-imagenet-1step-console-evidence.md) |
 | 2026-09-03 | シーケンシャルデータローダとLoRA逐次学習を第一目標とし、その後に動画情報の評価・分離へ進む方針を確認 |
 | 2026-09-04 | プロジェクト作成 |
 | 2026-09-04 | `2026_04_ishikawa_simple-MeMViT` をメイン実装フォルダに設定 |
