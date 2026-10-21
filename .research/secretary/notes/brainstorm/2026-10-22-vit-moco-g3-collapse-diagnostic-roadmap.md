@@ -80,3 +80,13 @@ tags: [brainstorm, vit, moco, collapse, lora, full-ft, optimizer, ddp]
 - [採用済み2026-10-21 ViT DDP spec](../../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)
 - [過去のG3へのロードマップ](2026-10-21-vit-moco-post-implementation-g3-roadmap.md)
 - [Code runner](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/scripts/vit_moco/moco_vit_ddp_smoke.py)
+
+
+## 2026-10-22 01:39 JST：research-specへの引き継ぎ（draft保存）
+
+ユーザーの「Collapse診断用のspecを作成したい」という明示依頼に基づき、[ViT MoCo Query Collapse診断spec（draft）](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-22-vit-moco-query-collapse-diagnostic-spec.md)をresearch-specにより作成した。
+
+- 探索案から、固定64枚probe・決定的前処理、ViT CLS / Projector raw / L2 normalized Queryの3段、step0/1/2/10の時点比較、元G3 recipe保持、CPU GateとGPU Gate分離、元runnerへのoptional instrumentation案を**承認候補**として移した。
+- Spec statusは`draft`。B1〜B6の選択肢は**ユーザー未承認**、採用済み条件を上書きしない。
+- 研究コード変更・GPU run・Git code commit/pushは実行も許可取得もしていない。
+- 本brainstormは探索史料のまま維持する。判断・承認後の実装契約は上記specを参照する。
