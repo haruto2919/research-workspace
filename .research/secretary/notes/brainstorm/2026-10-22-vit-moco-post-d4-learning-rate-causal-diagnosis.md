@@ -97,3 +97,13 @@ AdamW初回更新の概算：通常のbias correction後、十分に非ゼロの
 - 不変: ImageNet、seed、ViT pretrained、MoCo mechanics、EMA/Queue、DDP2、globalB256、FP32、probe64／steps0,1,2,10、既存baseline
 - Evidence: [2026-10-22 D4/D5](../../../../lab/projects/sequential-video-lora-analysis/experiments/2026-10-22-vit-moco-query-collapse-d4-imagenet-gpu-diagnostic-evidence.md)
 - 未確定: LR候補の正式採用、GPU実行/コードcommitの許可、baseline再実行要否、条件数、後続因果ablation
+
+
+## 2026-10-22：research-specへの引き継ぎ（任意LR指定、draft）
+
+ユーザーが2026-10-22に「低LR対照実験のspecを作成したい。その際、lrは任意に指定できるように」と依頼したため、次のspecを新規作成した。
+
+- [ViT＋MoCo 可変LR対照実験spec（draft）](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-22-vit-moco-configurable-learning-rate-collapse-control-spec.md)
+- **ユーザー確定**：LRはCLIから任意指定でき、特定の値だけに限定しない。
+- **未承認の提案**：正の有限値に限定、単一LRをBackbone/LoRAとProjectorに共通適用、旧0.03固定profileは変更せず新presetのみLR可変、既存D4の0.03 raw artifactをbaselineに用い同mode LR比較を行う。
+- 本メモは探索記録のまま維持。specの推奨B2〜B6の採用、実装、コードcommit/push、GPU実行はまだ承認されていない。正本は上記spec。
