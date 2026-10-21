@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: 2026-10-20 E2（Meta/Self各ImageNet1epoch/5004step）でinput hash51/51、記録Loss等502/502、grad norm52/52、epoch canonical state SHA一致、checkpointおよび両rank sidecar実在、Comet URL/errorsなしまでPASS。ユーザーが10epoch実験を取消し、Meta公式5epoch→自作5epochの自動逐次実行とComet別Experimentへ計画変更。新5epoch spec approved。E5 Gateと逐次ランチャーを実装しCPUテスト108件PASS、dev@7fc1f56へpush済み。GPU長時間run未実施・未承認。
+summary: 2026-10-21 E5のMeta公式MoCo v2→自作MoCo逐次5epoch比較が、ImageNet-1Kで各25020step、入力hash251/251、記録指標bitwise、各epoch終了時canonical state一致でPASS。epoch平均Lossは9.7178→7.6079、Cometは独立Experiment2件、全工程11時間11分。工学再現性確認完了、表現品質・動画LoRAは未検証。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -118,3 +118,4 @@ last_updated: 2026-10-20
 | 2026-10-20 | **研究方針更新**：ユーザーが長時間の10epoch比較を中止し、Meta公式5epoch→自作5epochの自動逐次学習へ変更。Cometは同一Projectの独立した2 Experimentとして記録。5epoch Cosine horizon、新規共通fixture、旧E2 Checkpointからresumeしない、公式が成功しなければ自作を起動しないGateを採用。[5epoch逐次比較spec](specs/2026-10-20-meta-moco-v2-imagenet-5epoch-sequential-comet-comparison-spec.md)を作成し、旧10epoch E3実行契約はsuperseded。**実装・Git push・5epoch GPU実験は未実行**。 |
 | 2026-10-20 | 5epoch specに従い、runnerに`gate=E5`（GPU runで5epochを受理する唯一のGate。V1〜E3は10epochのまま）と、Meta公式→自作を1本ずつ実行して各runの完了・checkpoint/sidecar・Comet記録を確認してから次へ進む逐次ランチャー`run_moco_5epoch_pair.py`（既定は計画表示のみ）を実装。CPUテストは関連3ファイルで108件PASS（新規33件）。計画モードは研究サーバで何も書き込まないことを確認。**研究コード未commit、`--execute`・5epoch GPU学習・Comet実送信は未実施**。[実装・CPU検証記録](experiments/2026-10-20-meta-moco-v2-5epoch-pair-launcher-implementation-verification.md) |
 | 2026-10-20 | ユーザー許可により5epochランチャー実装を`dev`へcommit（`dd0d8b3` feat、`7fc1f56` test）し、`origin/dev`へpush。clean commitで計画モードを再実行し、issuesなし（研究repo・公式clone clean、config契約・ImageNet train確認PASS）。GPU空き確認・Comet preflightは`--execute`時のみで未確認。**5epoch GPU学習とComet実送信は未実施・未承認**。[実装・CPU検証記録](experiments/2026-10-20-meta-moco-v2-5epoch-pair-launcher-implementation-verification.md) |
+| 2026-10-21 | **E5 5epoch比較PASS**（ユーザー提示の研究サーバpair_summary）：campaign `moco_v2_e5_20261020_220032`、Meta公式→自作の逐次学習が各25,020/25,020step・epoch0..4完走。各run独立Comet Experiment、errors=[]、全4処理 exit0。共通指標2503 logged stepsでbitwise、入力hash251/251、各epoch canonical model state SHA一致、比較契約全Verdict True。epoch平均Lossは9.7178→7.6079、所要40,288秒（11時間11分28秒）、VRAM peak reserved約13GiB/20GiB/rank。**MoCo数値実装parityが5epochに拡張された**が特徴品質・動画時間情報は未検証。[E5実験結果](experiments/2026-10-21-meta-moco-v2-e5-imagenet-5epoch-pair-parity-evidence.md)・[5epoch spec](specs/2026-10-20-meta-moco-v2-imagenet-5epoch-sequential-comet-comparison-spec.md) |
