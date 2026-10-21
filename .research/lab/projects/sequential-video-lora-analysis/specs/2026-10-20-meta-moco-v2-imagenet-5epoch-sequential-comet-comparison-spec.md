@@ -1,9 +1,9 @@
 ---
 project: sequential-video-lora-analysis
 spec_type: experiment-and-engineering
-status: approved
+status: implemented
 created: 2026-10-20
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 title: "Meta MoCo v2 ImageNet-1K five-epoch sequential official/self reproduction with independent Comet experiments"
 authority: "2026-10-20 user instruction: do not perform the former 10-epoch comparison because of runtime; replace it with 5 epochs per implementation, auto-run Meta reference first and self second, keep Comet records separate"
 supersedes_e3_of: 2026-10-20-meta-moco-v2-official-global256-imagenet-10epoch-comet-reproduction-spec.md
@@ -14,7 +14,9 @@ official_reference: facebookresearch/moco@a419ef282fc9885015674e77f58c59447206a2
 implementation_status: IMPLEMENTED_CPU_VERIFIED_PUSHED
 implementation_commit: 7fc1f56a19fb00c8fce47fa23fe2e85d353b8a62
 implementation_record: ../experiments/2026-10-20-meta-moco-v2-5epoch-pair-launcher-implementation-verification.md
-five_epoch_gpu_run_status: NOT_RUN
+five_epoch_gpu_run_status: PASS_USER_SUPPLIED_FINAL_SUMMARY
+five_epoch_gpu_evidence: ../experiments/2026-10-21-meta-moco-v2-e5-imagenet-5epoch-pair-parity-evidence.md
+five_epoch_campaign: moco_v2_e5_20261020_220032
 five_epoch_gpu_run_authority: NOT_GRANTED_BY_THIS_SPEC
 ---
 
@@ -107,3 +109,18 @@ offline comparator → loss/cosines/lr/grad/queue/inputs・epoch別canonical sta
 - **追記（同日）**：ユーザー許可により`dev@7fc1f56`（`dd0d8b3` feat＋`7fc1f56` test）へcommitし、`origin/dev`へpush。clean commitで計画モードのissuesなしを確認。`--execute`・5epoch GPU学習・Comet実送信は引き続き未実施・未承認。
 
 詳細は[実装・CPU検証記録](../experiments/2026-10-20-meta-moco-v2-5epoch-pair-launcher-implementation-verification.md)。
+
+## 8. E5 5epoch×2 GPU実験完了（2026-10-21）
+
+**過去の§4「まだ未実施」、§6「未実施」、§7「GPU未実施」は当時の状態の履歴**であり、現状は以下のとおり。ユーザー提示の研究サーバ`summary/pair_summary.md`より、**E5 5epoch sequential pair = PASS**。この結果をもって、5epoch専用Gate/ランチャー実装と受入実験について`status: implemented`とする。
+
+- Campaign `moco_v2_e5_20261020_220032`、`tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` commit `7fc1f56a19fb00c8fce47fa23fe2e85d353b8a62`、Meta参照clone commit `a419ef282fc9885015674e77f58c59447206a27f`。
+- `initial_state -> meta_reference -> self -> comparison` が全て`completed` / exit 0。両run 5epochs（epoch0..4）, 25,020/25,020step、ランチャーによるcheckpoint 5個／各rank sidecar／config・Comet等の保存検査PASS。全工程40,288秒（11時間11分28秒）。
+- 入力SHA hash251/251地点一致、共通ログstep 2503地点でmetric bitwise、epoch0〜4のcanonical stateはすべて一致。比較Verdict `contract_valid, both_completed, inputs_identical, metrics_bitwise_equal, epoch_states_identical=True`、`curve_agreement=bitwise`、最初のmetric差分なし。
+- Epoch平均Loss（両実装同値）：`9.71783674 -> 8.46133620 -> 7.93711850 -> 7.72709281 -> 7.60787190`（初回epoch平均→最終epoch平均で約21.7%低下）。
+- Cometは同一Project内の独立Experiment。Meta公式: https://www.comet.com/haruto2919/moco-imagenet-v2-reproduction/441624a0a35f49198ef5c97d95f41bc1、自作: https://www.comet.com/haruto2919/moco-imagenet-v2-reproduction/ca87df41f91c45a0a0449e9e9d6efeed。両者errors `[]`。
+- 元の実験結果と未確立事項：[E5実験Evidence](../experiments/2026-10-21-meta-moco-v2-e5-imagenet-5epoch-pair-parity-evidence.md)。
+
+**科学的な区別**：実装の数値再現性は高いEvidenceで確認できたが、Semantic Representation Quality・ImageNetのdownstream accuracy・特徴崩壊の詳細・動画におけるLoRAの動的情報獲得は未検証。仕様の実装/受入実験が完了したことを、研究全体の完了と混同しない。
+
+**確認の出所**：ChatGPTはサーバ上のrun artifactやComet内部履歴には直接アクセスせず、ユーザーが貼付したランチャーの最終summaryを採用。5epoch以外の10epoch長時間実行は引き続き対象外で、ユーザー依頼により新しい研究コード/Comet/job変更は行っていない。
