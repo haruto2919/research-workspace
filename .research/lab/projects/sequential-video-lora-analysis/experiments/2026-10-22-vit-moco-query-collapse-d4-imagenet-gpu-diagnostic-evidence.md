@@ -2,7 +2,7 @@
 project: sequential-video-lora-analysis
 date: 2026-10-22
 record_type: gpu-diagnostic-user-console-evidence
-status: lora-d4-engineering-pass-full-ft-pending
+status: lora-d4-engineering-pass-full-ft-console-completed-gate-pending
 evidence_level: user-pasted-local-console-plus-run-report-and-diagnostic-summary
 research_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 research_branch: dev
@@ -135,3 +135,42 @@ CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke \
 3. **D5研究的解釈は暫定**：LoRAはstep1でCLS aggregate statisticsを概ね保ちつつ、Projectorのraw特徴方向が急激に集中することを観測。Projector原因の有力仮説である一方、LoRA B更新とその他要因を隔離した実験ではない。Full FT結果と合わせて優先仮説を絞る。
 4. 完全なGit provenance、raw JSONやprobe manifestの実物、以前のG3 runとの全rank hash比較はGitHub上から直接確認しておらず、必要な場合はローカルから照合。
 5. 低LR・Projector-only/LoRA-only ablationは**次の別research decision/spec**。現行D4の採用recipeは維持。
+
+
+## 2026-10-22追記：Full FTの診断10stepコンソール完走（工学Gate正式判定待ち）
+
+ユーザーが2026-10-22に、以下のFull FT診断runの学習コンソールをテキストとして提出した。runは**10/10stepで`finite=true`、保存完了メッセージあり**。ただし`run_report.json`・`diagnostic_summary.json`の出力内容（Full FTのVRAM Gate、state整合、固定64画像のCLS/z_q/q、step1更新量）はこの提出には**含まれていない**。したがって **Full FTのD4正式Gateは現時点で未判定**。
+
+- 研究サーバ側実行：`CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke --config-name moco_vit_query_collapse model.train_mode=full_ft training.max_steps=10`
+- 保存先：`log/moco_vit_query_collapse/full_ft/imagenet/2026-10-22_04-20-32-327570`
+- 元の診断なしのFull FT G3 10stepログとユーザー提出のloss/feature std/gradient値は、表示桁で全step一致。instrumentationが学習軌跡を変えないという方向のEvidenceだが、全runのinput SHAや最終model state完全一致まで確認したとは主張しない。
+- HFの匿名Hub access warningと事前学習分類headの `UNEXPECTED classifier.weight/bias` メッセージは出たが、consoleではViT weightsのロード・全stepの処理を完了している。単独ではrun失敗と解釈しない。
+
+### Full FT GPU実行の学習batch側ログ（固定probeの結果ではない）
+
+| step | loss | query_feature_std | trainable_grad_norm | positive_cosine_mean | hardest_negative_cosine_mean | queue_ptr |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 7.361582279 | 0.0722405836 | 2.591366860 | 0.7652500153 | 0.3658290386 | 256 |
+| 2 | 8.629482269 | 0.00081159134 | 0.3004990527 | 0.5198947906 | 0.6799616814 | 512 |
+| 3 | 8.324354172 | 0.00020079943 | 0.1448920660 | 0.5928415298 | 0.6964627266 | 768 |
+| 4 | 8.225353241 | 0.00003107241 | 0.0830285434 | 0.6274086952 | 0.7302149773 | 1024 |
+| 5 | 8.088413239 | 0.00001397400 | 0.0655057280 | 0.6697249413 | 0.7738025188 | 1280 |
+| 6 | 7.930787086 | 0.00000888288 | 0.0502022392 | 0.7176298141 | 0.7848484039 | 1536 |
+| 7 | 7.894659996 | 0.00000684135 | 0.0483050908 | 0.7426160812 | 0.8284255981 | 1792 |
+| 8 | 7.797043800 | 0.00000604500 | 0.0378403839 | 0.7810830593 | 0.8412216187 | 2048 |
+| 9 | 7.776324749 | 0.00000548305 | 0.0324205727 | 0.8054279327 | 0.8581251144 | 2304 |
+| 10 | 7.755354404 | 0.00000605682 | 0.0284487542 | 0.8299976349 | 0.8735323906 | 2560 |
+
+- 全step `epoch=0`、`lr=0.03`、`finite=true`。step10のQueue pointer=2560はK65536の3.90625%分が実Keyで置換されたことに相当する（queue内の実Keyの種類や代表性は確認していない）。
+- 同じ非診断条件でのLoRA step10 `query_feature_std=0.01095892395824194`に対して、Full FT `6.056817710486939e-06` は約 **1/1,809**。これは**異なる訓練batchに対する更新前forward**のQuery分散であり、固定probeのCLS／Projector局在化の結果ではない。表現品質の順位付けやMoCo成功判定には使わない。
+- Full FTの`positive_cosine_mean`は0.830、`hardest_negative_cosine_mean`は0.874（step10）。positive平均とhardest-negative平均は異なる統計であるため、単純な相対大小はInfoNCE不成立の証明ではない。
+
+### D4への残作業・観測の優先順
+
+1. 保存済みFull FTの `run_report.json`（`status`,`vram_gate`,`final_checks`,`failures`,`missing_rank_reports`）と`diagnostic_summary.json`（`engineering_status`,`reasons`,`ranks_feature_identical`,`probe_memory`,`uniformity_warnings`）を読み、**Full FTの正式工学Gate**と最低headroom≥1,024MiBを判定する。以前の非診断G3 Full FTではheadroom 1749.875MiBだが、新しい診断runで同値だったと推定しない。
+2. 同じ `diagnostic_summary.json` の `trajectory_rank0`の`cls`,`z_q`,`q` × 更新`0/1/2/10`を取り、LoRAの既知の固定probe結果と比較する。特にstep0→1でCLSから均一化するか、CLSが残りProjector段で出力方向が集中するかを特定。raw`z_q`の`mean_dim_std`と`row_norm_median`を必ず併記し、raw magnitude増加とnormalized Query std低下を区別する。
+3. `update_rank0`（step1）の`backbone`と`projector`の `grad_norm`,`update_norm`,`relative_update`を確認。LoRA側のProjector相対update約1.44がFull FTでも同程度か調べる。AdamW LR0.03原因説は現段階で仮説。
+4. 両modeの `engineering_status=PASS` を**個別**に確認したうえで、比較CLI `python -m scripts.vit_moco.query_collapse_diagnostic <lora_dir> <full_ft_dir>` の `comparable`、全10stepの学習view SHA、probe入力、step0 feature bitwise一致を確認する。CLIの`comparable`は工学Gate PASSを保証しない。
+5. これらが揃ってから研究的解釈D5。今のログのみでFull FTのCLS Collapse・Projector原因・学習率原因を断定しない。
+
+**Evidence境界**：今回の添付はユーザーが研究サーバで取得したコンソール出力であり、ChatGPTはFull FT GPU run、診断summary原本の閲覧、ローカルdirty/commitの確認を行っていない。後続のrun report集計受領までD4全体は正式PASSではない。
