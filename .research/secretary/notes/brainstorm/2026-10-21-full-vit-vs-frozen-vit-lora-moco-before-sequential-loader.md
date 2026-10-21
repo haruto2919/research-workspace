@@ -152,3 +152,5 @@ B10 numerical blocking：AdamWかSGDの採用、同一初期LRの値、Weight De
 ### research-specへ渡す事項
 
 **ユーザー採用の目的**：近接フレームを避け、同一動画内のフレームの視覚的類似度を低くする。**未決**：具体的な秒数、許容する抽出枚数分布、類似度診断を必須とするか、抽出間隔確定の基準、video ID由来negative診断。実際の診断GPU実行・コード変更は未許可。現行specに自動昇格させない。
+
+**昇格（2026-10-21）**：smoke用のActivityNet単一フレームmanifest（10秒間隔・t=5+10n秒・上限なし、同一フレーム2-viewのみPositive、同一動画negativeは除外しない）は、ユーザー承認により[ViT DDP spec §12](../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)で採用。正式な学習間隔と類似度診断の要否は未決のまま。
