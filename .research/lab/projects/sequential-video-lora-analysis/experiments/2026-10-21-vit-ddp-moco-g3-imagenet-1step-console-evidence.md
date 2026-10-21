@@ -2,8 +2,8 @@
 date: 2026-10-21
 project: sequential-video-lora-analysis
 record_type: experiment-evidence
-status: provisional-console-evidence-awaiting-run-report
-evidence_level: user-provided-terminal-output-two-1step-gpu-runs
+status: g3-1step-pass-user-reported-summary
+evidence_level: user-provided-terminal-output-and-local-json-summary-two-1step-gpu-runs
 research_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 research_branch: dev
 github_branch_head_observed: 2c269915f0c5036fa2a460959fdf401d54456026
@@ -70,3 +70,43 @@ CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke model.tra
 - [approved spec](../specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)
 - [CPU implementation verification](2026-10-21-vit-ddp-moco-full-ft-lora-implementation-cpu-verification.md)
 - [GitHub runner dev](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/scripts/vit_moco/moco_vit_ddp_smoke.py)
+
+## 追記（2026-10-21）：run_reportとmetricsの集計提示によるG3 1step正式判定
+
+ユーザーは研究サーバ上で両runの `run_report.json` と `metrics.jsonl` を読み取るPythonスクリプトを実行し、その集計コンソールを提供した。以下は **ユーザー提示のローカルファイル集計結果** であり、GitHub connectorからローカルJSONの原本を直接開いた結果ではない。初版の「正式なPASS判定は保留」はその時点の履歴であり、今回の追記によって **ImageNet / 2GPU・1step G3は両方式PASS** と判断を更新する。
+
+| ゲート項目 | LoRA | Full FT |
+| --- | --- | --- |
+| `status` | completed | completed |
+| `last_global_step` | 1 | 1 |
+| `verdicts.smoke_completed` | true | true |
+| `verdicts.vram_feasible` | true | true |
+| `vram_gate.status` | PASS | PASS |
+| `vram_gate.reasons` | [] | [] |
+| `failures` | [] | [] |
+| `missing_rank_reports` | [] | [] |
+| `ranks_hold_rank0_state` | true | true |
+| `frozen_base_unchanged` | true | true |
+| `frozen_key_equals_query` | true | true |
+| `metrics.jsonl` first-step `input_sha256` | 両方式で一致 | 両方式で一致 |
+
+GPU別メモリ値は各runでrank0/rank1同一:
+
+| 単位: MiB / rank | LoRA rank0 | LoRA rank1 | Full FT rank0 | Full FT rank1 |
+| --- | ---: | ---: | ---: | ---: |
+| peak reserved | 12038.0 | 12038.0 | 16862.0 | 16862.0 |
+| headroom | 8057.875 | 8057.875 | 3233.875 | 3233.875 |
+
+- 各rankのtotal GPU memoryは `20095.875 MiB`（上記peakとheadroomの和）。VRAMゲート閾値1024MiBに対し両方式PASS。Full FTはLoRAより **4824 MiB/rank** 多く予約した。
+- Full FTでは学習対象のViTが全てtrainableのため、`frozen_base_unchanged=true` および `frozen_key_equals_query=true` は非適用集合に関する真偽（空集合に対する確認）であり、**Full FTの全重みが凍結されていたという意味ではない**。実更新の確認はG2 CPU Gateと今後の追加GPU計測を参照する。
+- 入力hashの一致は同じrank順の `im_q` / `im_k` 入力テンソルが両runで一致したという集計結果に基づく。したがって初回forward/lossの一致を比較条件として支持する。
+- これは **G3の1step資源・工学チェックのみのPASS** であり、10step/20step、ActivityNet GPU、長期安定性、Loss低下、下流表現品質、時間情報の獲得、Full FTとLoRAの性能順位は未検証のまま。
+
+### 次アクション候補（別run。追加学習未実施）
+
+1. GPUの空きVRAMとcleanな研究コードHEADを再確認。既存runは上書きしない。
+2. 採用済みrecipeを変えず、ImageNetで `training.max_steps=10` をLoRA・Full FTそれぞれfreshに実行し、run_reportのVRAM Gate、最終checks、stepごとのfinite loss/gradient/feature stdとQueue更新を確認する。
+3. 10stepが両方式PASSした場合のみ `training.max_steps=20` をそれぞれfreshに実行する。AdamW LR0.03はpretrained ViTで安定性未検証の高い候補であるため、failureを観測したときに無断でLR/batch/precisionを変更しない。
+4. G3短時間PASSの後、ActivityNet framesへの接続、および別specで表現学習の評価方法・学習率探索を設計する。
+
+**未確認**：実験サーバの現在のdirty状態およびHEAD実値、run JSON全文、長時間のCUDA/VRAM安全性。
