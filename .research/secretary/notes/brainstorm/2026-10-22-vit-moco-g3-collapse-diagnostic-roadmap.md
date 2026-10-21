@@ -90,3 +90,31 @@ tags: [brainstorm, vit, moco, collapse, lora, full-ft, optimizer, ddp]
 - Spec statusは`draft`。B1〜B6の選択肢は**ユーザー未承認**、採用済み条件を上書きしない。
 - 研究コード変更・GPU run・Git code commit/pushは実行も許可取得もしていない。
 - 本brainstormは探索史料のまま維持する。判断・承認後の実装契約は上記specを参照する。
+
+
+## 2026-10-22 03:55 JST：D0〜D3報告後のD4移行前Gateとremote状態
+
+### 入力と確認済み根拠
+
+ユーザーは、Collapse診断を承認済みspecどおり実装しCPU D0〜D3 PASS、D4 GPUは未実施、コード・Research Workspaceのcommit/push未実施と報告し、「次にすべきこと」を質問した。以下、**研究サーバ作業ツリーの状況はユーザー報告のみ**であり、GitHubの公開済みbranch状態とは分ける。
+
+2026-10-22のGitHub再確認では、**ユーザーの報告作成時点よりも新しいか同時期のremote更新が観測**された。
+
+- 研究コード `tamaki-lab/2026_09_ishikawa_sequential-video-lora@dev` HEAD `312c121975d68e860d5f89bf38ed26aab23b0981`。前HEAD `2c269915f0c5036fa2a460959fdf401d54456026` から1 commit進み、**新規3ファイル＋runner1ファイルの同じ4ファイル**が変更された。 [commit](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/commit/312c121975d68e860d5f89bf38ed26aab23b0981)
+- Research Workspace `haruto2919/research-workspace@main` は `5f8cb803aacc10724b9f116d1e8ca6b22e68ee9a`。1 commitで`README.md`、diagnostic spec、CPU Evidenceが変更・作成済み。 [commit](https://github.com/haruto2919/research-workspace/commit/5f8cb803aacc10724b9f116d1e8ca6b22e68ee9a)
+- したがって、**既にGitHubに存在する変更を重複commit/pushしない**。ただしGitHubが進んだことを**研究サーバのローカルcloneへ反映済みとは解釈しない**。`git fetch origin; git status --short --branch; git rev-parse HEAD; git rev-parse origin/dev; git diff --stat origin/dev` で、実行するローカルtreeがremoteと一致しcleanか確認する。dirtyなら勝手にreset/pull/stash/上書きしない。
+- 現在remoteの`conf/moco_vit_query_collapse.yaml`と`scripts/vit_moco/query_collapse_diagnostic.py`を確認。2GPUのGPU runは `--config-name moco_vit_query_collapse model.train_mode=lora|full_ft training.max_steps=10`。比較CLIは `python -m scripts.vit_moco.query_collapse_diagnostic <lora_dir> <full_ft_dir> [--output new.json]`。
+
+### 次のGate・判断候補
+
+1. **最優先（採用を推奨、追加のGPU許可を意味しない）**：研究サーバ上のコードの`HEAD`・`origin/dev`・dirtyを照合。既存remote commitに差分が入っているなら重複commitしない。Research Workspace cloneも同様にremoteとの差分をチェックし、衝突を保護。
+2. **B6個別許可を待つ**：D4は研究サーバのGPU 0,1の空き、NAS ImageNet read access、clean commit、現在の2GPU構成を直前確認。旧Full FT headroom `1749.875MiB` は1024MiB閾値より726MiB程度しか大きくなく、追加診断でOOM/VRAM Gate BLOCKEDの可能性。自動AMP/batch/K/解像度変更は不可。
+3. **承認後のD4候補**：LoRA fresh10step→その結果の`run_report.json`と`diagnostic_summary.json`が工学PASSならFull FT fresh10step。事前学習・transform・seed・optimizer LR0.03・queue・global batch・FP32は承認spec固定。両方のrunで `engineering_status=PASS`、Rank state、probe0/1/2/10のCLS/z_q/q、入力hash、`probe_memory`を確認。
+4. **比較の分離**：比較CLIの`comparable=true`は訓練view SHA、probe入力、step0特徴一致の判定であり、**両runの`engineering_status=PASS`を意味しない**（比較コードで独立）。両方の確認が必要。
+5. **D5 interpretation**：固定64枚の`mean_dim_std`、offdiag cosine p50/p95、normとstep0からのdrift、update_metricsを層別に整理して、CLS / Projector / normalizationのどこで収縮したかを確認。警告閾値は科学的collapseの正式証明ではない。AdamW 0.03原因説、低LR comparison、Full FT vs LoRA性能優劣はD4だけでは未検証。
+6. GPU runがBLOCKEDなら、その結果もEvidenceとして保存し、レシピを勝手に変更せず後続のspec/承認を待つ。ActivityNet/Sequential Loader/20stepはここでは優先しない。
+
+### 対象外・未確認
+
+- 今回は相談のみ。CPU/GPU run、code編集、研究コードcommit/push、既存spec/README/実験結果のstatus更新は行わない。GitHub上に現れたcommitの作成主体・同期対象local worktree・未commit差分は現在未確認。
+- 次のユーザー判断：**D4 GPU実験を個別に許可するか**。これは現行approved specや過去G3許可から推定しない。今回のNoteはexploratoryであり、GPUの実行契約を変更しない。
