@@ -3,9 +3,11 @@ date: 2026-10-22
 project: sequential-video-lora-analysis
 record_type: diagnostic-implementation-and-experiment-spec
 topic: vit-moco-query-collapse-diagnostic
-status: approved
+status: implemented
 approval: approved
 approved: 2026-10-22
+implemented: 2026-10-22
+implementation_verification: ../experiments/2026-10-22-vit-moco-query-collapse-diagnostic-implementation-cpu-verification.md
 approved_scope: B1-B5 diagnostic design and CPU engineering contract
 gpu_run_authorized: false
 code_change_requested_in_this_turn: false
@@ -21,7 +23,7 @@ implementation_reference_commit: 2c269915f0c5036fa2a460959fdf401d54456026
 
 ## 1. 結論、目的、承認状態
 
-**Status: approved（2026-10-22、B1〜B5の採用をユーザーが明示承認）**。本書は元のdraftを2026-10-22の「採用します」により承認済みに変更した。B1〜B5の計測契約は実装用に採用したが、**この会話では研究コード変更・GPU診断run・GitHubコードcommit/pushは実行しない**。GPU実験はB6として引き続き実行時の個別承認を必要とする。
+**Status: implemented（2026-10-22、CPU Gate D0〜D3 PASS。研究コードは未commit。D4 GPUはB6未許可のため未実施。§15参照）**。以下は承認時の記述。**Status: approved（2026-10-22、B1〜B5の採用をユーザーが明示承認）**。本書は元のdraftを2026-10-22の「採用します」により承認済みに変更した。B1〜B5の計測契約は実装用に採用したが、**この会話では研究コード変更・GPU診断run・GitHubコードcommit/pushは実行しない**。GPU実験はB6として引き続き実行時の個別承認を必要とする。
 
 目的は、2026-10-21のImageNet-1K・2GPU・10stepで観測された **L2正規化後のMoCo Query出力のバッチ内分散急減**を、(a)事前学習ViTのCLS、(b)Projector正規化前出力、(c)正規化後Queryのどこで、(d)どのoptimizer更新時点で生じるか、同一固定入力で再現・局在化すること。
 
@@ -217,3 +219,4 @@ Checkpointの追加保存は本diagnostic scopeの必須要件にしない（既
 - 承認：「採用します」→ **直前の会話で確認したB1〜B5の推奨条件を採用**。2026-10-22、statusを`approved`へ移行。
 - **B6は独立したGPU許可Gateとして未許可のまま**。元G3で行われた過去の10step実行承認は、この新診断runへの包括許可にはならない。
 - コードの変更、CPUテスト、GPU run、コードcommit/push、Comet通信は今回未実施。specを`implemented`へ移行するのは、後続で実装・必須GateのEvidenceを確認したときだけ。
+- 実装（同日、ユーザーの「このスペックに従って実装してください」による）：`dev@2c26991`の上に、診断module・診断用preset（`--config-name moco_vit_query_collapse`、出力は`log/moco_vit_query_collapse/`）・runnerの最小hook・CPUテスト33件を**未commit**で追加。**CPU Gate D0〜D3 PASS**：新規33件PASS、診断の有無で学習traceがbitwise一致、診断OFFは変更前コードとbitwise一致（checkpointのバイト列を含む）、全テストの失敗ID集合は変更前後で同一（565→598 passed）。実ImageNet・実ViT-BのCPU preflight（学習なし）で、64枚probeの作成と両modeのstep0特徴のbitwise一致を確認。statusを`implemented`へ移行。**D4 GPU runはB6未許可のため未実施**。runnerはdirtyなrepositoryからのGPU runを拒否するので、D4の前にcommitの判断が必要。[実装・CPU検証記録](../experiments/2026-10-22-vit-moco-query-collapse-diagnostic-implementation-cpu-verification.md)
