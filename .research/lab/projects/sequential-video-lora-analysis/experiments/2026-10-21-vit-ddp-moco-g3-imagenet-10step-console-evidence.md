@@ -2,8 +2,8 @@
 project: sequential-video-lora-analysis
 date: 2026-10-21
 record_type: gpu-smoke-user-console-evidence
-status: console-completed-awaiting-run-report-and-feature-diagnostic
-evidence_level: user-supplied-imageNet-2gpu-ten-step-console-only
+status: g3-ten-step-engineering-pass-feature-collapse-suspected
+evidence_level: user-supplied-imagenet-2gpu-ten-step-console-and-local-report-summary
 research_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 research_branch: dev
 github_branch_head_observed: 2c269915f0c5036fa2a460959fdf401d54456026
@@ -81,3 +81,35 @@ CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke model.tra
 - [G3 1step Evidence](2026-10-21-vit-ddp-moco-g3-imagenet-1step-console-evidence.md)
 - [承認済みViT DDP spec](../specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)
 - [2026-10-15 MTG](../meetings/2026-10-15-mtg.md)
+
+## 2026-10-22追記：10step run_reportの正式Gate判定
+
+ユーザーが研究サーバ上の両10step `run_report.json` と `metrics.jsonl` を読み、出力を提供した。前節の「run_report未受領で保留」は当時の判断を残した履歴であり、本追記で **G3 ImageNet・2GPU・10stepの工学GateはLoRAとFull FTの両方PASS** に更新する。GitHubからローカルrun JSON原本を直接読んだわけではない。local実行commitやdirty状態は未確認。
+
+| ログ集計項目 | LoRA | Full FT |
+|---|---|---|
+| `status` | completed | completed |
+| `verdicts.smoke_completed` | true | true |
+| `verdicts.vram_feasible` | true | true |
+| `vram_gate.status` | PASS | PASS |
+| `vram_gate.reasons` | [] | [] |
+| `rank0/1`の状態ハッシュ整合 | true | true |
+| `frozen_base_unchanged` | true | true |
+| `frozen_key_equals_query` | true | true |
+| `failures` | [] | [] |
+| `missing_rank_reports` | [] | [] |
+| `metrics.jsonl`記録step数 | 10 | 10 |
+| `rank0` peak reserved | 12338.0 MiB | 18346.0 MiB |
+| `rank1` peak reserved | 12338.0 MiB | 18346.0 MiB |
+| `rank0/1` VRAM headroom | 7757.875 MiB | 1749.875 MiB |
+| 全10stepの `input_sha256` 配列の両モード一致 | yes | yes |
+
+各GPU total = 20095.875 MiB。Full FTのheadroomは最低要件1024MiBに対して725.875MiB上回るだけで、GPU並列プロセスや別のメモリ負荷増大があると余裕は狭い。LoRAとFull FTのpeak reserved差は **6008MiB/GPU**。従来の1step時はLoRA 12038MiB / FT 16862MiBで、10step中のpeak増分はそれぞれ **+300MiB / +1484MiB**。この比較はGPUのmemory allocator上の`max_reserved_mib`値についてであり、一般的な長時間スループットやrepresentation qualityを表さない。
+
+`final_checks`のFull FTモードで`frozen_base_unchanged=true`は、非学習パラメータが空に近い（frozen-state対象が存在しない）確認であり、Full FTのViTが凍結された意味ではない。GPUでの実更新の定量監査は別途必要。
+
+### 結論の分離
+
+1. **G3 10step工学 Gate PASS**: 2rank実行、VRAM余裕、最終state整合、finite実行、全10step入力一致をユーザー提示集計から確認。
+2. **表現品質Gate 未成立**: step10のnormalized Query `feature_std` がFT約6.06e-6（LoRA約0.01096）であり、表現collapseの疑いはむしろ重要。G3 GateはLoss単調減少・特徴改善を合格条件にしていないため、G3 PASSと矛盾しない。
+3. **次の研究判断**: 20stepを単純に実行する前に、pre-projector ViT CLSとpost-projector normalized Queryの分散、batch間pairwise cosine、勾配とupdate量を分離測定する診断案を推奨。特にAdamW LR0.03/no warmupは有力な原因仮説だが未確認。正式specのLR/batch/precisionを勝手に変更しない。20stepは現行specの選択可能ステップだが、本追記は研究サーバ上で追加runを行っていない。
