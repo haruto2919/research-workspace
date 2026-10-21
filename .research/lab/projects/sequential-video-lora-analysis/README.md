@@ -1,7 +1,7 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: 2026-10-21 ViT-B/16＋自作DistributedMoCoのFull FT / LoRA切替を実装しCPU G0/G1/G2/G4/G5 PASS。ImageNet実データ・2GPU×各128・FP32のG3 1stepは両方式PASS（LoRA peak 12038MiB、Full FT 16862MiB/rank）、10/20stepと表現品質は未検証。ActivityNet 10秒manifest 117,522枚生成済み。研究コードdev@2c26991。
+summary: 2026-10-21 ViT-B/16＋自作DistributedMoCo（DDP）Full FT/LoRAはCPU G0/G1/G2/G4/G5およびImageNet 2GPU・1step G3でPASS。10stepは両方式console完走・finiteだが正規化Query feature std急減（特にFull FT ≈6e-6）、VRAM/最終Gate未照合。原因診断とLR0.03の再評価が次の課題。ActivityNet 10秒manifest 117,522枚、コードdev@2c26991。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
 last_updated: 2026-10-21
@@ -65,6 +65,9 @@ last_updated: 2026-10-21
 
 2026-10-21、[G3 ImageNet 2GPU・1step実験Evidence](experiments/2026-10-21-vit-ddp-moco-g3-imagenet-1step-console-evidence.md)にユーザー提示の実行ログおよびrun_report集計を追記した。LoRA・Full FTともに1step completed、smoke_completed=true、VRAM Gate PASS、failures=[]、rank間state一致・frozen checks=true、入力sha一致。GPU rankあたりpeak reservedはLoRA 12038 MiB、Full FT 16862 MiBで、headroomはそれぞれ8057.875 / 3233.875 MiB。これはG3 **1stepのみの合格**であり、10/20stepや長期学習の安定性・表現品質は未検証。研究サーバのローカルJSON実体はGitHubから直接確認していない。
 
+
+2026-10-21、[ViT DDP G3 10stepコンソールEvidence](experiments/2026-10-21-vit-ddp-moco-g3-imagenet-10step-console-evidence.md)を追加。ImageNet 2GPUでLoRA/Full FTの両runが10stepのメトリクスを出力し保存処理まで達した。全step有限だが、正規化Projector Query `query_feature_std` がstep1の0.07224からstep10にLoRA 0.01096、Full FT 0.00000606へ急落し、表現collapseの疑いあり。学習率AdamW 0.03は原因候補であって未検証。**run_reportのVRAM/最終Gate確認前に10step正式PASSや20step推奨へ自動昇格しない**。実験ログ・コードの追加変更・長時間学習は今回のResearch Workspace記録には含まれない。
+
 ## マイルストーン
 
 - [ ] 研究方針を整理する
@@ -126,3 +129,4 @@ last_updated: 2026-10-21
 | 2026-10-21 | **E5 5epoch比較PASS**（ユーザー提示の研究サーバpair_summary）：campaign `moco_v2_e5_20261020_220032`、Meta公式→自作の逐次学習が各25,020/25,020step・epoch0..4完走。各run独立Comet Experiment、errors=[]、全4処理 exit0。共通指標2503 logged stepsでbitwise、入力hash251/251、各epoch canonical model state SHA一致、比較契約全Verdict True。epoch平均Lossは9.7178→7.6079、所要40,288秒（11時間11分28秒）、VRAM peak reserved約13GiB/20GiB/rank。**MoCo数値実装parityが5epochに拡張された**が特徴品質・動画時間情報は未検証。[E5実験結果](experiments/2026-10-21-meta-moco-v2-e5-imagenet-5epoch-pair-parity-evidence.md)・[5epoch spec](specs/2026-10-20-meta-moco-v2-imagenet-5epoch-sequential-comet-comparison-spec.md) |
 | 2026-10-21 | ViT DDP MoCo Full FT / LoRA切替specのBlockingを候補どおり承認（正規化はaug-plus＋ViT 0.5、ActivityNet単一フレームは10秒間隔・t=5+10n・上限なし・同一フレーム2-view・同一動画negativeは除外しない）。新規ファイルのみで実装（未commit）。CPUでG0/G1/G2/G4がPASS、新規54 test PASS、既存testの失敗集合は変更前後で同一（GPU不可視・NAS依存）。ActivityNet manifestは10,024本・117,522枚で生成（607秒）、実decodeは64/64。**G3 GPU pilot・commit/pushは未実施**。[実装・CPU検証記録](experiments/2026-10-21-vit-ddp-moco-full-ft-lora-implementation-cpu-verification.md)・[spec](specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md) |
 | 2026-10-21 | ユーザーの指示により、ViT DDP MoCo Full FT / LoRA切替の研究コードを`dev`へcommit（`9348efe` feat、`2c26991` test）し、`origin/dev`へpush（HEAD＝origin/dev、clean）。ActivityNet manifestは同一内容のコードで生成済み（provenanceの記録は`7fc1f56`＋dirty）。**G3 GPU pilotは未実施・未承認**。[実装・CPU検証記録](experiments/2026-10-21-vit-ddp-moco-full-ft-lora-implementation-cpu-verification.md) |
+| 2026-10-21 | ViT DDP G3 10stepでLoRA/Full FTともconsole上完走・finite、Queue pointer 2560。ただしnormalized Query feature stdはstep10で0.01096 / 0.00000606へ低下（Collapse疑い）。run_reportのVRAM/final checksと原因診断が未了、20stepは慎重に判断。[G3 10step Evidence](experiments/2026-10-21-vit-ddp-moco-g3-imagenet-10step-console-evidence.md) |
