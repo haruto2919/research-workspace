@@ -67,3 +67,7 @@ tags: [brainstorm, research, vit, moco, full-fine-tuning, lora, representation-e
 研究上Blockingなのは「性能比較を何のdataset・split・feature・metric・予算で決めるか」。**推奨デフォルト**はCIFAR10 224pxの短時間sanity→既存ImageNet trainから固定subsetを使ったMoCo→学習で使わないheldout validationでCLS768のlinear probe Top-1（必要なら小規模kNN）、同じfeature extractor before/after。独立した下流ImageNet以外への転移は追加候補。データサイズや予算の最終選択はユーザーによるspec段階で確定する。
 
 **未実施**：spec作成/昇格、研究コード変更、GPU run、Comet送信、README/TODO変更。探索記録を実行許可とみなさない。
+
+## Specへの接続（2026-10-21）
+
+ユーザーがB2（自作DistributedMoCo利用）・B10（初期共通Optimizer/LR、後段方式別LR探索）・B11（複数GPU DDP）を採用したため、[ViT DDP MoCo Full FT / LoRA切替・Smokeのdraft spec](../../../../lab/projects/sequential-video-lora-analysis/specs/2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)を作成。未決の数値・データ条件があるため、specは`draft`のまま。研究コード変更、GPU実行は未許可。
