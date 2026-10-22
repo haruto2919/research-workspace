@@ -3,8 +3,13 @@ date: 2026-10-22
 project: sequential-video-lora-analysis
 record_type: experiment-and-implementation-spec
 topic: vit-moco-configurable-learning-rate-collapse-control
-status: draft
-approval: pending
+status: implemented
+approval: approved
+approved: 2026-10-22
+implemented: 2026-10-22
+implementation_verification: ../experiments/2026-10-22-vit-moco-configurable-lr-implementation-cpu-verification.md
+approved_scope: B1-B6 (recommended design adopted as written)
+gpu_run_authorized: false
 user_decided: "LRを固定候補に限定せず実行時に任意指定できる仕様"
 implementation_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 implementation_branch: dev
@@ -18,7 +23,7 @@ related_evidence: ../experiments/2026-10-22-vit-moco-query-collapse-d4-imagenet-
 
 ## 1. 目的・状態・Authority
 
-**Status: draft（2026-10-22作成、ユーザーによる詳細設計の承認待ち）。今回のユーザー要求で「Learning Rateを任意に指定できること」は確定要件。** 以下の入力検証、preset方式、比較軸、実験回数などの具体的な実装契約は提案であり、§11のBlockingを明示採用するまで`approved`に昇格しない。
+**Status: implemented（2026-10-22、CPU Gate L0〜L3 PASS。研究コードは未commit。L4 GPUはB7未許可のため未実施。§14参照）**。**Status: approved（2026-10-22、B2〜B6をユーザーが推奨どおり採用。§14参照。B7のGPU実行は未許可）**。以下は作成時の記述。**Status: draft（2026-10-22作成、ユーザーによる詳細設計の承認待ち）。今回のユーザー要求で「Learning Rateを任意に指定できること」は確定要件。** 以下の入力検証、preset方式、比較軸、実験回数などの具体的な実装契約は提案であり、§11のBlockingを明示採用するまで`approved`に昇格しない。
 
 目的：ImageNet 2GPUのMoCo（ViT Full Fine-Tuning／Frozen ViT＋Q/V LoRA）の10step固定probeで観測された特徴量の方向集中が、高い初期AdamW LR（現在`0.03`）によるものかを、**LR以外の条件を固定**した実験で検証できるようにする。
 
@@ -177,3 +182,10 @@ CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke \
 - [旧ViT Full FT / LoRA採用spec](2026-10-21-vit-ddp-moco-full-ft-lora-switch-smoke-spec.md)
 - [現在runner](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/scripts/vit_moco/moco_vit_ddp_smoke.py)
 - [現在diagnostic helper](https://github.com/tamaki-lab/2026_09_ishikawa_sequential-video-lora/blob/dev/scripts/vit_moco/query_collapse_diagnostic.py)
+
+## 14. Decision history（2026-10-22）
+
+- 依頼：「このスペックに従って実装してください」。draftでB2〜B6が未採用だったため、実装前に確認した。
+- 承認：ユーザーが**B2〜B6を推奨どおり採用**し、実装を指示した（B2：正の有限LRのみ受理。B3：単一の共有LR。B4：新preset・`lr_sensitivity` profileのときだけGPU recipeのLRを例外にする。B5：旧0.03 D4 runをbaselineとして再利用し、同mode cross-LR比較モードを追加。B6：LRの明示指定を必須にし、LR別の出力namespaceで上書き不可）。statusを`approved`へ移行。
+- **B7（L4 GPU run）は未許可のまま**。研究コードのcommit/pushも、この承認には含まれない。
+- 実装（同日）：`dev@312c121`の上に、新preset `conf/moco_vit_query_collapse_lr.yaml`、runnerのLRだけのGPU例外とpreset名検査、`compare_learning_rates`と`--comparison-axis learning_rate`、CPUテスト36件を**未commit**で追加。**CPU Gate L0〜L3 PASS**：L1/L2の新規36件、旧0.03経路（診断OFF/ON）は`312c121`とbitwise一致（checkpointのバイト列を含む）、全テストの失敗ID集合は変更前後で同一（598→634 passed）。実際の旧0.03 D4 runをbaselineとして比較器で読めることも確認。**§3からの変更**：presetの`training.learning_rate: ???`はHydraの合成で継承元の0.03を上書きせず、LR未指定でも0.03が黙って使われるため、`null`＋必須検査（ValueError）で実装した（意図は§3のとおり）。statusを`implemented`へ移行。**L4は未実施**。runnerはdirtyなrepositoryからのGPU runを拒否するので、L4の前にcommitの判断が必要。[実装・CPU検証記録](../experiments/2026-10-22-vit-moco-configurable-lr-implementation-cpu-verification.md)
