@@ -140,3 +140,77 @@ tags: [brainstorm, research, hypothesis, novelty, literature-survey, static-dyna
 - [2026-10-21 Goyal・Choi・Kowalのレビュー](2026-10-21-static-dynamic-information-goyal-choi-kowal-review.md)
 - [2026-10-19 関連研究とResearch Gap](2026-10-19-research-presentation-related-work-gap-survey.md)
 - `.research/lab/projects/sequential-video-lora-analysis/README.md`
+
+---
+
+## 追記 2026-10-26 13:55 JST：構成の方針と動的情報の定義が決まった → fusion設計の発散と収束
+
+### ユーザーの回答
+
+1. 複数フレーム（動画，シーケンシャル）を入力し，late fusionやearly fusionなどの工夫で，LoRAに動的情報を学習させたい．→ (II)の方向．
+2. 動的情報の定義は「動画入力になって初めて分かること」．→ **D1**（Kowalのdynamicに相当）．
+
+### 過去メモとの関係
+
+ここまでに，次の論点は既に整理されている．今回はこれらを前提にする．
+
+- 2026-09-23 late fusion：masked meanは順序に依存しないので，LoRAへの勾配も順序の影響を受けない．学習可能な時間fusion moduleを置くと，動画の情報がLoRAではなくそのmoduleに入る交絡が生じる．
+- 2026-09-24 VideoMAE初期化：tubelet=1でImageNet ViTを時空間token化できる．全フレームのtokenを1つのattentionに入れれば，Q/V LoRAがフレーム間attentionを担える．
+- 2026-09-17 同期mask：時間的な経路そのものにLoRAを置く設計が「強い候補」．
+
+### D1から導かれる設計の基準（解釈）
+
+- **基準1：LoRAの計算がフレームをまたぐこと．** late fusionでは，LoRAはフレームごとのViTの中にある．時間方向の目的関数からLoRAへ勾配が流れても，LoRAが出力できるのは「1フレームから計算できる特徴」だけである．D1の情報は，構造上fusion module側にしか存在できない．
+  - これは，動画を時間方向のmoduleで処理しやすくなるような1フレームの特徴を，LoRAが学ぶことは起こりうる，という意味でもある．ただし，それはD1の動的情報ではない．
+- **基準2：LoRA以外に，時間方向の学習可能なパラメータを置かない．** フレームの混ぜ合わせはパラメータを持たないか凍結し，画像の重みを使い回す．どうしても学習可能なmoduleを置く場合は，LoRAだけ学習／moduleだけ学習のablationを必須にする．
+- **基準3：時間の順序を入力に与えること．** 時間の位置情報がないjoint attentionは，フレームの並べ替えに対して不変になる（CLSのpoolingなら完全に不変）．このままでは前向きと逆再生を区別できない．与え方は次のいずれか．
+  - 固定のsinusoidal時間位置埋め込み（パラメータなし）
+  - causal mask
+  - memory／現在フレームという区別による順序
+- **基準4：目的関数が静的な手がかりでは解けないこと．** 同じclipのaugmentationをpositiveとするMoCoは静的な特徴だけで解ける（BE，FAME，DSMの知見）．
+
+### 発散：fusionの設計候補
+
+| 候補 | 内容 | 基準1〜3 | 長所 | 短所・リスク |
+|---|---|---|---|---|
+| L0 late fusion（masked mean） | 現在の構成 | ×（順序不変） | 実装済み | **静的な対照**として使う |
+| L1 late fusion＋学習可能な時間module | CLS列をTransformer・GRUで統合する | ×（D1はmodule側に入る） | 標準的 | 「動的情報がどこに入るか」の対照としてなら価値がある（Orlova型と比べられる） |
+| **M1 joint／divided時空間attention** | tubelet=1．凍結した画像attentionを全フレームのtokenに適用し，固定の時間位置埋め込みを加え，Q/V LoRAを付ける | ○ | 仮説を最も素直に検証できる．AIM（凍結attentionを時間方向に使い回す）に近く，実現可能性の根拠がある | token数がT×196になり計算量が大きい．Tは4〜8に絞る，divided attentionにする，などが必要 |
+| **M2 memory attention（MeMViT型）** | 現在のclipが，過去のclipのK/V（凍結した重み＋LoRA）を参照する | ○（順序はmemory／現在の区別で入る） | **逐次・ストリーミングに自然に合う**．研究の出発点（MeMViT）ともつながる | clipをまたぐ長い時間の動的情報が中心になる．clip内の細かい動きはM1やE1が必要 |
+| **E1 tubelet埋め込みにLoRAを付ける（early fusion）** | 2D patch埋め込みを時間方向へ拡張して凍結し，それにLoRAを付ける | ○（局所的な時間差分） | 安い．フレーム差分のような局所的な動きをLoRAが学べる | 凍結した拡張を平均（W/2, W/2）で作ると対称で差分が出ないので，LoRAが差分を学ぶ必要がある．M1と組み合わせるのが自然 |
+| M3 token shift（パラメータなし） | 一部のチャネルを隣のフレームとずらす（TSM・TokShift型）＋LoRA | ○（ずらし方で順序が入る） | パラメータがなく，計算も安い | ViTでの有効性は今回は確認していない．保留 |
+
+### 発散：目的関数の候補（基準4）
+
+- O1：同じclipを**逆再生・シャッフルしたものをhard negative**にする．順序を区別させる．
+- O2：見た目が違い動きが同じものをpositiveにする（BEの静止フレーム重畳，FAMEの前景・背景合成，DSM）．
+- O3：tube maskでのmasked video modeling（VideoMAE型，2026-09-24メモの案）．
+- O4：未来の特徴を予測する．
+
+MoCoを使い続けるなら，O1とO2を足すのが現在の基盤と最も相性が良い．ただし現在はcollapse診断の途中なので，目的関数の変更は学習基盤の検証が済んでからにする．
+
+### 収束
+
+- **採用候補（最有力）**：
+  - **M1（＋E1）**：仮説を最もきれいに検証できる構成．
+  - **M2**：逐次学習の設定に合う拡張．
+  - 共通の設計原則は「LoRA以外に時間方向の学習可能なパラメータを置かない」「時間順序はパラメータなしで与える」．
+- **対照として採用**：
+  - L0：静的な対照
+  - L1：動的情報がmodule側に入る対照
+  - これらとM1・M2を比べると，(a)の主張「動的情報はLoRAに入る」を検証する比較になる．
+- **保留**：M3（ViTでの根拠を未確認）．
+- **注意**：
+  - ActivityNetは場面に偏ったデータセットなので，静的な特徴を学びやすい．評価には動きが中心のタスク（SSv2・Diving48系）や，Kowal型の対照ペアが必要．
+  - 動画のstatic-repeat（同じフレームの繰り返し）に対しては，D1の寄与がゼロになるはず．これを確認項目にできる．
+
+### 未解決の問い
+
+- M1とM2のどちらから始めるか．両方を比べるか．
+- 目的関数をMoCo＋O1/O2で続けるか，O3に切り替えるか．
+- 計算資源：M1のtoken数と，現在のVRAMの余裕（LoRAは約12GB／rank，Full FTは約18GB／rank．いずれもフレームごとのbatch128での値）の見積もり．
+
+### 次アクション候補（未採用，TODOには追加していない）
+
+- AIM・DualPathの本文で，凍結attentionを時間方向に使い回す具体的な方法を確認する．
+- M1・M2・L0・L1の比較をresearch-specの入力候補として整理する．spec化はユーザーの明示があった場合に限る．
