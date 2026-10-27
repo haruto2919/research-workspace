@@ -44,18 +44,16 @@
 
   <!-- Stage 1: stacked video frames -->
   <g aria-label="ラベルなし動画のTフレーム窓">
-    <rect x="72" y="222" width="202" height="128" fill="#EEF2F6" stroke="#344054" stroke-width="3"/>
-    <rect x="88" y="238" width="202" height="128" fill="#F4F6F8" stroke="#344054" stroke-width="3"/>
-    <rect x="104" y="254" width="202" height="128" fill="#FAFAFA" stroke="#344054" stroke-width="3"/>
-    <rect x="120" y="270" width="202" height="128" fill="#FFFFFF" stroke="#344054" stroke-width="3"/>
-    <line x1="145" y1="357" x2="296" y2="357" stroke="#CBD5E1" stroke-width="8" stroke-linecap="round"/>
-    <circle cx="165" cy="328" r="12" fill="#8AA8C5"/>
-    <circle cx="207" cy="328" r="12" fill="#7398BB"/>
-    <circle cx="249" cy="328" r="12" fill="#5C87AF"/>
-    <circle cx="291" cy="328" r="12" fill="#456FA0"/>
-    <line x1="171" y1="328" x2="280" y2="328" stroke="#2E5EAA" stroke-width="3" marker-end="url(#arrow-blue)"/>
-    <text x="221" y="304" class="font small center">fₜ₋T₊₁ … fₜ</text>
-    <path d="M73 426 V443 Q73 455 85 455 H309 Q321 455 321 443 V426" fill="none" stroke="#2E5EAA" stroke-width="5" stroke-linecap="round"/>
+    <rect x="58" y="222" width="148" height="88" fill="#FFFFFF" stroke="#344054" stroke-width="3"/>
+    <image href="assets/input-frame-01.jpg" x="62" y="226" width="140" height="79" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="93" y="242" width="148" height="88" fill="#FFFFFF" stroke="#344054" stroke-width="3"/>
+    <image href="assets/input-frame-02.jpg" x="97" y="246" width="140" height="79" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="128" y="262" width="148" height="88" fill="#FFFFFF" stroke="#344054" stroke-width="3"/>
+    <image href="assets/input-frame-03.jpg" x="132" y="266" width="140" height="79" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="163" y="282" width="148" height="88" fill="#FFFFFF" stroke="#344054" stroke-width="3"/>
+    <image href="assets/input-frame-04.jpg" x="167" y="286" width="140" height="79" preserveAspectRatio="xMidYMid slice"/>
+    <text x="196" y="408" class="font small center">fₜ₋T₊₁ … fₜ</text>
+    <path d="M58 426 V443 Q58 455 70 455 H299 Q311 455 311 443 V426" fill="none" stroke="#2E5EAA" stroke-width="5" stroke-linecap="round"/>
     <text x="197" y="490" class="font body-bold center">T枚の窓</text>
     <line x1="104" y1="518" x2="290" y2="518" stroke="#2E5EAA" stroke-width="4" marker-end="url(#arrow-blue)"/>
     <text x="197" y="553" class="font small center">時間順に窓をスライド</text>

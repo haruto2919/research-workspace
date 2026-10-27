@@ -9,15 +9,17 @@
   - [プロジェクトREADME](../../../README.md)
   - [中間発表の背景・課題・目的](../../../../../../secretary/notes/brainstorm/2026-10-26-midterm-background-issue-purpose.md)の追記「2026-10-26 15:10 JST」
   - [画像ViT＝静的・LoRA＝動的という仮説の妥当性と新規性](../../../../../../secretary/notes/brainstorm/2026-10-26-image-static-lora-dynamic-hypothesis-validity-novelty.md)の追記「2026-10-26 13:55 JST」「2026-10-26 14:25 JST」
-- Source data: なし。上記Markdownにある研究目的、設計基準1〜4、採用候補M1/E1/M2、対照L0/L1、検証案を説明用に再構成した概念図。
+  - Uploaded video: `v_rZmNsUX-7SU.mp4`（ユーザー提供。元動画はResearch Workspaceへ保存していない）
+- Source data: 上記Markdownにある研究目的・設計基準・検証案と、提供動画の3.0 / 3.5 / 4.0 / 4.5秒から抽出した4フレーム。フレームは320×180 pxのJPEGへ縮小し、`assets/`へ保存した。
 - Style reference: ユーザーがチャットに添付した複数の模式図。積層入力、中空の太い矢印、モジュール別の色分け、破線のモデル境界、分岐線、括弧、拡大図、凡例という視覚表現だけを参照し、内容・数式・配置は流用していない。参考画像自体はResearch Workspaceへ保存していない。
-- 作成方法：編集可能なSVGを新規作成し、Inkscapeで1920×1080 pxのPNGへ書き出した。
+- 作成方法：FFmpegで動画フレームを抽出。編集可能なSVGから相対パスで参照し、Inkscapeで1920×1080 pxのPNGへ書き出した。
 
 ## Figures
 
 | file | type | purpose | source | note |
 | --- | --- | --- | --- | --- |
-| `01-method-overview.svg` / `.png` | 概念図 | ラベルなし動画の逐次入力、凍結画像ViTとフレーム間LoRAによる分離候補、ΔWの解析を1枚で説明 | 上記3ファイルからgenerated | SVGは編集用、PNGは16:9スライド貼付用 |
+| `01-method-overview.svg` / `.png` | 概念図 | ラベルなし動画の逐次入力、凍結画像ViTとフレーム間LoRAによる分離候補、ΔWの解析を1枚で説明 | 上記3ファイル＋ユーザー提供動画からgenerated | SVGは編集用、PNGは16:9スライド貼付用 |
+| `assets/input-frame-01.jpg`〜`04.jpg` | 入力サムネイル | 動画の時間変化を入力部で示す | `v_rZmNsUX-7SU.mp4` | 3.0〜4.5秒を0.5秒間隔で抽出。図版専用の派生画像 |
 
 ## 表示条件
 
@@ -35,4 +37,5 @@
 - 「ΔWに動的情報が入る」は結果ではなく、時間変更・見た目変更・ΔWへの介入で検証する仮説として描いた。
 - 凍結Baseが学習した知識を静的な基準として扱うが、Base出力に動的な手がかりがゼロとは主張しない。
 - ΔWには動画ドメインの静的な差分も混ざりうるため、静的・動的がきれいに分かれるとは描いていない。
+- 入力サムネイルはユーザー提供動画から切り出した説明用素材であり、実験結果や評価データとして扱わない。
 - 実験結果・数値は使用していない。README、TODO、spec、実験記録、議事録は更新していない。
