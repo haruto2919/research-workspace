@@ -77,45 +77,53 @@
   <rect x="522" y="391" width="81" height="24" rx="12" fill="#E5E7EB"/>
   <text x="562" y="409" class="font tiny center">固定</text>
 
-  <!-- Data flow arrow -->
-  <line x1="646" y1="364" x2="702" y2="364" stroke="#2E5EAA" stroke-width="6" marker-end="url(#arrow-blue)"/>
+  <!-- Split into frozen-base and trainable-difference paths -->
+  <line x1="646" y1="364" x2="675" y2="364" stroke="#2E5EAA" stroke-width="6"/>
+  <circle cx="683" cy="364" r="8" fill="#2E5EAA"/>
+  <line x1="691" y1="348" x2="716" y2="348" stroke="#2E5EAA" stroke-width="5" marker-end="url(#arrow-blue)"/>
 
-  <!-- Frozen image ViT -->
-  <polygon points="717,286 973,256 973,473 717,443" fill="#E7ECF1" stroke="#344054" stroke-width="3.2"/>
-  <text x="845" y="328" class="font head center">画像ViT　W₀</text>
-  <text x="845" y="360" class="font small center">画像事前学習・凍結</text>
-  <rect x="762" y="383" width="68" height="39" rx="8" fill="#FFFFFF" stroke="#667085" stroke-width="2"/>
-  <rect x="858" y="383" width="68" height="39" rx="8" fill="#FFFFFF" stroke="#667085" stroke-width="2"/>
-  <text x="796" y="409" class="font body-bold center">Q</text>
-  <text x="892" y="409" class="font body-bold center">V</text>
-  <rect x="932" y="282" width="27" height="24" rx="4" fill="#667085"/>
-  <path d="M938 282 V272 C938 259 953 259 953 272 V282" fill="none" stroke="#667085" stroke-width="5"/>
+  <!-- Frozen image ViT path: W0 x -->
+  <polygon points="725,278 954,258 954,430 725,410" fill="#E7ECF1" stroke="#344054" stroke-width="3.2"/>
+  <text x="839" y="312" class="font head center">画像ViT　W₀</text>
+  <text x="839" y="342" class="font small center">画像事前学習・凍結</text>
+  <text x="839" y="366" class="font tiny center">静的な基準</text>
+  <rect x="777" y="378" width="125" height="36" rx="8" fill="#FFFFFF" stroke="#667085" stroke-width="2"/>
+  <text x="839" y="403" class="font body-bold center">W₀ x</text>
+  <rect x="915" y="281" width="27" height="24" rx="4" fill="#667085"/>
+  <path d="M921 281 V271 C921 258 936 258 936 271 V281" fill="none" stroke="#667085" stroke-width="5"/>
 
-  <!-- LoRA sidecar -->
-  <rect x="755" y="475" width="180" height="67" rx="10" fill="#E24A33"/>
-  <text x="845" y="503" class="font body-bold white center">LoRA ΔW</text>
-  <text x="845" y="530" class="font tiny white center" style="fill:#FFFFFF">Q / Vだけに付加</text>
-  <line x1="796" y1="475" x2="796" y2="424" stroke="#E24A33" stroke-width="4" marker-end="url(#arrow-accent)"/>
-  <line x1="892" y1="475" x2="892" y2="424" stroke="#E24A33" stroke-width="4" marker-end="url(#arrow-accent)"/>
+  <!-- Trainable LoRA path: Delta W x -->
+  <path d="M683 372 C683 470 702 493 738 493" fill="none" stroke="#E24A33" stroke-width="5" marker-end="url(#arrow-accent)"/>
+  <rect x="744" y="449" width="211" height="86" rx="10" fill="#E24A33"/>
+  <text x="850" y="478" class="font body-bold white center">LoRA ΔW</text>
+  <text x="850" y="507" class="font tiny white center" style="fill:#FFFFFF">フレーム間 Q / V</text>
+  <text x="850" y="529" class="font tiny white center" style="fill:#FFFFFF">ΔW x（時間増分候補）</text>
+
+  <!-- Additive merge at the adapted Q/V projection -->
+  <line x1="956" y1="348" x2="999" y2="356" stroke="#2E5EAA" stroke-width="5"/>
+  <path d="M957 492 C988 492 990 405 1005 382" fill="none" stroke="#E24A33" stroke-width="4" marker-end="url(#arrow-accent)"/>
+  <circle cx="1022" cy="364" r="25" fill="#FFFFFF" stroke="#344054" stroke-width="3"/>
+  <line x1="1009" y1="364" x2="1035" y2="364" stroke="#344054" stroke-width="3"/>
+  <line x1="1022" y1="351" x2="1022" y2="377" stroke="#344054" stroke-width="3"/>
 
   <!-- Feature and effective weight -->
-  <line x1="975" y1="364" x2="1026" y2="364" stroke="#2E5EAA" stroke-width="6" marker-end="url(#arrow-blue)"/>
+  <line x1="1048" y1="364" x2="1065" y2="364" stroke="#2E5EAA" stroke-width="5"/>
   <g aria-label="特徴ベクトル">
-    <rect x="1035" y="314" width="23" height="96" fill="#F3F4F6" stroke="#344054" stroke-width="2"/>
-    <line x1="1035" y1="334" x2="1058" y2="334" stroke="#344054" stroke-width="1.5"/>
-    <line x1="1035" y1="354" x2="1058" y2="354" stroke="#344054" stroke-width="1.5"/>
-    <line x1="1035" y1="374" x2="1058" y2="374" stroke="#344054" stroke-width="1.5"/>
-    <line x1="1035" y1="394" x2="1058" y2="394" stroke="#344054" stroke-width="1.5"/>
-    <text x="1047" y="301" class="font tiny center">特徴</text>
+    <rect x="1066" y="314" width="23" height="96" fill="#F3F4F6" stroke="#344054" stroke-width="2"/>
+    <line x1="1066" y1="334" x2="1089" y2="334" stroke="#344054" stroke-width="1.5"/>
+    <line x1="1066" y1="354" x2="1089" y2="354" stroke="#344054" stroke-width="1.5"/>
+    <line x1="1066" y1="374" x2="1089" y2="374" stroke="#344054" stroke-width="1.5"/>
+    <line x1="1066" y1="394" x2="1089" y2="394" stroke="#344054" stroke-width="1.5"/>
+    <text x="1078" y="301" class="font tiny center">Q/V出力</text>
   </g>
-  <line x1="1061" y1="364" x2="1093" y2="364" stroke="#2E5EAA" stroke-width="5" marker-end="url(#arrow-blue)"/>
-  <rect x="1102" y="317" width="99" height="94" rx="12" fill="#FFFFFF" stroke="#2E5EAA" stroke-width="3"/>
-  <text x="1151" y="346" class="font tiny center">実効重み</text>
-  <text x="1151" y="380" class="font body-bold center">W₀＋ΔW</text>
+  <line x1="1092" y1="364" x2="1110" y2="364" stroke="#2E5EAA" stroke-width="5" marker-end="url(#arrow-blue)"/>
+  <rect x="1119" y="317" width="82" height="94" rx="12" fill="#FFFFFF" stroke="#2E5EAA" stroke-width="3"/>
+  <text x="1160" y="346" class="font tiny center">実効重み</text>
+  <text x="1160" y="380" class="font small center">W₀＋ΔW</text>
 
   <!-- Zoom leaders are drawn behind the learning blocks -->
-  <path d="M731 449 L659 651" fill="none" stroke="#344054" stroke-width="2.2" stroke-dasharray="7 6"/>
-  <path d="M962 474 L1118 651" fill="none" stroke="#344054" stroke-width="2.2" stroke-dasharray="7 6"/>
+  <path d="M725 410 L659 651" fill="none" stroke="#344054" stroke-width="2.2" stroke-dasharray="7 6"/>
+  <path d="M955 535 L1118 651" fill="none" stroke="#344054" stroke-width="2.2" stroke-dasharray="7 6"/>
 
   <!-- Optional tubelet LoRA -->
   <rect x="481" y="456" width="204" height="58" rx="9" fill="#FFFFFF" stroke="#E24A33" stroke-width="2.3" stroke-dasharray="8 6"/>
@@ -126,7 +134,7 @@
   <rect x="481" y="540" width="720" height="77" rx="10" fill="#FFFFFF" stroke="#667085" stroke-width="2.3" stroke-dasharray="9 7"/>
   <text x="501" y="570" class="font body-bold">学習方法（差し替え可能）</text>
   <text x="501" y="601" class="font tiny">自己教師あり（例：対照学習）／教師あり　｜　詳細は別スライド</text>
-  <path d="M1154 540 V516 H938" fill="none" stroke="#E24A33" stroke-width="3.5" stroke-dasharray="8 6" marker-end="url(#arrow-accent)"/>
+  <path d="M1154 540 V516 H958" fill="none" stroke="#E24A33" stroke-width="3.5" stroke-dasharray="8 6" marker-end="url(#arrow-accent)"/>
   <text x="1062" y="535" class="font tiny accent center" style="font-weight:800">勾配はΔWだけへ</text>
 
   <!-- Flow into analysis -->
