@@ -106,20 +106,11 @@
   <line x1="1009" y1="364" x2="1035" y2="364" stroke="#344054" stroke-width="3"/>
   <line x1="1022" y1="351" x2="1022" y2="377" stroke="#344054" stroke-width="3"/>
 
-  <!-- Feature and effective weight -->
-  <line x1="1048" y1="364" x2="1065" y2="364" stroke="#2E5EAA" stroke-width="5"/>
-  <g aria-label="特徴ベクトル">
-    <rect x="1066" y="314" width="23" height="96" fill="#F3F4F6" stroke="#344054" stroke-width="2"/>
-    <line x1="1066" y1="334" x2="1089" y2="334" stroke="#344054" stroke-width="1.5"/>
-    <line x1="1066" y1="354" x2="1089" y2="354" stroke="#344054" stroke-width="1.5"/>
-    <line x1="1066" y1="374" x2="1089" y2="374" stroke="#344054" stroke-width="1.5"/>
-    <line x1="1066" y1="394" x2="1089" y2="394" stroke="#344054" stroke-width="1.5"/>
-    <text x="1078" y="301" class="font tiny center">Q/V出力</text>
-  </g>
-  <line x1="1092" y1="364" x2="1110" y2="364" stroke="#2E5EAA" stroke-width="5" marker-end="url(#arrow-blue)"/>
-  <rect x="1119" y="317" width="82" height="94" rx="12" fill="#FFFFFF" stroke="#2E5EAA" stroke-width="3"/>
-  <text x="1160" y="346" class="font tiny center">実効重み</text>
-  <text x="1160" y="380" class="font small center">W₀＋ΔW</text>
+  <!-- Data-dependent output of the adapted Q/V projection -->
+  <line x1="1048" y1="364" x2="1077" y2="364" stroke="#2E5EAA" stroke-width="5" marker-end="url(#arrow-blue)"/>
+  <rect x="1082" y="323" width="119" height="82" rx="12" fill="#FFFFFF" stroke="#2E5EAA" stroke-width="3"/>
+  <text x="1141" y="354" class="font body-bold center">Q/V出力 h</text>
+  <text x="1141" y="386" class="font tiny center">(W₀＋ΔW)x</text>
 
   <!-- Zoom leaders are drawn behind the learning blocks -->
   <path d="M725 410 L659 651" fill="none" stroke="#344054" stroke-width="2.2" stroke-dasharray="7 6"/>
