@@ -203,3 +203,53 @@ tags: [brainstorm, research, experimental-design, early-fusion, lora, online-lea
 - [2026-10-26 仮説の正しさと新規性](2026-10-26-image-static-lora-dynamic-hypothesis-validity-novelty.md)
 - [2026-10-27 小林卒論の背景としての重要点](2026-10-27-kobayashi-thesis-background-relevance.md)
 - `.research/lab/projects/sequential-video-lora-analysis/meetings/2026-09-17-mtg.md`、`2026-09-24-mtg.md`
+
+---
+
+## 追記 2026-10-27 19:55 JST：本実験に向けた比較設計の補正（exploratory）
+
+### 比較解釈の注意
+
+- **主要な主張**：時間情報が学習済みLoRAにあると言うためには、同じ時空間Attention構造M1に対し、学習前Base（LoRA無し）と学習後Base＋LoRAを比較し、Projectorを除いた表現で動き依存の評価を行う。単なるMoCo Loss低下や特異値の変化だけでは証明できない。
+- **C0の解釈**：凍結した画像ViTでも、joint attentionと時間位置情報を加えたM1は時間に反応する可能性がある。「Baseに静的情報しかない」と断言せず、LoRAによる時間依存性・タスク性能の増分を測る。
+- **旧C1（Late Fusion）**：フレームごとに特徴抽出して平均する構造はフレーム順入替に不変。逆再生をhard negativeとするO2はこの構造では区別不能になり得る。C1は順序不変性の補助対照とし、比較可能な通常MoCo O1で学習する別条件を設ける。Late Fusionで学習したLoRAをM1に転写して評価するなら、アーキテクチャ転移という別の実験になる。
+- **旧C2（学習中のclip内shuffle＋O2）**：逆再生／shuffleをnegativeとするO2と、入力側で順序を破壊する条件を同時適用すると、教師信号の整合性を損ねるおそれがある。初期の主比較から外し、まず評価時だけoriginal/reverse/shuffle/static-repeatを与える介入として実施する。旧C2の学習群は保留。
+- **オンライン対オフラインの交絡**：MoCoのQueueとEMAは投入順に依存する。C3とC4で同じclip集合・更新回数を揃えてもQueue構成は変わるため、「サンプル投入順＋Queue相互作用」を含む学習プロトコル差として報告する。Queue中の同一動画Key比・Key年齢・Hard Negativeを監査する。
+
+### 最小の主要比較
+
+| 条件 | 構造 | 目的関数 | サンプル投入 | 主な役割 |
+| --- | --- | --- | --- | --- |
+| C0 | M1／LoRAなし | 学習なし | ― | 学習前のBase特性 |
+| C3 | M1／Q,V LoRA | 時間区別を要求するO2 | 時間順・single-pass | 提案条件、H1 |
+| C4 | M1／Q,V LoRA | C3と同じO2 | 同一clip集合をshuffle・single-pass | H2 |
+| C5 | M1／Q,V LoRA | 通常MoCo O1 | 時間順・single-pass | H3 |
+| C1補助 | frame-wise＋masked mean／LoRA | 整合的なO1 | 時間順・single-pass | 順序不変の対照 |
+
+### O2の具体化で先に決めること
+
+- Positiveは、現在までに観測した**同じclipの2 view**を基本とする。異時刻の同一動画clipは動作が異なる可能性があり、無条件にpositiveにはしない。
+- 時間方向の追加学習信号には、同じフレーム集合を逆順にしたものをhard negativeにする案を置く。reverseは対称的な動作ではfalse negativeとなり得るため、適用対象、重み、mask、augmentationの整合性を事前に固定する。通常MoCoとO2を別目的として比較する。
+- cross-clip positiveやQueueには未来のclipを使わない。1clipは観測したフレームを全部読み終わった段階で処理する。
+- 同じclipの2 viewでも元の見た目だけで解ける可能性は残るため、時間方向の追加損失が必要かを実測する。
+
+### 初期数値の候補（未確定）
+
+| 項目 | Pilot候補 | 事前確認 |
+| --- | --- | --- |
+| Base | ImageNet pretrained ViT-B/16、凍結、M1 joint attention | フレーム数増加による表現の崩れ |
+| 動画入力 | 224px、T=8、約1秒窓、固定時間位置情報 | 動画fpsの違いを考慮した時刻基準抽出、動き量 |
+| LoRA | 全12層Attention Q/V、rank8、alpha8、dropout0 | 既存単体検証と揃える案。alpha16は感度実験 |
+| Optimizer | AdamW、LoRA/Projector別LRの候補 3e-5／1e-4／3e-4 | 既知のLR0.03 collapse疑いを固定probeで再評価 |
+| MoCo | momentum0.999、temperature0.2、Queue4096（仮） | Queue一巡、同一動画negative、学習安定性 |
+| データ | ActivityNet training 2,000動画pilot→全10,024動画を候補 | 動画IDと時刻のmanifest固定、validationの漏洩防止 |
+| 学習 | 1pass、0/1/2/10/100step固定probe、再開可 | EMA/Queue/LoRA更新、CLSとProjector別のcollapse |
+| 計算 | RTX A4500×2、mixed precision等は候補 | global/local batchはT=8の実測VRAMとthroughputで確定 |
+| 再現性 | pilot 1seed、確認的実験3seed以上 | 比較群で同じclip数・update数・評価器・探索予算 |
+
+- 上記LR、alpha、K、batch、入力フレーム、実行期間はすべて**未承認の仮置き**。GPUでの資源実測・学習成立・別途spec化が必要であり、既存のLR0.03本体条件は変更しない。
+- H1の主な評価は、Projectorを外したencoder特徴によるSomething-Something V2等の動き依存クラスのLinear Probeと、original/reverse/shuffle/static-repeatの感度。単なるcosine差に加え、動作の向きの対照ペアで性能を確認する。ActivityNetではaction分類のmAPも補助測定する。
+- LoRAの内部は、個別のA/Bではなく実効更新重み ΔW=(alpha/r)BA の層別SVD、effective rank、Q/V寄与、層ごと除去・LoRA倍率操作で解析する。ただし特異値単独では動的情報の根拠にならない。
+- 順序は P0 M1 Baseの評価・VRAM → P1 O1で学習安定化 → P2 O2でC3学習 → P3 C3対C4/C5 → P4補助構造対照・full data・multi-seed とする。
+
+この追記はbrainstorm段階であり、spec・コード改変・実験実行・GPU利用の承認ではない。
