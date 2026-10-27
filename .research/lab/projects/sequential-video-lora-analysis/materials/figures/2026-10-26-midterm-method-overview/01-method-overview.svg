@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
   <title id="title">画像モデルとの差分として、動画の動的情報を取り出す</title>
-  <desc id="desc">積層したラベルなし動画フレームを、凍結画像ViTとフレーム間LoRAへ時間順に入力し、BaseとBase＋Delta Wの差分を三つの対照実験で調べる模式図。</desc>
+  <desc id="desc">ラベルなし動画を逐次入力し、破線枠内の固定Embeddingと凍結画像ViTにLoRA差分だけを学習する候補構成、そのフレーム間Q/Vを拡大し、BaseとBase＋Delta Wを対照実験で比較する研究手法図。</desc>
   <defs>
     <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto">
       <path d="M0,0 L10,5 L0,10 Z" fill="#2E5EAA"/>
@@ -16,12 +16,11 @@
       .title { font-size: 42px; font-weight: 800; }
       .subtitle { font-size: 22px; font-weight: 500; fill: #475467; }
       .stage { font-size: 28px; font-weight: 800; }
-      .head { font-size: 26px; font-weight: 800; }
+      .head { font-size: 25px; font-weight: 800; }
       .body { font-size: 23px; font-weight: 500; }
       .body-bold { font-size: 23px; font-weight: 800; }
       .small { font-size: 20px; font-weight: 500; fill: #475467; }
       .tiny { font-size: 18px; font-weight: 500; fill: #667085; }
-      .math { font-family: 'Noto Serif CJK JP', serif; font-size: 28px; font-style: italic; }
       .center { text-anchor: middle; }
       .accent { fill: #C83D28; }
       .white { fill: #FFFFFF; }
@@ -39,130 +38,184 @@
   <line x1="60" y1="127" x2="1860" y2="127" stroke="#D0D5DD" stroke-width="2"/>
 
   <!-- Stage labels -->
-  <text x="73" y="177" class="font stage">① 入力</text>
-  <text x="468" y="177" class="font stage">② 分離：凍結 W₀ ＋ LoRA ΔW</text>
-  <text x="1277" y="177" class="font stage">③ 解析：ΔWの中身を確かめる</text>
+  <text x="72" y="177" class="font stage">① 入力</text>
+  <text x="440" y="177" class="font stage">② 分離：凍結 W₀ ＋ LoRA ΔW</text>
+  <text x="1271" y="177" class="font stage">③ 解析：ΔWの中身を確かめる</text>
 
-  <!-- Stage 1: stacked frames -->
+  <!-- Stage 1: stacked video frames -->
   <g aria-label="ラベルなし動画のTフレーム窓">
-    <rect x="77" y="216" width="205" height="132" fill="#EEF2F6" stroke="#344054" stroke-width="3"/>
-    <rect x="93" y="232" width="205" height="132" fill="#F4F6F8" stroke="#344054" stroke-width="3"/>
-    <rect x="109" y="248" width="205" height="132" fill="#FAFAFA" stroke="#344054" stroke-width="3"/>
-    <rect x="125" y="264" width="205" height="132" fill="#FFFFFF" stroke="#344054" stroke-width="3"/>
-    <line x1="150" y1="355" x2="304" y2="355" stroke="#CBD5E1" stroke-width="8" stroke-linecap="round"/>
-    <circle cx="171" cy="327" r="12" fill="#8AA8C5"/>
-    <circle cx="213" cy="327" r="12" fill="#7398BB"/>
-    <circle cx="255" cy="327" r="12" fill="#5C87AF"/>
-    <circle cx="297" cy="327" r="12" fill="#456FA0"/>
-    <line x1="177" y1="327" x2="285" y2="327" stroke="#2E5EAA" stroke-width="3" marker-end="url(#arrow-blue)"/>
-    <text x="228" y="303" class="font small center">fₜ₋T₊₁ … fₜ</text>
-    <path d="M78 425 V442 Q78 454 90 454 H317 Q329 454 329 442 V425" fill="none" stroke="#2E5EAA" stroke-width="5" stroke-linecap="round"/>
-    <text x="203" y="489" class="font body-bold center">T枚の窓</text>
-    <line x1="111" y1="518" x2="298" y2="518" stroke="#2E5EAA" stroke-width="4" marker-end="url(#arrow-blue)"/>
-    <text x="203" y="553" class="font small center">時間順に窓をスライド</text>
+    <rect x="72" y="222" width="202" height="128" fill="#EEF2F6" stroke="#344054" stroke-width="3"/>
+    <rect x="88" y="238" width="202" height="128" fill="#F4F6F8" stroke="#344054" stroke-width="3"/>
+    <rect x="104" y="254" width="202" height="128" fill="#FAFAFA" stroke="#344054" stroke-width="3"/>
+    <rect x="120" y="270" width="202" height="128" fill="#FFFFFF" stroke="#344054" stroke-width="3"/>
+    <line x1="145" y1="357" x2="296" y2="357" stroke="#CBD5E1" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="165" cy="328" r="12" fill="#8AA8C5"/>
+    <circle cx="207" cy="328" r="12" fill="#7398BB"/>
+    <circle cx="249" cy="328" r="12" fill="#5C87AF"/>
+    <circle cx="291" cy="328" r="12" fill="#456FA0"/>
+    <line x1="171" y1="328" x2="280" y2="328" stroke="#2E5EAA" stroke-width="3" marker-end="url(#arrow-blue)"/>
+    <text x="221" y="304" class="font small center">fₜ₋T₊₁ … fₜ</text>
+    <path d="M73 426 V443 Q73 455 85 455 H309 Q321 455 321 443 V426" fill="none" stroke="#2E5EAA" stroke-width="5" stroke-linecap="round"/>
+    <text x="197" y="490" class="font body-bold center">T枚の窓</text>
+    <line x1="104" y1="518" x2="290" y2="518" stroke="#2E5EAA" stroke-width="4" marker-end="url(#arrow-blue)"/>
+    <text x="197" y="553" class="font small center">時間順に窓をスライド</text>
   </g>
+  <text x="197" y="621" class="font head center">ラベルなし動画</text>
+  <text x="197" y="658" class="font body center">時間順に逐次入力</text>
+  <text x="197" y="693" class="font small center">窓内の相対順序だけを使用</text>
 
-  <text x="203" y="624" class="font head center">ラベルなし動画</text>
-  <text x="203" y="661" class="font body center">時間順に逐次入力</text>
-  <text x="203" y="696" class="font small center">窓内の相対順序だけを使用</text>
+  <!-- Main arrow into the proposed model -->
+  <path d="M342 304 H397 V279 L447 329 L397 379 V354 H342 Z" class="flow"/>
 
-  <!-- Hollow flow arrow 1 -->
-  <path d="M354 300 H422 V273 L483 333 L422 393 V366 H354 Z" class="flow"/>
+  <!-- Stage 2 model boundary -->
+  <rect x="452" y="205" width="774" height="424" rx="20" fill="#FBFCFE" stroke="#4B5563" stroke-width="2.5" stroke-dasharray="10 7"/>
+  <text x="477" y="239" class="font body-bold">提案モデル（M1 ＋ 任意E1）</text>
+  <text x="1198" y="239" class="font tiny" text-anchor="end">LoRA以外は凍結／固定</text>
 
-  <!-- Stage 2: candidate model -->
-  <g aria-label="凍結画像ViTとフレーム間LoRA">
-    <polygon points="518,235 1054,204 1054,506 518,475" fill="#E7ECF1" stroke="#344054" stroke-width="3.5"/>
-    <text x="786" y="267" class="font head center">凍結した画像事前学習ViT　W₀</text>
-    <text x="786" y="300" class="font small center">静的情報の基準（1枚の画像だけで事前学習）</text>
-    <rect x="1003" y="239" width="28" height="25" rx="4" fill="#667085"/>
-    <path d="M1009 239 V229 C1009 215 1025 215 1025 229 V239" fill="none" stroke="#667085" stroke-width="5"/>
-    <rect x="569" y="327" width="113" height="61" rx="10" fill="#FFFFFF" stroke="#667085" stroke-width="2.5"/>
-    <rect x="731" y="327" width="113" height="61" rx="10" fill="#FFFFFF" stroke="#667085" stroke-width="2.5"/>
-    <rect x="893" y="327" width="113" height="61" rx="10" fill="#FFFFFF" stroke="#667085" stroke-width="2.5"/>
-    <text x="625" y="365" class="font body-bold center">frame t−2</text>
-    <text x="787" y="365" class="font body-bold center">frame t−1</text>
-    <text x="949" y="365" class="font body-bold center">frame t</text>
-    <line x1="683" y1="357" x2="729" y2="357" stroke="#E24A33" stroke-width="5" marker-end="url(#arrow-accent)"/>
-    <line x1="845" y1="357" x2="891" y2="357" stroke="#E24A33" stroke-width="5" marker-end="url(#arrow-accent)"/>
-    <rect x="610" y="411" width="354" height="70" rx="13" fill="#E24A33"/>
-    <text x="787" y="442" class="font head white center">LoRA ΔW</text>
-    <text x="787" y="470" class="font small white center" style="fill:#FFFFFF">フレーム間 attention（Q / V）</text>
-    <path d="M1054 338 H1080" stroke="#2E5EAA" stroke-width="5" marker-end="url(#arrow-blue)"/>
-    <rect x="1091" y="292" width="145" height="94" rx="13" fill="#FFFFFF" stroke="#2E5EAA" stroke-width="3.5"/>
-    <text x="1163" y="330" class="font small center">実効重み</text>
-    <text x="1163" y="365" class="font math center">W₀ + ΔW</text>
+  <!-- Fixed embedding module -->
+  <rect x="481" y="309" width="163" height="111" rx="9" fill="#DDEAF7" stroke="#2E5EAA" stroke-width="2.7"/>
+  <text x="562" y="346" class="font body-bold center">Frame / tubelet</text>
+  <text x="562" y="378" class="font body-bold center">Embedding</text>
+  <rect x="522" y="391" width="81" height="24" rx="12" fill="#E5E7EB"/>
+  <text x="562" y="409" class="font tiny center">固定</text>
+
+  <!-- Data flow arrow -->
+  <line x1="646" y1="364" x2="702" y2="364" stroke="#2E5EAA" stroke-width="6" marker-end="url(#arrow-blue)"/>
+
+  <!-- Frozen image ViT -->
+  <polygon points="717,286 973,256 973,473 717,443" fill="#E7ECF1" stroke="#344054" stroke-width="3.2"/>
+  <text x="845" y="328" class="font head center">画像ViT　W₀</text>
+  <text x="845" y="360" class="font small center">画像事前学習・凍結</text>
+  <rect x="762" y="383" width="68" height="39" rx="8" fill="#FFFFFF" stroke="#667085" stroke-width="2"/>
+  <rect x="858" y="383" width="68" height="39" rx="8" fill="#FFFFFF" stroke="#667085" stroke-width="2"/>
+  <text x="796" y="409" class="font body-bold center">Q</text>
+  <text x="892" y="409" class="font body-bold center">V</text>
+  <rect x="932" y="282" width="27" height="24" rx="4" fill="#667085"/>
+  <path d="M938 282 V272 C938 259 953 259 953 272 V282" fill="none" stroke="#667085" stroke-width="5"/>
+
+  <!-- LoRA sidecar -->
+  <rect x="755" y="475" width="180" height="67" rx="10" fill="#E24A33"/>
+  <text x="845" y="503" class="font body-bold white center">LoRA ΔW</text>
+  <text x="845" y="530" class="font tiny white center" style="fill:#FFFFFF">Q / Vだけに付加</text>
+  <line x1="796" y1="475" x2="796" y2="424" stroke="#E24A33" stroke-width="4" marker-end="url(#arrow-accent)"/>
+  <line x1="892" y1="475" x2="892" y2="424" stroke="#E24A33" stroke-width="4" marker-end="url(#arrow-accent)"/>
+
+  <!-- Feature and effective weight -->
+  <line x1="975" y1="364" x2="1026" y2="364" stroke="#2E5EAA" stroke-width="6" marker-end="url(#arrow-blue)"/>
+  <g aria-label="特徴ベクトル">
+    <rect x="1035" y="314" width="23" height="96" fill="#F3F4F6" stroke="#344054" stroke-width="2"/>
+    <line x1="1035" y1="334" x2="1058" y2="334" stroke="#344054" stroke-width="1.5"/>
+    <line x1="1035" y1="354" x2="1058" y2="354" stroke="#344054" stroke-width="1.5"/>
+    <line x1="1035" y1="374" x2="1058" y2="374" stroke="#344054" stroke-width="1.5"/>
+    <line x1="1035" y1="394" x2="1058" y2="394" stroke="#344054" stroke-width="1.5"/>
+    <text x="1047" y="301" class="font tiny center">特徴</text>
   </g>
+  <line x1="1061" y1="364" x2="1093" y2="364" stroke="#2E5EAA" stroke-width="5" marker-end="url(#arrow-blue)"/>
+  <rect x="1102" y="317" width="99" height="94" rx="12" fill="#FFFFFF" stroke="#2E5EAA" stroke-width="3"/>
+  <text x="1151" y="346" class="font tiny center">実効重み</text>
+  <text x="1151" y="380" class="font body-bold center">W₀＋ΔW</text>
 
-  <!-- Stage 2 design annotations -->
-  <rect x="526" y="527" width="246" height="52" rx="10" fill="#FFFFFF" stroke="#E24A33" stroke-width="2.5" stroke-dasharray="8 6"/>
-  <text x="649" y="560" class="font small accent center">任意：tubelet埋め込みLoRA</text>
-  <path d="M809 532 V547 Q809 560 822 560 H1038 Q1051 560 1051 547 V532" fill="none" stroke="#2E5EAA" stroke-width="4" stroke-linecap="round"/>
-  <text x="930" y="594" class="font small center">順序はパラメータなし（例：causal mask）</text>
-  <circle cx="546" cy="629" r="7" fill="#E24A33"/>
-  <text x="565" y="637" class="font body-bold">学習対象：LoRA ΔWのみ</text>
-  <circle cx="849" cy="629" r="7" fill="#667085"/>
-  <text x="868" y="637" class="font body">時間方向の学習moduleは置かない</text>
+  <!-- Zoom leaders are drawn behind the learning blocks -->
+  <path d="M731 449 L659 651" fill="none" stroke="#344054" stroke-width="2.2" stroke-dasharray="7 6"/>
+  <path d="M962 474 L1118 651" fill="none" stroke="#344054" stroke-width="2.2" stroke-dasharray="7 6"/>
 
-  <!-- Swappable training block -->
-  <rect x="552" y="683" width="614" height="102" rx="14" fill="#FFFFFF" stroke="#667085" stroke-width="2.5" stroke-dasharray="10 7"/>
-  <text x="579" y="723" class="font body-bold">学習方法（差し替え可能）</text>
-  <text x="579" y="760" class="font body">自己教師あり（例：対照学習）／教師あり　｜　詳細は別スライド</text>
-  <path d="M552 734 H499 V447 H608" fill="none" stroke="#E24A33" stroke-width="4" stroke-dasharray="9 6" marker-end="url(#arrow-accent)"/>
-  <rect x="552" y="650" width="183" height="31" rx="15" fill="#FFF1ED"/>
-  <text x="643" y="672" class="font tiny accent center" style="font-weight:800">勾配はΔWだけへ</text>
+  <!-- Optional tubelet LoRA -->
+  <rect x="481" y="456" width="204" height="58" rx="9" fill="#FFFFFF" stroke="#E24A33" stroke-width="2.3" stroke-dasharray="8 6"/>
+  <text x="583" y="480" class="font tiny accent center">任意候補（E1）</text>
+  <text x="583" y="502" class="font tiny accent center">tubelet埋め込みLoRA</text>
 
-  <!-- Flow into the same-structure comparison -->
-  <line x1="1238" y1="339" x2="1284" y2="339" stroke="#2E5EAA" stroke-width="5" marker-end="url(#arrow-blue)"/>
+  <!-- Swappable learning block -->
+  <rect x="481" y="540" width="720" height="77" rx="10" fill="#FFFFFF" stroke="#667085" stroke-width="2.3" stroke-dasharray="9 7"/>
+  <text x="501" y="570" class="font body-bold">学習方法（差し替え可能）</text>
+  <text x="501" y="601" class="font tiny">自己教師あり（例：対照学習）／教師あり　｜　詳細は別スライド</text>
+  <path d="M1154 540 V516 H938" fill="none" stroke="#E24A33" stroke-width="3.5" stroke-dasharray="8 6" marker-end="url(#arrow-accent)"/>
+  <text x="1062" y="535" class="font tiny accent center" style="font-weight:800">勾配はΔWだけへ</text>
+
+  <!-- Flow into analysis -->
+  <line x1="1204" y1="364" x2="1262" y2="364" stroke="#2E5EAA" stroke-width="5" marker-end="url(#arrow-blue)"/>
+
+  <!-- Zoomed cross-frame LoRA inset -->
+  <rect x="514" y="652" width="662" height="187" rx="18" fill="#FFFFFF" stroke="#344054" stroke-width="2.5" stroke-dasharray="9 7"/>
+  <text x="539" y="684" class="font body-bold">フレーム間attention（拡大）</text>
+  <rect x="551" y="711" width="118" height="49" rx="9" fill="#F3F4F6" stroke="#667085" stroke-width="2"/>
+  <rect x="736" y="711" width="118" height="49" rx="9" fill="#F3F4F6" stroke="#667085" stroke-width="2"/>
+  <rect x="921" y="711" width="118" height="49" rx="9" fill="#F3F4F6" stroke="#667085" stroke-width="2"/>
+  <text x="610" y="743" class="font small center">frame t−2</text>
+  <text x="795" y="743" class="font small center">frame t−1</text>
+  <text x="980" y="743" class="font small center">frame t</text>
+  <line x1="670" y1="735" x2="733" y2="735" stroke="#E24A33" stroke-width="4" marker-end="url(#arrow-accent)"/>
+  <line x1="855" y1="735" x2="918" y2="735" stroke="#E24A33" stroke-width="4" marker-end="url(#arrow-accent)"/>
+  <rect x="1047" y="704" width="108" height="62" rx="9" fill="#FFF1ED" stroke="#E24A33" stroke-width="2.3"/>
+  <text x="1101" y="728" class="font tiny accent center">Q / V</text>
+  <text x="1101" y="753" class="font tiny accent center">W₀＋ΔW</text>
+  <path d="M550 787 V801 Q550 813 562 813 H1128 Q1140 813 1140 801 V787" fill="none" stroke="#2E5EAA" stroke-width="3.5"/>
+  <text x="845" y="832" class="font tiny center">固定maskで順序を与える（例：causal）／学習可能な時間moduleなし</text>
 
   <!-- Stage 3: same-structure comparison -->
   <g aria-label="BaseとBase＋Delta Wの比較">
-    <path d="M1283 228 H1268 Q1255 228 1255 241 V473 Q1255 486 1268 486 H1283" fill="none" stroke="#2E5EAA" stroke-width="4"/>
-    <polygon points="1300,224 1517,211 1517,327 1300,314" fill="#E7ECF1" stroke="#344054" stroke-width="3"/>
-    <text x="1408" y="263" class="font body-bold center">Base</text>
-    <text x="1408" y="296" class="font small center">W₀のみ</text>
-    <polygon points="1300,382 1517,369 1517,485 1300,472" fill="#E7ECF1" stroke="#344054" stroke-width="3"/>
-    <text x="1408" y="417" class="font body-bold center">Base ＋ ΔW</text>
-    <rect x="1327" y="432" width="163" height="31" rx="7" fill="#E24A33"/>
-    <text x="1408" y="454" class="font tiny white center" style="fill:#FFFFFF;font-weight:800">LoRA ΔW</text>
-    <path d="M1519 269 H1550 L1581 333" fill="none" stroke="#252A31" stroke-width="4" marker-end="url(#arrow-dark)"/>
-    <path d="M1519 428 H1550 L1581 370" fill="none" stroke="#252A31" stroke-width="4" marker-end="url(#arrow-dark)"/>
-    <ellipse cx="1691" cy="351" rx="128" ry="72" fill="#FFFFFF" stroke="#2E5EAA" stroke-width="4"/>
-    <text x="1691" y="339" class="font body-bold center">比較上の差分</text>
-    <text x="1691" y="374" class="font small center">動画から得た増分</text>
-    <text x="1691" y="448" class="font tiny center">ただし、中身が動的とはまだ限らない</text>
-    <path d="M1819 351 H1843 V866" fill="none" stroke="#252A31" stroke-width="4"/>
-    <text x="1408" y="523" class="font small center">同じ構造のまま比較</text>
+    <path d="M1272 229 H1261 Q1249 229 1249 241 V492 Q1249 504 1261 504 H1272" fill="none" stroke="#2E5EAA" stroke-width="4"/>
+    <polygon points="1288,225 1504,212 1504,329 1288,316" fill="#E7ECF1" stroke="#344054" stroke-width="3"/>
+    <text x="1396" y="265" class="font body-bold center">Base</text>
+    <text x="1396" y="298" class="font small center">W₀のみ</text>
+    <polygon points="1288,387 1504,374 1504,491 1288,478" fill="#E7ECF1" stroke="#344054" stroke-width="3"/>
+    <text x="1396" y="421" class="font body-bold center">Base ＋ ΔW</text>
+    <rect x="1315" y="439" width="162" height="31" rx="7" fill="#E24A33"/>
+    <text x="1396" y="461" class="font tiny white center" style="fill:#FFFFFF;font-weight:800">LoRA ΔW</text>
+    <path d="M1506 270 H1538 L1568 335" fill="none" stroke="#252A31" stroke-width="4" marker-end="url(#arrow-dark)"/>
+    <path d="M1506 433 H1538 L1568 373" fill="none" stroke="#252A31" stroke-width="4" marker-end="url(#arrow-dark)"/>
+    <ellipse cx="1681" cy="354" rx="132" ry="74" fill="#FFFFFF" stroke="#2E5EAA" stroke-width="4"/>
+    <text x="1681" y="342" class="font body-bold center">比較上の差分</text>
+    <text x="1681" y="377" class="font small center">動画から得た増分</text>
+    <text x="1681" y="451" class="font tiny center">ただし、中身が動的とはまだ限らない</text>
+    <text x="1396" y="531" class="font small center">同じ構造のまま比較</text>
+    <path d="M1813 354 H1840 V861" fill="none" stroke="#252A31" stroke-width="4"/>
   </g>
 
   <!-- Hypothesis tests -->
-  <text x="1295" y="578" class="font head">検証する仮説</text>
-  <text x="1818" y="578" class="font tiny" text-anchor="end">「はず」を対照実験で確かめる</text>
-  <rect x="1295" y="599" width="523" height="88" rx="13" fill="#FFFFFF" stroke="#E24A33" stroke-width="2.8"/>
-  <circle cx="1333" cy="643" r="22" fill="#FFF1ED" stroke="#E24A33" stroke-width="2.3"/>
-  <text x="1333" y="651" class="font body-bold accent center">A</text>
-  <text x="1370" y="629" class="font body-bold">時間を変える</text>
-  <text x="1370" y="662" class="font body">並べ替え・逆再生 → ΔWの寄与は反応するはず</text>
-  <line x1="1843" y1="643" x2="1820" y2="643" stroke="#252A31" stroke-width="4" marker-end="url(#arrow-dark)"/>
-  <rect x="1295" y="708" width="523" height="88" rx="13" fill="#FFFFFF" stroke="#E24A33" stroke-width="2.8"/>
-  <circle cx="1333" cy="752" r="22" fill="#FFF1ED" stroke="#E24A33" stroke-width="2.3"/>
-  <text x="1333" y="760" class="font body-bold accent center">B</text>
-  <text x="1370" y="738" class="font body-bold">見た目を変える</text>
-  <text x="1370" y="771" class="font body">背景・色 → ΔWの寄与は変わらないはず</text>
-  <line x1="1843" y1="752" x2="1820" y2="752" stroke="#252A31" stroke-width="4" marker-end="url(#arrow-dark)"/>
-  <rect x="1295" y="817" width="523" height="88" rx="13" fill="#FFFFFF" stroke="#E24A33" stroke-width="2.8"/>
-  <circle cx="1333" cy="861" r="22" fill="#FFF1ED" stroke="#E24A33" stroke-width="2.3"/>
-  <text x="1333" y="869" class="font body-bold accent center">C</text>
-  <text x="1370" y="847" class="font body-bold">ΔWそのものを調べる</text>
-  <text x="1370" y="880" class="font body">外す・強さを変える・特異値を解析する</text>
-  <line x1="1843" y1="861" x2="1820" y2="861" stroke="#252A31" stroke-width="4" marker-end="url(#arrow-dark)"/>
+  <text x="1284" y="585" class="font head">検証する仮説</text>
+  <text x="1814" y="585" class="font tiny" text-anchor="end">「はず」を対照実験で確かめる</text>
 
-  <!-- Controls and claim boundary -->
-  <path d="M506 840 V857 Q506 870 519 870 H1158 Q1171 870 1171 857 V840" fill="none" stroke="#2E5EAA" stroke-width="4"/>
-  <text x="838" y="910" class="font small center">補助対照：L0（順序不変）／L1（時間module側に学習）</text>
-  <rect x="503" y="936" width="1315" height="52" rx="12" fill="#FFF7F4" stroke="#E6A08F" stroke-width="2"/>
-  <text x="1160" y="969" class="font small accent center" style="font-weight:800">ΔWには静的な動画ドメイン差分も混ざりうる：きれいな分離は仮定せず、分離の成否を検証する</text>
+  <rect x="1284" y="606" width="530" height="87" rx="13" fill="#FFFFFF" stroke="#E24A33" stroke-width="2.7"/>
+  <circle cx="1322" cy="649" r="22" fill="#FFF1ED" stroke="#E24A33" stroke-width="2.2"/>
+  <text x="1322" y="657" class="font body-bold accent center">A</text>
+  <text x="1359" y="635" class="font body-bold">時間を変える</text>
+  <text x="1359" y="668" class="font body">並べ替え・逆再生 → ΔWの寄与は反応するはず</text>
+  <line x1="1840" y1="649" x2="1816" y2="649" stroke="#252A31" stroke-width="4" marker-end="url(#arrow-dark)"/>
+
+  <rect x="1284" y="714" width="530" height="87" rx="13" fill="#FFFFFF" stroke="#E24A33" stroke-width="2.7"/>
+  <circle cx="1322" cy="757" r="22" fill="#FFF1ED" stroke="#E24A33" stroke-width="2.2"/>
+  <text x="1322" y="765" class="font body-bold accent center">B</text>
+  <text x="1359" y="743" class="font body-bold">見た目を変える</text>
+  <text x="1359" y="776" class="font body">背景・色 → ΔWの寄与は変わらないはず</text>
+  <line x1="1840" y1="757" x2="1816" y2="757" stroke="#252A31" stroke-width="4" marker-end="url(#arrow-dark)"/>
+
+  <rect x="1284" y="822" width="530" height="87" rx="13" fill="#FFFFFF" stroke="#E24A33" stroke-width="2.7"/>
+  <circle cx="1322" cy="865" r="22" fill="#FFF1ED" stroke="#E24A33" stroke-width="2.2"/>
+  <text x="1322" y="873" class="font body-bold accent center">C</text>
+  <text x="1359" y="851" class="font body-bold">ΔWそのものを調べる</text>
+  <text x="1359" y="884" class="font body">外す・強さを変える・特異値を解析する</text>
+  <line x1="1840" y1="865" x2="1816" y2="865" stroke="#252A31" stroke-width="4" marker-end="url(#arrow-dark)"/>
+
+  <!-- Legend and controls -->
+  <rect x="66" y="819" width="357" height="98" rx="11" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2"/>
+  <text x="87" y="849" class="font small" style="font-weight:800">凡例</text>
+  <rect x="88" y="863" width="31" height="18" fill="#E7ECF1" stroke="#344054" stroke-width="1.5"/>
+  <text x="131" y="879" class="font tiny">凍結 W₀</text>
+  <rect x="223" y="863" width="31" height="18" fill="#E24A33"/>
+  <text x="266" y="879" class="font tiny">学習 ΔW</text>
+  <line x1="88" y1="900" x2="119" y2="900" stroke="#2E5EAA" stroke-width="4" marker-end="url(#arrow-blue)"/>
+  <text x="131" y="907" class="font tiny">データ／固定経路</text>
+  <line x1="277" y1="900" x2="308" y2="900" stroke="#E24A33" stroke-width="3" stroke-dasharray="6 4"/>
+  <text x="318" y="907" class="font tiny">勾配</text>
+
+  <path d="M513 865 V879 Q513 891 525 891 H1162 Q1174 891 1174 879 V865" fill="none" stroke="#2E5EAA" stroke-width="3.5"/>
+  <text x="844" y="929" class="font small center">補助対照：L0（順序不変）／L1（時間module側に学習）</text>
+
+  <!-- Claim boundary -->
+  <rect x="502" y="948" width="1312" height="48" rx="11" fill="#FFF7F4" stroke="#E6A08F" stroke-width="2"/>
+  <text x="1158" y="979" class="font small accent center" style="font-weight:800">ΔWには静的な動画ドメイン差分も混ざりうる：きれいな分離は仮定せず、分離の成否を検証する</text>
 
   <!-- Footer -->
-  <text x="62" y="1036" class="font tiny">Source: Project README / Brainstorm notes (2026-10-26 13:55・14:25・15:10 JST)</text>
-  <text x="1858" y="1036" class="font tiny" text-anchor="end">将来の活用：動作認識　｜　動画生成　｜　動画×言語</text>
+  <text x="62" y="1038" class="font tiny">Source: Project README / Brainstorm notes (2026-10-26 13:55・14:25・15:10 JST)</text>
+  <text x="1858" y="1038" class="font tiny" text-anchor="end">将来の活用：動作認識　｜　動画生成　｜　動画×言語</text>
 </svg>
