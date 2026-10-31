@@ -4,7 +4,7 @@ status: active
 summary: 10/22 MTGで静的・動的分離とLoRA解析を研究の軸として再確認。MoCo公式比較5epoch一致、ViT両方式10step工学PASSだが特徴の方向集中・LR因果は未解決。事前学習経路の成立を優先し、自分の構成図・stride比較計画を中間発表へまとめる。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-10-23
+last_updated: 2026-10-31
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -20,6 +20,15 @@ last_updated: 2026-10-23
 - 研究文脈の正本: このREADMEと、同じプロジェクト配下の `specs/`、`experiments/`、`materials/`、`meetings/`
 
 コード変更はメイン実装フォルダで行い、方針、実験条件、結果、意思決定など継続的に参照する研究文脈は、このResearch Workspace側へ記録する。
+
+### ブランチ運用（2026-10-31〜）
+
+- 実装・テストは `dev` から切った機能ごとの `feature-<機能名>` ブランチで行い、完了したら `dev` へ反映する。
+- 最終形が完成したら `dev` を `main` へ反映する。
+- `dev` は ResNetによるMoCo単体の公式実装一致（E5 5epoch比較）の段階 `7fc1f56` に戻した。
+- ViT+MoCo（Full FT / LoRA DDP smoke、Query Collapse診断、任意LR指定）の4コミットは `feature-vit-moco`（`46ad983`）へ移した。既存記録の `dev@2c26991`、`dev@312c121` などの旧 `dev` 上のコミットは、このブランチ上にある。
+- 保持するブランチ: `main`（`8301ebb`、`dev` とは2026-09-23から別系統）、`archive-dev-before-rework-20261012`（ローカルのみ）、`feature-vit-frame-encoder`、`mae`。
+- 削除したブランチ: `feature-50salads-loder`（origin含む）、`encoder-only`、`chore-simple-cnn-baseline-sync`。いずれも `dev` に取り込み済み。
 
 ## 現在の状況
 
@@ -112,6 +121,7 @@ last_updated: 2026-10-23
 
 | 日付 | 内容 |
 |------|------|
+| 2026-10-31 | 実装リポジトリのブランチを整理。`dev` をResNet MoCo公式一致段階 `7fc1f56` に戻し、ViT+MoCoの作業を `feature-vit-moco` へ移した。以後は `feature-*` → `dev` → `main` の順に反映する運用とする |
 | 2026-10-23 | 10月22日のMTGを議事録化。静的・動的分離の先行研究からLoRA解析へつなぐ位置づけを再確認。事前学習経路の成立を優先し、その後strideによるLoRAの変化を比較する。中間発表には自分の全体構成図と未実施も含む実験設定・解析計画を示す。次回水曜10:30案は調整中。[議事録](meetings/2026-10-22-mtg.md) |
 | 2026-10-21 | ViT Full FT / LoRAのG3 ImageNet 2GPU・1stepは両方式PASS。rank0/1のVRAM Gate、final state、入力hashの一致をユーザー提出ローカルレポート集計で確認。GPU peak reservedは12038/16862 MiB。10/20stepは未実施。[G3 Evidence](experiments/2026-10-21-vit-ddp-moco-g3-imagenet-1step-console-evidence.md) |
 | 2026-09-03 | シーケンシャルデータローダとLoRA逐次学習を第一目標とし、その後に動画情報の評価・分離へ進む方針を確認 |
