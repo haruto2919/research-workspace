@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: 2026-10-22 ViT＋MoCo Query Collapse診断：CPU D0〜D3とImageNet 2GPU D4両mode工学PASS、全学習入力と固定probeのstep0特徴が一致。Full FTはstep1でCLS cosine中央値0.032→0.985、LoRAのCLSは維持。Projector出力は両modeでstep1に方向集中（cos p50 LoRA0.993/FT0.99994）、両modeのProjector初回相対update約1.44。LR0.03原因は未検証。任意LR指定の診断profile（新preset、LRだけGPU例外、同mode LR比較）を実装しCPU L0〜L3 PASS（未commit）、低LR GPU対照（L4）は未許可。
+summary: 10/22 MTGで静的・動的分離とLoRA解析を研究の軸として再確認。MoCo公式比較5epoch一致、ViT両方式10step工学PASSだが特徴の方向集中・LR因果は未解決。事前学習経路の成立を優先し、自分の構成図・stride比較計画を中間発表へまとめる。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -83,6 +83,8 @@ last_updated: 2026-10-22
 
 2026-10-22、承認済みの[任意LR指定spec](specs/2026-10-22-vit-moco-configurable-learning-rate-collapse-control-spec.md)（B2〜B6を推奨どおり採用）に従い、学習率を実行時に任意の正の有限値で指定できる診断profileを研究コードへ実装した（`dev@312c121`上の未commit差分）。新preset `moco_vit_query_collapse_lr` ではLRの指定が必須で、GPU runの採用recipeのうちLRだけを例外にする。その他の値、固定probe、fresh 10step、旧G3/D4のpresetと0.03は変えていない。1つのLRを全trainable群に共通で使う。同mode・異LRの比較モードも追加した。**CPU Gate L0〜L3はPASS**：新規36件、旧0.03経路（診断OFF/ON）は変更前とbitwise一致、全テストの失敗ID集合は変更前後で同一。spec案の`???`ではLR未指定時に0.03が黙って継承されることが分かったため、`null`＋必須検査で実装した。実際の旧0.03 D4 runも、同modeのbaselineとして比較器で読めることを確認した。**低LRのGPU対照（L4）は未許可のため未実施**で、LR 0.03が原因かどうかはまだ判断していない。[実装・CPU検証記録](experiments/2026-10-22-vit-moco-configurable-lr-implementation-cpu-verification.md)
 
+2026-10-22のMTGでは、静的・動的情報の分離に関する先行研究から、自分のオンライン学習とLoRA解析へつなぐ研究の位置づけを再確認した。動画生成は複数ある応用先の一つとし、まず事前学習経路を成立させ、その後、strideなどによってLoRAがどう変わるかを調べる。stride 64/32/16/8は比較候補で、採用値・LoRA rank・解析指標は未確定。中間発表では自分の研究内容を中心に構成し、全体構成図と、未実施でも具体的な実験設定・比較案・解析計画を書く。MoCoは学習手段として説明する。低LR対照の具体値採用やGPU実行承認は会議内容から確認できず、既存の未実施状態を継続する。次回のスライド確認は翌週水曜10:30案で調整中。詳細は[10月22日の議事録](meetings/2026-10-22-mtg.md)を参照（記録日：2026-10-23）。
+
 ## マイルストーン
 
 - [ ] 研究方針を整理する
@@ -103,10 +105,14 @@ last_updated: 2026-10-22
 - [ ] MoCo loss振動とQuery LoRA勾配急増の原因を切り分け、統合実験の再開条件を定める
 - [ ] 研究室紹介用にオンライン学習の難しさと研究上の必要性を説明するスライドを作成する
 
+- [ ] 中間発表に向け、静的・動的分離の先行研究、自分の全体構成図、実験設定・解析計画をスライドへ反映する（2026-10-22 MTG）
+- [ ] 事前学習経路の成立後、stride候補（64/32/16/8）によるLoRAの変化を調べる比較・解析条件を定める（候補値は未確定）
+
 ## 更新履歴
 
 | 日付 | 内容 |
 |------|------|
+| 2026-10-23 | 10月22日のMTGを議事録化。静的・動的分離の先行研究からLoRA解析へつなぐ位置づけを再確認。事前学習経路の成立を優先し、その後strideによるLoRAの変化を比較する。中間発表には自分の全体構成図と未実施も含む実験設定・解析計画を示す。次回水曜10:30案は調整中。[議事録](meetings/2026-10-22-mtg.md) |
 | 2026-10-21 | ViT Full FT / LoRAのG3 ImageNet 2GPU・1stepは両方式PASS。rank0/1のVRAM Gate、final state、入力hashの一致をユーザー提出ローカルレポート集計で確認。GPU peak reservedは12038/16862 MiB。10/20stepは未実施。[G3 Evidence](experiments/2026-10-21-vit-ddp-moco-g3-imagenet-1step-console-evidence.md) |
 | 2026-09-03 | シーケンシャルデータローダとLoRA逐次学習を第一目標とし、その後に動画情報の評価・分離へ進む方針を確認 |
 | 2026-09-04 | プロジェクト作成 |
