@@ -11,7 +11,7 @@ source_brainstorm: ../../../../secretary/notes/brainstorm/2026-11-03-temporal-or
 
 # 時間情報の評価：clip特徴の並び順への反応（ActivityNet validation）
 
-**Status: implemented（2026-11-04。CPUテストT1〜T6はPASS、失敗ID集合は変更前と同じ。研究コードは未commit。R0・R1は未実施。[実装記録](../experiments/2026-11-04-temporal-order-sensitivity-evaluation-implementation-cpu-verification.md)）**。**Status: approved（2026-11-03、ユーザーが承認）**。実装は、別に指示を受けてから行う。manifestの作成（R0）と評価の実行（R1、GPU）は、それぞれ別に許可が必要。
+**Status: implemented（2026-11-04。CPUテストT1〜T6はPASS、失敗ID集合は変更前と同じ。研究コードは `feature-vit-moco@50ff715`。R0・R1は2026-11-04に実施（[R1 Evidence](../experiments/2026-11-04-temporal-order-sensitivity-evaluation-r1-gpu-evidence.md)）。[実装記録](../experiments/2026-11-04-temporal-order-sensitivity-evaluation-implementation-cpu-verification.md)）**。**Status: approved（2026-11-03、ユーザーが承認）**。実装は、別に指示を受けてから行う。manifestの作成（R0）と評価の実行（R1、GPU）は、それぞれ別に許可が必要。
 
 ## 1. 目的
 

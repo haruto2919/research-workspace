@@ -17,7 +17,7 @@ spec: ../specs/2026-11-03-temporal-order-sensitivity-evaluation-spec.md
 
 - **CPUテストT1〜T6はすべてPASS**した。全テストは36 failed / 972 passedで、失敗したテストの集合は変更前と**完全に一致**した（passedが増えた15件は、新しく作ったテストの数と一致）。
 - 研究コードは `feature-vit-moco@50ff715` にcommitした（2026-11-04、3ファイル。内容はCPU検証時と同じ）。
-- 実データの作業（R0：validation manifestの作成、R1：GPUでの評価）は、まだ行っていない。
+- R0（validation manifestの作成）は2026-11-04に実行した（4,926本、58,163時刻）。R1（GPUでの評価）も2026-11-04に実行した：[R1 Evidence](2026-11-04-temporal-order-sensitivity-evaluation-r1-gpu-evidence.md)
 
 ## 変更したファイル
 
@@ -75,15 +75,35 @@ spec: ../specs/2026-11-03-temporal-order-sensitivity-evaluation-spec.md
 
 全テストの最初の実行は、GPUが見えない設定（`CUDA_VISIBLE_DEVICES=''`）だったため、197 failed / 18 errorsになった。GPUを使うパラメータのテストが失敗したためで、変更とは関係ない。以前の基準と同じ条件（GPUが見える状態）で実行し直し、上の比較を行った。
 
-## 実データの作業（まだ行っていない。それぞれ別に許可が必要）
+## 実データの作業（それぞれ別に許可が必要）
 
-- **R0**：validation manifestの作成（CPU、NASは読み取りのみ）。
+- **R0**：validation manifestの作成（CPU、NASは読み取りのみ）。**2026-11-04に実行した**（結果は下の「R0の結果」）。
   ```bash
-  python -m scripts.vit_moco.activitynet_frames /mnt/NAS-TVS872XT/dataset/ActivityNet --split validation --output-dir log/activitynet_frames/2026-11-04_validation_interval10s_offset5s
+  python -m scripts.vit_moco.activitynet_frames /mnt/NAS-TVS872XT/dataset/ActivityNet --split validation --workers 16 --output-dir log/activitynet_frames/2026-11-04_validation_interval10s_offset5s
   ```
-- **R1**：評価の実行（GPU 1枚、tmux）。研究コードは `50ff715` にcommit済み（dirtyな状態ではGPUの評価が止まる）。
+- **R1**（2026-11-04に実行。[R1 Evidence](2026-11-04-temporal-order-sensitivity-evaluation-r1-gpu-evidence.md)）：評価の実行（GPU 1枚、tmux）。研究コードは `50ff715` にcommit済み（dirtyな状態ではGPUの評価が止まる）。
   - モデルは、A=lora:init、B-LoRA、B-FT、C-LoRA、C-FTの5つ。
   - `--clip-config` と `--init-reference` には、clip LoRA A2のrunを使う。
+
+### R0の結果（2026-11-04 05:25:53〜05:30:38、tmux `vit-moco-a1`）
+
+- 研究コード `feature-vit-moco@50ff715`、dirtyではない。16 thread、所要4分45秒、exit 0。
+- 出力：研究リポジトリの `log/activitynet_frames/2026-11-04_validation_interval10s_offset5s/`
+
+| 項目 | 値 |
+|---|---|
+| `split` | validation |
+| 動画数 | 4,926本（読めずに止まった動画はない。読めない動画があるとmanifestは書かれない） |
+| manifestの時刻（clip数） | 58,163（1本あたり 最小0・最大75・平均11.8） |
+| 時刻が1つもない動画 | 18本（使える動画は4,908本） |
+| 時刻が2つ以上ある動画 | 4,735本 |
+| 長さの取得元 | stream 4,483本、container 443本 |
+| 最初の時刻 | 5.0秒（4フレームのclipの先頭は4.25秒になり、0秒より前にはならない） |
+| trainingのmanifest（2026-10-21）と重なる動画 | 0本 |
+| `frames.jsonl` のsha256 | `c62474962bd21f670edb7ac4a0bc0f283e2c527e5aa45b8af575da0d36595978`（`manifest.json` に記録された値と一致） |
+| `manifest.json` のsha256 | `e60715c605c10391f1de86d8e1314aa564d8aa59e2b1c3083781e6cd27afac59` |
+
+- 追加の確認（CPU、動画は読まない）：このmanifestで `select_clips` を2,000 clip・seed 0で呼ぶと、2,000本の動画から1 clipずつ選べた。same-videoのclipがない（時刻が1つだけの）動画は67本。
 
 ## 互換性
 
