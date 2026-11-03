@@ -1,10 +1,10 @@
 ---
 project: sequential-video-lora-analysis
 status: active
-summary: 10/22 MTGで静的・動的分離とLoRA解析を研究の軸として再確認。MoCo公式比較5epoch一致、ViT両方式10step工学PASSだが特徴の方向集中・LR因果は未解決。事前学習経路の成立を優先し、自分の構成図・stride比較計画を中間発表へまとめる。
+summary: 低LR（3e-4）の1,000step学習L5は両方式で工学PASSし、Queueが埋まった後にlossが減少、collapseは観測されなかった（暫定）。次の段階として、学習入力をActivityNet単一フレームへ差し替えるspecを承認・実装し、CPU Gate T0〜T3はPASSし、研究コードを feature-vit-moco@167f1c1 としてcommitした。GPU A1（LoRA 10step）は、既存のフレーム読み込み（decode_frame）が特定の動画でframeを取れずstep3で失敗した。11/02に読み込みの修正とrank間のエラー共有を実装し（feature-vit-moco@9155c2b）、全117,522 frameの取り出しエラーが0件であることを確認した。再実行したA1 LoRA 10stepと、11/03のA1 Full FT 10stepはともに工学PASSで、LoRAとFull FTの比較器もcomparable=true（固定probeの入力ハッシュはL4/L5と一致）。11/03のA2 LoRA（459step＝1epoch）も工学PASSで、Queueが埋まった後にlossが減少し、collapseは観測されなかった（暫定、約35分、データ読み込み待ちが約2.3秒/step）。同日のA2 Full FTも工学PASSで、LoRAとの比較器はcomparable=true。Queueが埋まった後のlossは両方式で減少し、collapseは観測されなかった（暫定）。これでActivityNet単一フレームspecの工学的な成功条件（A1・A2、両方式）がすべて揃った。表現品質やLoRAとFull FTの優劣は未評価。early fusionによる動画clip段階は別specとする（未着手）。
 implementation_root: /mnt/HDD12TB-1/ishikawa/2026_09_ishikawa_sequential-video-lora
 created: 2026-09-04
-last_updated: 2026-10-31
+last_updated: 2026-11-03
 ---
 
 # 動画の逐次学習によるLoRAの獲得情報の解析と活用
@@ -94,6 +94,28 @@ last_updated: 2026-10-31
 
 2026-10-22のMTGでは、静的・動的情報の分離に関する先行研究から、自分のオンライン学習とLoRA解析へつなぐ研究の位置づけを再確認した。動画生成は複数ある応用先の一つとし、まず事前学習経路を成立させ、その後、strideなどによってLoRAがどう変わるかを調べる。stride 64/32/16/8は比較候補で、採用値・LoRA rank・解析指標は未確定。中間発表では自分の研究内容を中心に構成し、全体構成図と、未実施でも具体的な実験設定・比較案・解析計画を書く。MoCoは学習手段として説明する。低LR対照の具体値採用やGPU実行承認は会議内容から確認できず、既存の未実施状態を継続する。次回のスライド確認は翌週水曜10:30案で調整中。詳細は[10月22日の議事録](meetings/2026-10-22-mtg.md)を参照（記録日：2026-10-23）。
 
+2026-10-31、承認済み[任意LR spec](specs/2026-10-22-vit-moco-configurable-learning-rate-collapse-control-spec.md)の**L4（LR 3e-4、ImageNet 2GPU、各10step）をLoRA・Full FTの両方で実行し、工学PASS**（`feature-vit-moco@46ad983`、clean）。固定64画像の推移では、0.03で起きていた初回更新直後のProjector raw `z_q` の方向集中（cos p50 0.993／0.9999）が、3e-4では0.45／0.49にとどまった。Full FTのCLS同方向化（0.985→1.000）も起きず、0.038→0.029だった。Query stdはs10でも0.065／0.069を保った。step1の勾配はLRによらず同じで、更新量は1/100になった。AdamWの初回更新が各parameterを約±LRだけ動かす、という機構と整合する。ただし、GPU0がRTX A4500からRTX PRO 4500 Blackwellに変わっており、旧0.03 runとの比較器は、step0がbitwise不一致のため`comparable=false`を返した。同じLR同士のLoRAとFull FTの比較は`comparable=true`。LR 0.03主因説を強く支持するが、厳密な因果・表現品質・長期安定性は未確立。[L4 Evidence](experiments/2026-10-31-vit-moco-low-lr-l4-imagenet-gpu-evidence.md)
+
+2026-10-31、承認済みの[長めの学習spec](specs/2026-10-31-vit-moco-low-lr-long-run-spec.md)（LR 3e-4、新規1,000step、probe `[0,1,2,10,100,256,500,1000]`、checkpointは1,000step目のみ）を研究コードに実装した（`feature-vit-moco@46ad983` 上の未commit差分）。新preset `moco_vit_lr_long` と `lr_long` profileのときだけ、GPUで `max_steps=1000` を許可する。L4 runとの共通部分を突き合わせるため、比較軸 `--comparison-axis prefix` も追加した。**CPU Gate T0〜T3はPASS**で、全テストの失敗ID集合は変更前後で同じ36件（860 passed）。**GPU L5は未許可のため未実施**で、実行前に研究コードのcommitが必要。[実装・CPU検証記録](experiments/2026-10-31-vit-moco-low-lr-long-run-implementation-cpu-verification.md)
+
+2026-11-01、研究コードを `feature-vit-moco@3874568` としてcommitし、**GPU L5（LR 3e-4、LoRA→Full FT、各1,000step）を実行し、両方式とも工学PASS**となった。256stepより前（Queueが本物のkeyで埋まるまで）はlossが8.1台まで上昇した。256stepより後はlossが単調に減少し、100step窓で比べると、LoRAは8.06→7.37、Full FTは7.99→7.28だった。**遅れて起きるcollapseは観測されなかった**：固定probeの `z_q` 方向集中（cos p50）はstep 1〜2の0.45〜0.56からstep 1,000で約0まで下がり、q stdは上限 1/√128 付近の0.087まで広がった。ただし、L4とのprefix比較は `comparable=false` だった：step0の特徴とstep1のlossはbitwise一致したが、step1の勾配から先がずれた。**GPU backwardはrun間でbitwise再現しない**ことが分かり、specに従って上記の解釈は暫定としている。ずれの大きさは、Full FTのstep10 cos p50で2.5e-3。表現品質、1epoch以上での安定性、LoRAとFull FTの優劣は未確立。[L5 Evidence](experiments/2026-11-01-vit-moco-low-lr-l5-1000step-imagenet-gpu-evidence.md)
+
+2026-11-01、次の段階として、学習入力だけをActivityNet単一フレーム（既存の10秒間隔manifest、117,522枚、1epoch=459step）に差し替える[ActivityNet単一フレームspec](specs/2026-11-01-vit-moco-lora-activitynet-single-frame-spec.md)を承認した。LR 3e-4で、LoRA→Full FTの順に10step→459stepを実行する（LRは全期間で一定）。collapse診断にはL4/L5と同じImageNetの固定probe 64枚を使う。現在の診断はImageNetで学習するときしか動かないため、実装が必要（未実装）。同じ日、LoRAが時間情報を学習できるよう、動画clip段階ではlate fusion（フレームごとのCLSの平均）からearly fusion（複数フレームのtokenをViTに同時入力）へ変える方針を[壁打ち](../../../secretary/notes/brainstorm/2026-11-01-early-fusion-vit-lora-temporal.md)で整理した。early fusionに加えて、時間方向の位置情報と、時間を見ないと解けない学習目的が必要。これは単一フレーム段階の後に別specとする。
+
+2026-11-01、このspecを研究コードに実装した（`feature-vit-moco@3874568` 上の未commit差分）。新preset `moco_vit_lr_activitynet` と `lr_activitynet` profileを追加し、ActivityNetで学習するときも固定probeはImageNetから選ぶようにした。実際のImageNetで選び直したprobeの入力ハッシュはL4/L5と一致した。**CPU Gate T0〜T3はPASS**で、変更後に新しく失敗したテストは0件（903 passed）。同日、研究コードを `feature-vit-moco@167f1c1` としてcommitした（push未実施）。**GPU A1/A2は未実施**。[実装・CPU検証記録](experiments/2026-11-01-vit-moco-lora-activitynet-single-frame-implementation-cpu-verification.md)
+
+2026-11-01、GPU A1のLoRA 10stepを実行したが、**step3のデータ読み込みで失敗**した（step1・2は完了）。原因は2026-10-21からある `decode_frame` の問題で、keyframeのdtsが目標時刻以下でptsが目標時刻より後の場合、seek後に条件を満たすframeが見つからない（`v_5kBKAfEX7XA.mp4` の45 s）。同じ理由で失敗するframeが何件あるかは未確認。あわせて、1つのrankのデータエラーで他のrankが30分待ってから終了することと、最初のbatchの読み込みに最大約10分かかったことも分かった。Full FTのA1とA2は未実施。[A1失敗記録](experiments/2026-11-01-vit-moco-lora-activitynet-a1-lora-gpu-failure.md)
+
+2026-11-02、`decode_frame` を修正した。seekが目標時刻を越えた場合は、手前から読み直す。あわせて、1つのrankのデータエラーで全rankがすぐ止まるようにした（`feature-vit-moco@167f1c1` 上の未commit差分、新規テスト4件）。全テストの失敗ID集合は修正前と同じだった。修正後のコードで全117,522 frameを取り出したところ、**エラーは0件**だった。修正前なら失敗していたframeは43件（42動画）あった。1 frameあたりの取り出し時間は平均0.53 s。A1は未再実行。[A1失敗記録（11/02追記）](experiments/2026-11-01-vit-moco-lora-activitynet-a1-lora-gpu-failure.md)
+
+2026-11-02、修正をcommitし（`feature-vit-moco@9155c2b`）、tmuxの専用セッションからA1 LoRA 10stepを再実行した。**10stepを完走し、工学PASS**となった。VRAMのpeakは約11.8 GiB/rank。固定probeの入力ハッシュはL4/L5と一致した。最初のbatchを読み込むのに約3分かかり、A2（459step）は約35分〜1.5時間と見積もる（未確定）。10stepでQueueがほとんど埋まっていないため、学習の挙動については何も主張しない。Full FTのA1とA2は未実施。[A1再実行Evidence](experiments/2026-11-02-vit-moco-lora-activitynet-a1-lora-gpu-evidence.md)
+
+2026-11-03、同じtmuxセッションからA1 Full FT 10stepを実行した。**10stepを完走し、工学PASS**となった。VRAMのpeak reservedはGPU1で18,346 MiB / 20,096（headroom 1,750 MiB、閾値1,024 MiB）。LoRAのA1との比較器は `comparable=true` で、学習入力・probe入力・step0の特徴が一致した。これで**A1は両方式とも工学的な成功条件を満たした**。最初のbatchの読み込みは約3分で、LoRAと同程度だった。学習の挙動やLoRAとFull FTの優劣については何も主張しない。A2は未実施。[A1 Full FT Evidence](experiments/2026-11-03-vit-moco-lora-activitynet-a1-full-ft-gpu-evidence.md)
+
+2026-11-03、A2のLoRA（459step＝1epoch）を実行した。**459stepを完走し、工学PASS**となった（checkpoint step459あり、固定probeの入力ハッシュはL4/L5と一致）。256stepより後（Queueがすべて本物のkey）は、50step窓のlossが単調に減少した（8.671→8.382）。固定probeのz_qの方向集中は、step10の0.63からstep256で0.10まで下がり、**collapseは観測されなかった**（暫定）。A1とのprefix比較では、step0の特徴とstep1のlossがbitwise一致し、それ以降はL5と同じ種類のわずかなずれがあった。実際の1stepは約3.8秒で、そのうち約2.3秒はデータ読み込みの待ちだった。表現品質やLoRAとFull FTの優劣については何も主張しない。Full FTのA2は未実施。[A2 LoRA Evidence](experiments/2026-11-03-vit-moco-lora-activitynet-a2-lora-gpu-evidence.md)
+
+2026-11-03、A2のFull FT（459step）を実行した。**459stepを完走し、工学PASS**となった（checkpoint step459あり、VRAMのheadroomはGPU1で1,750 MiB）。LoRAのA2との比較器は `comparable=true` で、全459stepの学習入力・probe入力・step0の特徴が一致した。256stepより後の50step窓のlossは単調に減少し（8.498→8.123）、固定probeのz_qの方向集中はstep256以降約0.1で、**collapseは観測されなかった**（暫定）。同じ窓でFull FTのlossはLoRAより約0.17〜0.26低いが、単一seed・1epochの記述であり、優劣は主張しない。データ読み込みの待ちは約0.7秒/stepで、LoRA（約2.3秒/step）より短かった（OSのファイルキャッシュの可能性、未確認）。**これでspec §8の工学的な成功条件（A1・A2、両方式）がすべて揃った。**[A2 Full FT Evidence](experiments/2026-11-03-vit-moco-lora-activitynet-a2-full-ft-gpu-evidence.md)
+
 ## マイルストーン
 
 - [ ] 研究方針を整理する
@@ -121,6 +143,17 @@ last_updated: 2026-10-31
 
 | 日付 | 内容 |
 |------|------|
+| 2026-11-01 | ActivityNet単一フレームspecを実装した。lr_activitynet presetを追加し、ImageNetの固定probeを維持した（入力ハッシュはL4/L5と一致）。CPU Gate T0〜T3はPASS、新しく失敗したテストは0件。研究コードは `feature-vit-moco@167f1c1` でcommit。GPU A1/A2は未実施。[実装記録](experiments/2026-11-01-vit-moco-lora-activitynet-single-frame-implementation-cpu-verification.md) |
+| 2026-11-01 | GPU A1（LoRA 10step）がstep3のフレーム読み込みエラー（既存のdecode_frameのseek問題）で失敗。[A1失敗記録](experiments/2026-11-01-vit-moco-lora-activitynet-a1-lora-gpu-failure.md) |
+| 2026-11-02 | decode_frameのseek問題を修正し、rank間でデータエラーを共有するようにした（未commit）。全117,522 frameの取り出しエラーは0件（修正前なら43件が失敗）。[A1失敗記録](experiments/2026-11-01-vit-moco-lora-activitynet-a1-lora-gpu-failure.md) |
+| 2026-11-02 | 修正を9155c2bでcommitし、A1 LoRA 10stepを再実行して工学PASS。[A1再実行Evidence](experiments/2026-11-02-vit-moco-lora-activitynet-a1-lora-gpu-evidence.md) |
+| 2026-11-03 | A1 Full FT 10stepを実行して工学PASS。LoRAとの比較器もcomparable=true。[A1 Full FT Evidence](experiments/2026-11-03-vit-moco-lora-activitynet-a1-full-ft-gpu-evidence.md) |
+| 2026-11-03 | A2 LoRA（459step）を実行して工学PASS。Queueが埋まった後にlossが減少し、collapseは観測されなかった（暫定）。データ読み込み待ちは約2.3秒/step。[A2 LoRA Evidence](experiments/2026-11-03-vit-moco-lora-activitynet-a2-lora-gpu-evidence.md) |
+| 2026-11-03 | A2 Full FT（459step）を実行して工学PASS。LoRAとの比較器もcomparable=true。collapseは観測されなかった（暫定）。ActivityNet単一フレームspecの工学的な成功条件がすべて揃った。[A2 Full FT Evidence](experiments/2026-11-03-vit-moco-lora-activitynet-a2-full-ft-gpu-evidence.md) |
+| 2026-11-01 | ActivityNet単一フレーム段階のspec（10step→459step、LR 3e-4、ImageNet固定probe）を承認した（未実装）。動画clip段階はearly fusionへ変える方針を壁打ちで整理した。[spec](specs/2026-11-01-vit-moco-lora-activitynet-single-frame-spec.md) |
+| 2026-11-01 | GPU L5（LR 3e-4、各1,000step、`3874568`）を両方式で実行し工学PASS。Queueが埋まった後、lossは単調に減少し、遅れて起きるcollapseは観測されなかった（暫定）。L4とのbitwise一致は不合格で、GPU backwardのrun間非決定性が判明した。[L5 Evidence](experiments/2026-11-01-vit-moco-low-lr-l5-1000step-imagenet-gpu-evidence.md) |
+| 2026-10-31 | 長めの学習spec（1,000step）を承認・実装した。lr_long presetと比較軸prefixを追加し、CPU Gate T0〜T3はPASS、失敗ID集合は不変（未commit）。GPU L5は未実施。[実装記録](experiments/2026-10-31-vit-moco-low-lr-long-run-implementation-cpu-verification.md) |
+| 2026-10-31 | ViT+MoCo低LR対照L4（3e-4）を両方式で10step実行し工学PASS。初回更新直後のProjector方向集中とFull FTのCLS同方向化は起きなかった。GPU構成の変更で0.03との厳密比較は未成立。[L4 Evidence](experiments/2026-10-31-vit-moco-low-lr-l4-imagenet-gpu-evidence.md) |
 | 2026-10-31 | 実装リポジトリのブランチを整理。`dev` をResNet MoCo公式一致段階 `7fc1f56` に戻し、ViT+MoCoの作業を `feature-vit-moco` へ移した。以後は `feature-*` → `dev` → `main` の順に反映する運用とする |
 | 2026-10-23 | 10月22日のMTGを議事録化。静的・動的分離の先行研究からLoRA解析へつなぐ位置づけを再確認。事前学習経路の成立を優先し、その後strideによるLoRAの変化を比較する。中間発表には自分の全体構成図と未実施も含む実験設定・解析計画を示す。次回水曜10:30案は調整中。[議事録](meetings/2026-10-22-mtg.md) |
 | 2026-10-21 | ViT Full FT / LoRAのG3 ImageNet 2GPU・1stepは両方式PASS。rank0/1のVRAM Gate、final state、入力hashの一致をユーザー提出ローカルレポート集計で確認。GPU peak reservedは12038/16862 MiB。10/20stepは未実施。[G3 Evidence](experiments/2026-10-21-vit-ddp-moco-g3-imagenet-1step-console-evidence.md) |
