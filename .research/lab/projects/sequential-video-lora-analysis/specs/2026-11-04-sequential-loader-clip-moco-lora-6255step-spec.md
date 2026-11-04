@@ -14,7 +14,7 @@ source_brainstorm: ../../../../secretary/notes/brainstorm/2026-11-04-sequential-
 
 # sequential-loader（stride 16）でclip MoCo LoRAを6,255step学習し、lossが下がるかを確かめるspec
 
-**Status: implemented（2026-11-04。CPUテストS1〜S8はPASS、研究コード `feature-vit-moco@eb2e824`・loader `feature-stride-ddp@4026b06` としてcommit済み。G1は工学PASS（データ待ち約3.2秒/step）。§10aの追記（D12・D13）は実装し、CPUテストS1〜S9はPASS。研究コード `f16a485`・loader `b114c17` としてcommit済み。G1の再実行は工学PASS（データ待ち約2.3秒/step）。G2はstep 1,601（epoch 0の終わり）で失敗した。§10bの追記（D14、loader workerをforkserverで起動する）を実装し、CPUテストS10〜S12はPASS。研究コード `1a37860`・loader `ce4dcbc` としてcommit済み。G1b・G1の再実行と、G2のやり直しは未実施。[実装記録](../experiments/2026-11-04-sequential-loader-clip-moco-lora-implementation-cpu-verification.md)）**。**Status: approved（2026-11-04、ユーザーが承認）**。blockingな未決事項はない（B1・B2は2026-11-04に決定、§10）。実装は、別に指示を受けてから行う。研究コードの実装とGPU runは、specが承認された後に、それぞれ別に許可を得てから行う（§9）。
+**Status: implemented（2026-11-04。CPUテストS1〜S8はPASS、研究コード `feature-vit-moco@eb2e824`・loader `feature-stride-ddp@4026b06` としてcommit済み。G1は工学PASS（データ待ち約3.2秒/step）。§10aの追記（D12・D13）は実装し、CPUテストS1〜S9はPASS。研究コード `f16a485`・loader `b114c17` としてcommit済み。G1の再実行は工学PASS（データ待ち約2.3秒/step）。G2はstep 1,601（epoch 0の終わり）で失敗した。§10bの追記（D14、loader workerをforkserverで起動する）を実装し、CPUテストS10〜S12はPASS。研究コード `1a37860`・loader `ce4dcbc` としてcommit済み。G1bは正常（3epoch、残ったプロセスなし）。原因は「spawnで起動したworkerが終了時にabortすること」だったと訂正した（§10bの訂正）。G1の再実行と、G2のやり直しは未実施。[実装記録](../experiments/2026-11-04-sequential-loader-clip-moco-lora-implementation-cpu-verification.md)）**。**Status: approved（2026-11-04、ユーザーが承認）**。blockingな未決事項はない（B1・B2は2026-11-04に決定、§10）。実装は、別に指示を受けてから行う。研究コードの実装とGPU runは、specが承認された後に、それぞれ別に許可を得てから行う（§9）。
 
 ## 1. 目的と背景
 
@@ -217,6 +217,8 @@ G2は、step 1,600を終えた直後、epoch 0の終わり（step 1,601）で失
 - CPUだけ（CUDAもNCCLもなし）では再現しない。
 - workerをforkserverで作ると、同じ条件で3epochとも正常に終わる。1epochの時間も遅くならない。
 
+> **訂正（2026-11-05）**：上の説明の「forkで作る（今の方式）」は誤りだった。rankは `mp.spawn` で起動しているため、loaderのworkerは実際には **spawn** で起動していた。CPUだけでも、spawnで起動するとepochの終わりにabortし、forkでは正常に終わった（CUDAとNCCLは関係しない。[G2 Evidence](../experiments/2026-11-04-sequential-loader-clip-moco-lora-g2-gpu-evidence.md) の訂正）。採用案D14（forkserver）と実装要件は、この訂正の後でも変わらない。
+
 ### 採用案（D14）
 
 | # | 内容 |
@@ -274,3 +276,4 @@ non-blocking：
 - 2026-11-05：B3・B4とも(a)を、ユーザーが採用した。G2は、修正後にstep 0からやり直す。起動方式は、loaderの設定項目（L4）にして、研究コードのpresetからforkserverを指定する。§10bの承認は、まだ受けていない。
 - 2026-11-05：ユーザーが§10bを承認した。実装するbranchは今のまま（loader `feature-stride-ddp@b114c17`、研究コード `feature-vit-moco@f16a485`）。GPU run（G1b・G1・G2）は、それぞれ別に許可を得る。
 - 2026-11-05：§10bのL4・I9を実装した（loader `b114c17`・研究コード `f16a485` の上）。研究コード `1a37860`・loader `ce4dcbc` としてcommitした（pushはしていない）。S10〜S12はPASS（loaderの全テスト215件OK、変換なしの出力は `b114c17` とbitwise一致、研究コードの全テストの失敗ID集合は変わらない）。G1b・G1・G2はまだ行っていない。
+- 2026-11-05：G1bを実行し、正常に終わった（3epoch、残ったプロセスなし）。原因の説明を訂正した（workerはforkではなくspawnで起動していた。§10bの訂正）。研究コードのコメントを `9285a47` で訂正した。`ce4dcbc`・`1a37860` のcommitメッセージの誤った説明は、書き換えずに残してある。

@@ -121,3 +121,27 @@ CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke --config-
 
 - epoch末でworkerがabortする原因の特定と修正。
 - G2のやり直し（step 1,000のcheckpointから再開するか、最初からやり直すか）。どちらも、epoch末の問題を直してからでないと、step 1,601付近で同じ失敗を繰り返す見込み。
+
+## 訂正（2026-11-05）：workerはforkではなくspawnで起動していた
+
+上の「GPU 0・1での再現」の結論では、原因を「CUDAとNCCLを使っているプロセスからworkerをforkで作ったこと」としていた。**この説明は誤りだった**。
+
+- G1b（下記）のログで確かめたところ、rankのプロセスでの既定の起動方式は **spawn** だった。rankは `mp.spawn` で起動しているので、その子プロセスの既定の方式もspawnになる。loaderの `DataLoader` は `multiprocessing_context` を指定していなかった。そのため、G2と最初の再現では、**loaderのworkerはspawnで起動していた**。
+- 残ったworker 16個のコマンド行（`spawn_main(tracker_fd=4, pipe_handle=…)`、pipe_handleはプロセスごとに違う）も、spawnで起動されたプロセスのものだった。
+- CPUだけで確かめ直した（2026-11-05 00:55ごろ、scratchpadの `seqtrain/repro_epoch_end_method.py`）。1 rank、B=128、W=16、先頭128本で、プロセス全体の既定の方式だけを変えた。
+  - **spawn**：epochの終わりにworkerが `SIGABRT` で止まった（`DataLoader worker … is killed by signal: Aborted.`）。**GPUもNCCLもなしで再現した**。
+  - **fork**：3stepでepochが終わり、正常に終了した（最初のCPUの試しと同じ）。
+- 訂正した結論：**spawnで起動したworkerが、終了するときにabortする**。CUDAとNCCLは関係ない。最初のCPUの試しで再現しなかったのは、1つのプロセスで動かしたため、workerがforkで起動していたからである。
+- なぜspawnのworkerだけが終了時にabortするのかは確認していない。推定では、spawnの子プロセスはPythonを普通に終了する（C++の後片付けが動く）のに対し、forkとforkserverの子プロセスは `os._exit` で終了する。この違いによると考えられる。
+- 修正（forkserver、spec §10b）は、この訂正の後でも有効である。forkserverで起動したworkerは、G1bでも正常に終わった。
+- 誤った説明の残り：loader `ce4dcbc` と研究コード `1a37860` のcommitメッセージには「CUDAとNCCLを使うrankからforkしたworker」と書かれている（commitは書き換えていない）。研究コードの冒頭のコメントは `9285a47` で訂正し、そのcommitメッセージに `1a37860` の誤りも記した。loaderのコード・コメントには、誤った説明はない。
+
+## G1b：presetの設定のforkserverで、epochの終わりを確かめる（2026-11-05 00:49、ユーザーの許可を得て実行）
+
+- 研究コード `1a37860`（clean）、loader `ce4dcbc`（clean）。GPU 0・1、tmux `vit-moco-a1`。
+- 上と同じ作業用スクリプト `repro_epoch_end_ddp.py` を使った。プロセス全体の既定の方式は変えず（spawnのまま）、`build_loader` に渡るpresetの設定（`multiprocessing_context: forkserver`）だけでworkerを起動した。2 rank、CUDAとNCCLを使った状態、256本、3epochである。
+- 結果：**3epochとも、両rankで正常に終わった**（各2step、`exhausted`）。
+  - `terminate called` は出ず、exit 0。
+  - 終わったあとに残ったプロセスもない。
+  - 1epochあたり約26〜27秒。
+  - 出力は `seq-g1b-epochend.log`（scratchpad）。

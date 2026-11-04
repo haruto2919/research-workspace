@@ -121,7 +121,7 @@ CPUでの小さな試し実行（7step）では、tiny ViTのlossは0.24→2.20�
 
 ## 追記（2026-11-05、G2の失敗の後）：loader workerをforkserverで起動する（spec §10b、D14）
 
-[G2](2026-11-04-sequential-loader-clip-moco-lora-g2-gpu-evidence.md)は、epoch 0の終わり（step 1,601）で、loader workerの `SIGABRT` によって止まった。CUDAとNCCLを使うrankのプロセスから、workerをforkで作っていたことが原因だった（GPUで再現を確認）。そこで、spec §10bに追記した変更を、研究コード `f16a485`・loader `b114c17` の上に実装し、研究コード `1a37860`・loader `ce4dcbc` としてcommitした（pushはしていない）。
+[G2](2026-11-04-sequential-loader-clip-moco-lora-g2-gpu-evidence.md)は、epoch 0の終わり（step 1,601）で、loader workerの `SIGABRT` によって止まった。原因は、workerがspawnで起動していたことだった（rankが `mp.spawn` で起動しているため。2026-11-05に、CPUだけでspawnなら再現し、forkなら正常に終わることを確認した。最初は「CUDAとNCCLを使うrankからforkで作ったこと」と説明していたが、誤りだった）。そこで、spec §10bに追記した変更を、研究コード `f16a485`・loader `b114c17` の上に実装し、研究コード `1a37860`・loader `ce4dcbc` としてcommitした（pushはしていない）。
 
 | リポジトリ | ファイル | 内容 |
 |---|---|---|
@@ -144,6 +144,6 @@ CPUでの小さな試し実行（7step）では、tiny ViTのlossは0.24→2.20�
 
 ### まだ行っていないこと（それぞれ別に許可が必要）
 
-- G1b：作業用スクリプトで、presetの設定（`build_loader` 経由）のforkserverでepochの終わりを3回確かめる（GPU 0・1）。
+- ~~G1b~~：2026-11-05に実行した。3epochとも正常に終わり、残ったプロセスもなかった（[G2 Evidence](2026-11-04-sequential-loader-clip-moco-lora-g2-gpu-evidence.md)）。
 - G1：10stepの再実行。
 - G2：6,255stepを、step 0からやり直す（B3）。
