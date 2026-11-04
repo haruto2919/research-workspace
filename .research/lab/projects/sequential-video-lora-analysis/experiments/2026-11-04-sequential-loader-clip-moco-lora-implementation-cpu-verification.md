@@ -87,3 +87,63 @@ CPUでの小さな試し実行（7step）では、tiny ViTのlossは0.24→2.20�
 - 既存のpreset、data source、学習経路、checkpoint形式は変えていない。既存テストの結果も変わらない（S8）。
 - 既存の経路の1stepの処理は `run_step` に移したが、処理の順番と中身は同じである。resumeのテスト（bitwise一致）も、変わらずPASSしている。
 - 依存パッケージは追加していない。
+
+## 追記（2026-11-04、G1の後）：main processでの作業を減らす（spec §10a、D12・D13）
+
+[G1](2026-11-04-sequential-loader-clip-moco-lora-g1-gpu-evidence.md)では、毎step約3.2秒のデータ待ちがあった。CPUだけで測ると、原因はmain processでの2つの作業だった。1つは元のフレームの受け取り（1 rankあたり毎step約1.28 GB）、もう1つは入力全体のsha256（約1秒）である。そこで、spec §10aに追記した変更を、`eb2e824`／`4026b06` の上に実装し、研究コード `f16a485`・loader `b114c17` としてcommitした（pushはしていない）。
+
+| リポジトリ | ファイル | 内容 |
+|---|---|---|
+| loader | `src/sequential/multistream.py`（+39／−6） | L3：`ChunkInfo`（sequence_id、source_id、sequence_index、is_first、is_last、frame_indices、timestamps、valid_mask）を追加した。`sample_transform` を指定したとき、workerは元のフレームの代わりにこれを返す。変換しない場合の出力は変わらない |
+| loader | `tests/test_multistream_transform.py`（+21／−4） | 変換したときの `samples` は `ChunkInfo` でframesを持たず、値は変換しない場合のsampleと一致する。`outputs` は、変換しない場合のsampleへの変換結果と一致する |
+| 研究コード | `scripts/vit_moco/activitynet_sequential.py`（+11／−6） | I8：`SequentialClipTransform` は、(view q, view k, 埋めたフレーム数, view qのsha256, view kのsha256) を返す。data記録に `input_sha256_rule` を加えた |
+| 研究コード | `scripts/vit_moco/moco_vit_ddp_smoke.py`（+2／−1） | `input_sha256` の `im_q`／`im_k` は、128 clip分のviewのsha256を並べたJSONの一覧のsha256（D13） |
+| 研究コード | `test/model/test_vit_moco_seq_activitynet_clip.py`（+7／−4） | S9：loaderからframesが返らない。clipごとのsha256が、viewから計算し直した値と一致する。data記録に `input_sha256_rule` がある |
+
+### 検証
+
+| # | 内容 | 結果 |
+|---|---|---|
+| S9 | 上の表のとおり | PASS |
+| S1〜S7 | この変更の後に再び実行した（31件）。S6のresumeは、止めずに学習した場合と再びbitwise一致した | PASS |
+| S8 | 研究コードの全テスト：**36 failed / 1003 passed**、失敗IDの集合は変更前と**完全に一致**<br>loaderの全テスト：214件OK<br>`sample_transform` なしのloaderの出力は、`85a39c2` と再び**bitwise一致**した | PASS |
+
+### main processの時間（CPUのみ、G1の追記と同じ方法、W=16、2プロセスを同時に動かす）
+
+| 条件 | 受け取り（`next()`） | まとめる | sha256 | 合計 | 毎stepの元のフレーム |
+|---|---|---|---|---|---|
+| 変更前・毎step 8.7秒待つ | 0.5秒 | 0.13秒 | 1.0秒 | 約1.65秒 | 約1.28 GB |
+| **変更後・毎step 8.7秒待つ** | **0.3秒** | 0.15秒 | **0.0003秒** | **約0.45秒** | **0** |
+| 変更後・待ちなし（loaderが作る速さ） | 3.35秒 | 0.15秒 | 0.0003秒 | 約3.5秒（25stepで約93秒） | 0 |
+
+- loaderは1stepを約3.5秒で作れる。これは学習の計算（約8.7秒）より短いので、先読みが間に合えば、データ待ちはmain processの約0.45秒程度になる見込み。
+- そうなれば、G2は約9.2秒/step×6,255step＝約16時間の見込み。ただし、学習と同時に動かしたときの値は、G1をもう一度行って確かめる（まだ行っていない）。
+
+## 追記（2026-11-05、G2の失敗の後）：loader workerをforkserverで起動する（spec §10b、D14）
+
+[G2](2026-11-04-sequential-loader-clip-moco-lora-g2-gpu-evidence.md)は、epoch 0の終わり（step 1,601）で、loader workerの `SIGABRT` によって止まった。CUDAとNCCLを使うrankのプロセスから、workerをforkで作っていたことが原因だった（GPUで再現を確認）。そこで、spec §10bに追記した変更を、研究コード `f16a485`・loader `b114c17` の上に実装し、研究コード `1a37860`・loader `ce4dcbc` としてcommitした（pushはしていない）。
+
+| リポジトリ | ファイル | 内容 |
+|---|---|---|
+| loader | `src/config.py`（+9／−1） | L4：`MultiStreamConfig.multiprocessing_context`（`None`・`"fork"`・`"spawn"`・`"forkserver"`、既定は `None`）を加えた。ほかの値と、W=0での `None` 以外の指定は `ValueError` |
+| loader | `src/sequential/multistream.py`（+3） | `_worker_parts` の `DataLoader(multiprocessing_context=...)` に、その値をそのまま渡す |
+| loader | `tests/test_multistream.py`（+4） | 設定の検査（拒否する値、受け付ける値） |
+| loader | `tests/test_multistream_transform.py`（+27／−2） | S10：W=2で、forkserverとNone（fork）の2つのepochを比べる。変換なしではbatchがbitwise一致し、`RandomDraw` ではoutputs（乱数の値）と `ChunkInfo` が一致する。`last_epoch_summary`（transform seedを含む）も一致する |
+| 研究コード | `conf/moco_vit_seq_activitynet_clip.yaml`（+1） | I9：`data.sequential.multiprocessing_context: forkserver` |
+| 研究コード | `scripts/vit_moco/activitynet_sequential.py`（+7／−4） | W>0のとき、その値を `MultiStreamConfig` へ渡す（W=0では `None`）。data記録の `streams` に `multiprocessing_context` を残す |
+| 研究コード | `scripts/vit_moco/query_collapse_diagnostic.py`（+1／−1） | `SEQUENTIAL_ADOPTED` に `"data.sequential.multiprocessing_context": "forkserver"` を加えた（GPU runでは、ほかの値を拒否する） |
+| 研究コード | `test/model/test_vit_moco_seq_activitynet_clip.py`（+6／−2） | presetの値、GPU runで `fork` を拒否すること、data記録（W=0では `None`、W=2では `forkserver`）。W=2のworkerのテストは、forkserverのworkerで動く |
+
+### 検証
+
+| # | 内容 | 結果 |
+|---|---|---|
+| S10 | 上の表のとおり | PASS |
+| S11 | loaderの全テスト：215件OK（1件増）<br>変換なしのloaderの出力（W=0・2、stride 1・3、epoch 0・1）は、`b114c17` とbitwise一致した（scratchpadの `seqtrain/cmp_loader.py`） | PASS |
+| S12 | 研究コードのsequential presetとclip presetのテスト：82件PASS（S1〜S9を含む。S6のresumeのbitwise一致もPASS）<br>研究コードの全テスト（GPUが見える状態）：**36 failed / 1004 passed**（1件増）。失敗IDの集合は変更前と**完全に一致** | PASS |
+
+### まだ行っていないこと（それぞれ別に許可が必要）
+
+- G1b：作業用スクリプトで、presetの設定（`build_loader` 経由）のforkserverでepochの終わりを3回確かめる（GPU 0・1）。
+- G1：10stepの再実行。
+- G2：6,255stepを、step 0からやり直す（B3）。

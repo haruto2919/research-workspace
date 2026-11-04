@@ -14,7 +14,7 @@ source_brainstorm: ../../../../secretary/notes/brainstorm/2026-11-04-sequential-
 
 # sequential-loader（stride 16）でclip MoCo LoRAを6,255step学習し、lossが下がるかを確かめるspec
 
-**Status: implemented（2026-11-04。CPUテストS1〜S8はPASS、研究コード `feature-vit-moco@eb2e824`・loader `feature-stride-ddp@4026b06` としてcommit済み。G1・G2は未実施。[実装記録](../experiments/2026-11-04-sequential-loader-clip-moco-lora-implementation-cpu-verification.md)）**。**Status: approved（2026-11-04、ユーザーが承認）**。blockingな未決事項はない（B1・B2は2026-11-04に決定、§10）。実装は、別に指示を受けてから行う。研究コードの実装とGPU runは、specが承認された後に、それぞれ別に許可を得てから行う（§9）。
+**Status: implemented（2026-11-04。CPUテストS1〜S8はPASS、研究コード `feature-vit-moco@eb2e824`・loader `feature-stride-ddp@4026b06` としてcommit済み。G1は工学PASS（データ待ち約3.2秒/step）。§10aの追記（D12・D13）は実装し、CPUテストS1〜S9はPASS。研究コード `f16a485`・loader `b114c17` としてcommit済み。G1の再実行は工学PASS（データ待ち約2.3秒/step）。G2はstep 1,601（epoch 0の終わり）で失敗した。§10bの追記（D14、loader workerをforkserverで起動する）を実装し、CPUテストS10〜S12はPASS。研究コード `1a37860`・loader `ce4dcbc` としてcommit済み。G1b・G1の再実行と、G2のやり直しは未実施。[実装記録](../experiments/2026-11-04-sequential-loader-clip-moco-lora-implementation-cpu-verification.md)）**。**Status: approved（2026-11-04、ユーザーが承認）**。blockingな未決事項はない（B1・B2は2026-11-04に決定、§10）。実装は、別に指示を受けてから行う。研究コードの実装とGPU runは、specが承認された後に、それぞれ別に許可を得てから行う（§9）。
 
 ## 1. 目的と背景
 
@@ -182,6 +182,84 @@ CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke --config-
 - 出力先は、既存と同じく `log/<preset>/lora/<source>/lr_0.0003/<日時>/`。
 - epochの終わり方は、loaderの既存の仕様（どれかの枠が尽きたら終わる）に従う。1epochで、全フレームの一部は読まれずに次のepochへ進む（epochごとに割り当ては変わる）。
 
+## 10a. 追記（2026-11-04、G1の後）：main processでの作業を減らす
+
+G1（10step）では、1stepの計算が約8.7秒だったのに対し、データ待ちが約3.2秒/stepあった（[G1 Evidence](../experiments/2026-11-04-sequential-loader-clip-moco-lora-g1-gpu-evidence.md)）。CPUだけで測ると、原因はworkerの数ではなかった（W=32ではCPUを使い切り、かえって遅くなった）。原因は、main processでの次の2つの作業だった。
+
+- 学習に使わない元の解像度のフレームを受け取ること（1 rankあたり毎step約1.28 GB）
+- 入力全体（約0.6 GB）のsha256を計算すること（約1秒）
+
+ユーザーが次の変更を採用した（2026-11-04）。
+
+| # | 内容 |
+|---|---|
+| D12 | `sample_transform` を指定したときは、loaderは元のフレームをmain processへ返さない。返すのは管理用の情報（動画のID、chunkの番号、最初か最後か、frame index、timestamp、有効位置）と、変換の結果だけにする |
+| D13 | 入力のsha256は、workerの中でclipごと・viewごとに計算する。main processでは、128 clip分のsha256を並べた一覧から、view q・view kそれぞれのsha256を1つずつ作り、`input_sha256` として記録する。今のrun（G1）とは値が違うが、同じ設定のrunどうしの比較（resumeの一致）には同じように使える |
+
+実装要件：
+
+- **L3**（loader）：変換したときの `MultiStreamBatch.samples` は、管理用の情報だけを持つ軽いデータ（`ChunkInfo`）にする。変換しない場合の出力は、変更前と同じにする。
+- **I8**（研究コード）：`SequentialClipTransform` は、view q・view k、埋めたフレームの数、各viewのsha256を返す。main processは、viewをまとめて、一覧のsha256を作る。data記録に、この作り方を残す。
+
+変えないもの：学習の内容（画像、aug、batch、Queue、LR、6,255step、W=16）。GPUでの制約（G1・G2の長さ、probe、checkpoint、決めた値）も変えない。
+
+検証：
+
+- **S9**：変換したときに返る管理用の情報が、変換しない場合のsampleの情報と一致する。clipごとのsha256が、viewから計算し直した値と一致する。S1〜S8を、この変更の後で再びPASSさせる。
+- CPUだけで、main processの1stepあたりの時間を変更の前後で比べる（G1の追記と同じ方法）。
+- G1（10step）をもう一度行い、データ待ちを測る（別に許可を得る）。
+
+## 10b. 追記（2026-11-04、G2の失敗の後）：loader workerをforkserverで起動する【approved、2026-11-05】
+
+G2は、step 1,600を終えた直後、epoch 0の終わり（step 1,601）で失敗した。両rankのloader workerが、片付けの途中で `SIGABRT` を受けて止まった（[G2 Evidence](../experiments/2026-11-04-sequential-loader-clip-moco-lora-g2-gpu-evidence.md)）。GPU 0・1で、次のことを確かめた。
+
+- CUDAとNCCLを使っているrankのプロセスから、workerをforkで作る（今の方式）。この場合、epochの終わりにworkerを片付けるとabortする（48秒で再現）。
+- CPUだけ（CUDAもNCCLもなし）では再現しない。
+- workerをforkserverで作ると、同じ条件で3epochとも正常に終わる。1epochの時間も遅くならない。
+
+### 採用案（D14）
+
+| # | 内容 |
+|---|---|
+| D14 | loaderのworkerを、**forkserver** で起動する。効かせるのはloaderの `DataLoader` だけにする。rankのプロセス（`mp.spawn`）とDDPの起動方式、プロセス全体の既定値は変えない |
+
+### 実装要件
+
+- **L4**（loader）：`MultiStreamConfig` に、任意の `multiprocessing_context`（`None`、または `"fork"`・`"spawn"`・`"forkserver"`）を加える。`_worker_parts` の `DataLoader(multiprocessing_context=...)` に、その値をそのまま渡す。
+  - 既定値は `None`。この場合は、今と同じ既定の方式（Linuxではfork）になり、出力も変更前（`b114c17`）と同じにする。
+  - W=0で `None` 以外を指定した場合は、`ValueError` で拒否する（`persistent_workers` と同じ扱い）。
+- **I9**（研究コード）：
+  - presetに `data.sequential.multiprocessing_context: forkserver` を加え、`build_loader` から `MultiStreamConfig` へ渡す。
+  - data記録の `streams` に、`multiprocessing_context` を残す。
+  - `SEQUENTIAL_ADOPTED` に `"data.sequential.multiprocessing_context": "forkserver"` を加える。GPU runでは、ほかの値を拒否する。
+
+### 変えないもの
+
+学習の内容（画像、aug、batch、Queue、LR、6,255step、W=16、prefetch 2）。workerの乱数の初期化（`transform_seed`）。epochの終わり方。G1・G2の長さ、probe、checkpoint、そのほかの決めた値。
+
+### 検証
+
+- **S10**（CPU）：W>0のとき、forkserverで作った各batchの出力とtransform seedが、fork（`None`）のときと一致する（loaderのテスト）。
+- **S11**（CPU）：loaderの全テストがOK。`multiprocessing_context=None` の出力は `b114c17` と同じ。
+- **S12**（CPU）：研究コードのS1〜S9が再びPASSし、全テストの失敗IDの集合が変わらない。presetが `forkserver` 以外を拒否する。
+- **G1b**（GPU、別に許可が必要）：scratchpadの作業用スクリプト `repro_epoch_end_ddp.py` で、epochの終わりが正常に済むことを確かめる。今回の確認と同じ条件（GPU 0・1、CUDAとNCCLを使った状態、256本、3epoch）で、プロセス全体の切り替えではなく、新しいpresetの設定（`build_loader` 経由）でforkserverにする。
+- **G1**（GPU、別に許可が必要）：10stepを再び実行する。工学PASSであることと、データ待ちが今と同じ程度であることを確かめる。
+
+### 未決事項
+
+blocking：なし。2026-11-05に、ユーザーが次のとおり決めた。
+
+| # | 論点 | 選択肢 | 採用 |
+|---|---|---|---|
+| B3 | G2をどこから始めるか | **(a) step 0から、最初からやり直す**。約20.5時間（約11.8秒/step）。checkpointの系統が1本で済む<br>**(b) G2のstep 1,000のcheckpointから再開する**。checkpointの「設定の同一性」（`config_identity`）にはloaderのcommitが入っている。そのため、今のままでは再開が拒否される。再開するには、このprofileだけ同一性の比べ方を変える必要がある（loaderのcommitとworkerの起動方式を比べないなど）。節約できるのは、約3.3時間からepoch 0の1,000step分の読み飛ばし（40〜50分）を引いた、約2.5時間 | **(a)**（2026-11-05、ユーザーが採用）。step 1,000のcheckpointは使わない |
+| B4 | 起動方式を指定する場所 | **(a) loaderの設定項目にする（L4）**。既定値は今の方式のままで、研究コードのpresetからforkserverを指定する<br>**(b) loaderの中で、W>0なら常にforkserverにする**。設定は増えないが、loaderのほかの利用者（ほかのテストなど）の挙動も変わる。また、workerに渡すものすべてが、送れる形（pickle）でなければならなくなる | **(a)**（2026-11-05、ユーザーが採用） |
+
+non-blocking：
+
+- forkserverのworkerの起動は、epochごとに行う（`persistent_workers` は使わない、今と同じ）。今回の確認では、1epochの時間は遅くならなかった。
+- 今回の再現では、forkの方式で片方のrankが止まると、もう片方のrankのworkerが親のない状態で残った。forkserverで同じことが起きるかは、G1bで、終わったあとに残ったプロセスを確かめて報告する（それ以上の対策は、このspecの範囲外）。
+- G1で、途中停止（`stopped`）の片付けが正常だった理由は、このspecでは調べない。
+
 ## 11. 承認記録
 
 - 2026-11-04：draftを作成した。D1〜D10は、ユーザーが壁打ちで採用した内容である。
@@ -189,3 +267,10 @@ CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke --config-
 - 2026-11-04：ユーザーがspecを承認した。実装するbranchは、新しく切らずに今のbranch（研究コード `feature-vit-moco@50ff715`、loader `feature-stride-ddp@85a39c2`）とする。研究コードの `.venv` はloaderの作業ツリーを直接読み込むため、loaderの変更は研究コードからすぐに見える。
 - 2026-11-04：実装した（研究コード `feature-vit-moco@50ff715`、loader `feature-stride-ddp@85a39c2` の上、未commit）。CPUテストS1〜S8はPASS。specの範囲内で、2つの点を直した。1つ目は、このprofileだけresumeを受け付けるようにし、resumeしたrunではstep 0のprobeを取り直すようにしたこと。2つ目は、loaderが途中で止めたepochのstepsを、1つ少なく数えていたこと。
 - 2026-11-04：研究コードを `feature-vit-moco@eb2e824`、loaderを `feature-stride-ddp@4026b06` としてcommitした（pushはしていない）。
+- 2026-11-04（G1の後）：§10aのD12・D13（元のフレームを返さない、sha256をworkerの中でclipごとに計算する）を、ユーザーが採用した。
+- 2026-11-04：§10aのD12・D13を実装した（未commit）。CPUテストS1〜S9はPASSし、全テストの失敗ID集合は変わらない。main processの1stepあたりの時間は、CPUのみの測定で約1.65秒から約0.45秒になった。
+- 2026-11-04：研究コード `feature-vit-moco@f16a485`、loader `feature-stride-ddp@b114c17` としてcommitし、G1を再実行した（工学PASS、データ待ち約2.3秒/step）。
+- 2026-11-04（G2の失敗の後）：§10b（D14、loader workerをforkserverで起動する）をdraftとして追記した。B3・B4は未決のため、まだ承認されていない。
+- 2026-11-05：B3・B4とも(a)を、ユーザーが採用した。G2は、修正後にstep 0からやり直す。起動方式は、loaderの設定項目（L4）にして、研究コードのpresetからforkserverを指定する。§10bの承認は、まだ受けていない。
+- 2026-11-05：ユーザーが§10bを承認した。実装するbranchは今のまま（loader `feature-stride-ddp@b114c17`、研究コード `feature-vit-moco@f16a485`）。GPU run（G1b・G1・G2）は、それぞれ別に許可を得る。
+- 2026-11-05：§10bのL4・I9を実装した（loader `b114c17`・研究コード `f16a485` の上）。研究コード `1a37860`・loader `ce4dcbc` としてcommitした（pushはしていない）。S10〜S12はPASS（loaderの全テスト215件OK、変換なしの出力は `b114c17` とbitwise一致、研究コードの全テストの失敗ID集合は変わらない）。G1b・G1・G2はまだ行っていない。
