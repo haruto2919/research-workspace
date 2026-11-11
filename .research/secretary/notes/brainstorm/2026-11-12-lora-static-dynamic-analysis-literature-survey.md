@@ -59,15 +59,11 @@ Research Workspaceの2026-11-11時点の記録では、次が確認済みであ�
 
 LoRAでは各対象行列に対して
 
-[
-W' = W_0 + sBA = W_0 + ΔW
-]
+`W′ = W₀ + sBA = W₀ + ΔW`
 
 となる。AとBには、任意の可逆行列Rについて
 
-[
-BA = (BR)(R^{-1}A)
-]
+`BA = (BR)(R⁻¹A)`
 
 という再パラメータ化の曖昧性がある。そのため、AとBの要素・方向をそのまま意味解釈するより、まず実際に重みへ加わる **ΔW=sBA** を解析するのが安全である。
 
@@ -77,19 +73,17 @@ BA = (BR)(R^{-1}A)
 
 各layer・Q/K/Vごとに
 
-[
-ΔW = USigma V^	op
-]
+`ΔW = UΣVᵀ`
 
 を計算し、少なくとも次を記録する。
 
 | 指標 | 意味 | 注意 |
 |---|---|---|
-| (|ΔW|_F / |W_0|_F) | 相対的な更新量 | 大きいだけでは有用とは限らない |
-| (|ΔW|_2 / |W_0|_2) | 最大方向の強さ | 1方向への集中を検出しやすい |
+| Frobenius norm比 `normF(ΔW) / normF(W₀)` | 相対的な更新量 | 大きいだけでは有用とは限らない |
+| spectral norm比 `norm2(ΔW) / norm2(W₀)` | 最大方向の強さ | 1方向への集中を検出しやすい |
 | 特異値スペクトル | rank内で何方向が使われたか | rank=8でも実質1〜2方向の場合がある |
 | cumulative energy@k | 上位k方向が占める二乗エネルギー | 上位方向アブレーションのk選択に使う |
-| stable rank | (|ΔW|_F^2/|ΔW|_2^2) | 実効的な広がり |
+| stable rank | `normF(ΔW)² / norm2(ΔW)²` | 実効的な広がり |
 | entropy effective rank | 正規化特異値のエントロピー | layer間比較に使える |
 | principal angles | 2つの更新部分空間の重なり | seed、ordered/shuffle、単一frame/clip間で比較 |
 | (U,V)と(W_0)の主特異空間の重なり | 元モデルの既存方向を使うか、新方向を作るか | 新方向=動的情報とは限らない |
@@ -119,7 +113,7 @@ ICML 2024のDoRAは、重みをmagnitudeとdirectionに分けるとLoRAとFull F
 - 各ΔWの上位特異方向のみ
 - 各ΔWから上位特異方向を除去
 - 同じFrobenius normを除去するランダム方向
-- LoRA scale (gammain{0,0.25,0.5,1,1.5,2})
+- LoRA scale `γ ∈ {0, 0.25, 0.5, 1, 1.5, 2}`
 
 動的課題の性能が、静的課題よりも特定のlayer・方向・scaleに強く依存するなら、動的情報との因果的対応を示せる。
 
@@ -129,11 +123,7 @@ ICML 2024のDoRAは、重みをmagnitudeとdirectionに分けるとLoRAとFull F
 
 同じ入力xに対して、
 
-[
-h_0(x)=f_{W_0}(x), quad
-h_L(x)=f_{W_0+ΔW}(x), quad
-Delta h(x)=h_L(x)-h_0(x)
-]
+`h₀(x)=f_W₀(x)`, `h_L(x)=f_(W₀+ΔW)(x)`, `Δh(x)=h_L(x)−h₀(x)`
 
 を保存する。
 
@@ -193,17 +183,11 @@ layerまたはchannelごとにペアのactivation相関を計算し、static、d
 
 本研究では、Kowalの手順をそのままCLSだけに適用するより、次のようにLoRA差分へ拡張する。
 
-[
-G_{mathrm{dyn}} =
-I_{mathrm{dyn}}(Base+LoRA)-I_{mathrm{dyn}}(Base)
-]
+`G_dyn = I_dyn(Base+LoRA) − I_dyn(Base)`
 
-[
-G_{mathrm{stat}} =
-I_{mathrm{stat}}(Base+LoRA)-I_{mathrm{stat}}(Base)
-]
+`G_stat = I_stat(Base+LoRA) − I_stat(Base)`
 
-主張したいのは単なる (I_{mathrm{dyn}}>I_{mathrm{stat}}) ではなく、**LoRAを足した増分として (G_{mathrm{dyn}}>G_{mathrm{stat}})** である。
+主張したいのは単なる `I_dyn > I_stat` ではなく、**LoRAを足した増分として `G_dyn > G_stat`** である。
 
 ### 3.2 推奨する反実仮想入力
 
@@ -276,13 +260,7 @@ Arrow-of-timeは、不可逆な物理変化を含むclipに限定しないとcha
 
 たとえば動的probe性能 (P) に対して、
 
-[
-mathrm{Temporal Gain}
-=
-[P(Base+LoRA_{ordered})-P(Base)]
--
-[P(Base+LoRA_{shuffled})-P(Base)]
-]
+`Temporal Gain = [P(Base+LoRA_ordered) − P(Base)] − [P(Base+LoRA_shuffled) − P(Base)]`
 
 を求める。orderedだけが動的課題で改善し、静的課題では差が小さいなら、時間順序による学習の因果効果を示せる。
 
@@ -326,10 +304,10 @@ mathrm{Temporal Gain}
 
 単一の「動的スコア」に潰さず、最低限以下を並べる。
 
-- Dynamic probe gain: (P_{dyn}(Base+LoRA)-P_{dyn}(Base))
-- Static probe gain/leakage: (P_{stat}(Base+LoRA)-P_{stat}(Base))
+- Dynamic probe gain: `P_dyn(Base+LoRA) − P_dyn(Base)`
+- Static probe gain/leakage: `P_stat(Base+LoRA) − P_stat(Base)`
 - ΔCLS dynamic/static decodability
-- Kowal型 (G_{dyn},G_{stat})
+- Kowal型 `G_dyn, G_stat`
 - reverse/shuffle/staticのpaired effect size
 - unseen appearance/sceneでのdynamic task performance
 - ablationによるdynamic task dropとstatic task drop
