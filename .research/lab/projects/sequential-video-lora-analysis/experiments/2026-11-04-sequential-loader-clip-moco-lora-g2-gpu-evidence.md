@@ -2,7 +2,7 @@
 project: sequential-video-lora-analysis
 date: 2026-11-04
 record_type: gpu-run-evidence
-status: g2-failed-at-epoch-end
+status: g2-engineering-pass
 research_repository: tamaki-lab/2026_09_ishikawa_sequential-video-lora
 research_branch: feature-vit-moco
 research_commit: f16a485
@@ -13,6 +13,8 @@ spec: ../specs/2026-11-04-sequential-loader-clip-moco-lora-6255step-spec.md
 # sequential-loader（stride 16）clip MoCo LoRA：GPU G2（6,255step予定）
 
 [spec](../specs/2026-11-04-sequential-loader-clip-moco-lora-6255step-spec.md) §7のG2を、ユーザーの許可を得て実行した。**step 1,600を終えた直後、epoch 0の終わり（step 1,601のデータ読み込み）で、両rankのloader workerが `SIGABRT` で止まり、runは失敗した**。学習そのもの（step 1〜1,600）には異常はなかった。
+
+> **追記（2026-11-09）**：loaderのworkerをforkserverで起動するように直し（spec §10b）、G2をstep 0からやり直した。step 2,114で一度止め、step 2,000のcheckpointから再開して、**6,255stepを完走し、工学PASS**となった。結果は末尾の「G2の完走」にある。
 
 ## 実行
 
@@ -145,3 +147,142 @@ CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke --config-
   - 終わったあとに残ったプロセスもない。
   - 1epochあたり約26〜27秒。
   - 出力は `seq-g1b-epochend.log`（scratchpad）。
+
+## G2のやり直し（2026-11-05、step 0から、spec §10b B3）
+
+- G1の3回目（上のG1 Evidenceの追記）が工学PASSだったので、ユーザーの許可どおり、G2をstep 0から始めた。
+- 研究コード `9285a47`（clean）、loader `ce4dcbc`（clean）。`CUDA_VISIBLE_DEVICES=0,1`、tmux `vit-moco-a1`。コマンドはspec §7のG2と同じ。
+- 開始：2026-11-05 02:08:12。出力：`log/moco_vit_seq_activitynet_clip/lora/activitynet_sequential_clips/lr_0.0003/2026-11-05_02-08-19-443327/`
+- step 3まで、lossは1回目のG2と同じ値で進んだ（7.588、7.447、7.538）。GPU 0は13,375 MiB、GPU 1は13,155 MiBを使っている。
+- 見込み：1stepあたり約11.5〜11.8秒で、約20〜20.5時間。2026-11-05の22時〜23時ごろに終わる見込み。最初のepochの終わりは、約5時間後（step 1,600付近）の見込み。
+
+### ユーザーの指示で停止（2026-11-05 09:19）
+
+- ユーザーの指示で、tmuxにCtrl-Cを送って止めた。最後に記録されたstepは2,114（epoch 1）。
+  - 両rankとも、step 2,115で `KeyboardInterrupt` を記録した（`rank*_report.json` の `status: failed`）。
+  - 1回目のCtrl-Cでは、rankのプロセスが終わりきらなかった。約2分後に2回目のCtrl-Cを送ると、全プロセスが終わった。GPU 0・1は空いた。2回目で実行スクリプトも止まったため、`seq-g2c.log` に `exit=` の行はない。
+- 残ったもの：checkpointはstep 1,000と2,000。
+- **epoch 0の終わりは正常に越えた**。両rankとも `loader_epochs` にepoch 0（1,600step、`exhausted`）が記録された（07:38）。そのあと、epoch 1のworkerが起動して学習が続いた（step 1,601のloss 7.366）。
+- 参考の値（判断はしない）：
+  - lossの平均は、step 257〜506で8.348、step 1,865〜2,114で7.351。
+  - `query_feature_std` は、step 1で0.0686、step 2,114で0.0879。
+
+### step 2,000から再開（2026-11-08 17:25、ユーザーの指示）
+
+- 研究コード `9285a47`（clean）、loader `ce4dcbc`（clean）。停止したときと同じcommitである。`CUDA_VISIBLE_DEVICES=0,1`、tmux `vit-moco-a1`。
+- コマンド：G2と同じコマンドに、`training.resume=<上の出力>/checkpoint_step002000.pt` を足した（scratchpadの `seq-g2d.sh`）。
+- 出力：`log/moco_vit_seq_activitynet_clip/lora/activitynet_sequential_clips/lr_0.0003/2026-11-08_17-26-03-055153/`
+- 開始から約28分でstep 2,001が出た。この間に、checkpointの読み込み、epoch 1の最初の400 batchの読み直し、step 0のprobeを行った。
+- **step 2,001と2,002は、止める前のrunと一致した**。
+  - 各rankの `input_sha256`（view q・view k）が、bitwiseで一致した。
+  - lossも一致した（7.33260…、7.26620…）。
+- GPUの使用量は、GPU 0が13,352 MiB、GPU 1が13,132 MiB。
+- 見込み：残りは4,255step。1stepあたり約11.7秒なので、2026-11-09の朝（8時ごろ）に終わる見込み。
+
+## G2の完走（2026-11-09 07:58）
+
+step 2,000から再開したrunは、step 6,255まで完走した（exit 0、終了は2026-11-09 07:58:01）。step 1〜2,000はやり直したrun（`2026-11-05_02-08-19-443327`）の記録、step 2,001〜6,255は再開したrun（`2026-11-08_17-26-03-055153`）の記録を合わせて読む。
+- sha256（先頭、再開したrun）：`run_report.json` `a84b755f259d`、`metrics.jsonl` `ac04412225c2`、`diagnostic_summary.json` `b819d6231ff2`、`probe_metrics.jsonl` `d87ba2d447b8`
+
+### 工学的な確認（spec §8）
+
+| 項目 | 結果 |
+|---|---|
+| 完走 | **PASS**。`status: completed`、`last_global_step` 6,255、failuresなし。2つのrunを合わせて、step 1〜6,255が1つずつ記録されている。全stepでfinite、LRは全stepで3e-4 |
+| Queue | queue_ptrは毎step 256ずつ進み、step 256で0に戻った（K=65,536） |
+| 最後の状態確認 | **PASS**。全rankが同じ状態（`state_sha256` が一致）、凍結した部分は変わっていない、keyの凍結した部分はqueryと同じ |
+| diagnostic summary | `engineering_status: PASS`、reasonsなし。再開したrunのprobe `[0, 3000, 4000, 5000, 6000, 6255]` がすべて記録された。step 0のprobeの特徴は、やり直したrunとbitwise一致した |
+| VRAM | GPU 0：max reserved 12,784 MiB、headroom 19,434 MiB<br>GPU 1：max reserved 12,784 MiB、**headroom 7,312 MiB**（基準は1,024 MiB以上）→ **PASS** |
+| checkpoint | **すべて保存された**。step 1,000・2,000はやり直したrun、step 3,000・4,000・5,000・6,000・6,255は再開したrunにある |
+| resume | step 2,000のcheckpoint（sha256 `3c88ddcc…`）から再開した。epoch 1の最初の400 batchを読み直して捨てるのに1,505秒かかった。step 2,001・2,002の入力とlossは、止める前のrunと一致した |
+
+- `ranks_feature_identical` は `false` だった。これまでのG1（3回とも）とclip A1でも `false` で、`engineering_status` の判定には入っていない。GPU 0とGPU 1は機種が違うので、probeの特徴がbitwiseで一致しないためと考えられる（確認はしていない）。
+
+### loss（250step窓の平均、記述のみ）
+
+| 窓（step） | loss | 正例のcos | 最も似たnegativeのcos | `query_feature_std` |
+|---|---|---|---|---|
+| **257〜506（最初の窓）** | **8.348** | 0.522 | 0.601 | 0.0869 |
+| 1,007〜1,256 | 7.632 | 0.746 | 0.798 | 0.0876 |
+| 2,007〜2,256 | 7.308 | 0.825 | 0.851 | 0.0878 |
+| 3,007〜3,256 | 7.140 | 0.858 | 0.874 | 0.0879 |
+| 4,007〜4,256 | 7.078 | 0.868 | 0.883 | 0.0879 |
+| 5,007〜5,256 | 6.991 | 0.886 | 0.894 | 0.0879 |
+| **6,006〜6,255（最後の窓）** | **6.964** | 0.889 | 0.896 | 0.0879 |
+
+- Queueが埋まった後のlossは、**最初の窓の8.348から最後の窓の6.964へ下がった**（−1.38）。step 6,255のlossは6.979。
+- 下がり方は後半ほど小さい。257stepから区切った250step窓ごとの低下は、最初の3つで0.36・0.21・0.15だった。step 4,007以降は、1窓あたり−0.004〜0.031だった。2つの窓は、1つ前の窓よりわずかに高かった。
+  - step 5,257〜5,506：6.995（1つ前は6.991）
+  - step 5,757〜6,006：6.978（1つ前は6.976）
+- 平均のnegativeのcosは、step 2,000以降はほぼ0（−0.0007〜−0.0002）だった。
+- **最も似たnegativeのcosは、全期間で正例のcosより少し高い**（最後の窓で0.896と0.889）。同じ動画の少し前のclipがQueueに入っているため、と考えられる（spec §2の注意点、未確認）。
+- **clip A2 LoRA（ランダム順、0.25秒間隔）との比較**：同じstep（410〜459の窓）のlossは、A2が8.309、今回が8.242だった。条件（フレームの間隔、順番に読むこと）が違うので、差は参考にとどめる（spec §8）。A2は459stepで終わっているので、それより後は比べられない。
+
+### collapseの兆候（記述のみ）
+
+`query_feature_std`（学習batchのqの各次元のばらつき）は、step 256より後は0.0869〜0.0880の範囲だった。上限の目安1/√128≈0.0884に近いまま下がっていない。
+
+固定probe（ImageNet 64枚の静止clip、rank 0）：
+
+| step | z_q cos p50 | z_q cos p95 | q mean_dim_std | z_q：step 0とのcos p50 | CLS cos p50 | CLS：step 0とのcos p50 |
+|---|---|---|---|---|---|---|
+| 0 | 0.318 | 0.446 | 0.0727 | — | 0.032 | — |
+| 10 | 0.594 | 0.683 | 0.0561 | 0.948 | 0.032 | 1.000 |
+| 256 | 0.095 | 0.288 | 0.0835 | 0.643 | 0.029 | 0.985 |
+| 1,000 | 0.102 | 0.327 | 0.0829 | 0.581 | 0.022 | 0.960 |
+| 2,000 | 0.095 | 0.339 | 0.0831 | 0.550 | 0.020 | 0.934 |
+| 3,000 | 0.094 | 0.350 | 0.0830 | 0.509 | 0.018 | 0.905 |
+| 4,000 | 0.092 | 0.360 | 0.0829 | 0.460 | 0.018 | 0.878 |
+| 5,000 | 0.091 | 0.365 | 0.0830 | 0.425 | 0.020 | 0.856 |
+| 6,000 | 0.092 | 0.381 | 0.0827 | 0.393 | 0.021 | 0.842 |
+| 6,255 | 0.096 | 0.381 | 0.0826 | 0.365 | 0.023 | 0.825 |
+
+- **6,255stepまで、collapseは観測されなかった**。
+  - z_qの方向集中（p50）は、step 10で0.59まで上がった後、step 256から最後まで約0.09〜0.10のままだった。
+  - q mean_dim_stdは約0.083のままだった。
+  - `uniformity_warnings` は空だった。
+- p95はstep 256の0.288から、step 6,255の0.381へ少しずつ上がった。一部のprobe画像どうしが近づいている。
+- 特徴は、学習の後半も動き続けている。step 0とのcos p50は、z_qで0.365、CLSで0.825まで下がった（clip A2 LoRAのstep 459ではCLSが0.978）。
+- probeはImageNetの静止clipなので、ActivityNetでの表現品質は示さない。
+
+### epochと読み込み
+
+| epoch | step数 | 終わり方 | 1 rankあたりの完了した動画（例：rank 0のslot 0） |
+|---|---|---|---|
+| 0 | 1,600 | `exhausted` | 27本 |
+| 1 | 1,580 | `exhausted` | 31本 |
+| 2 | 1,413 | `exhausted` | 27本 |
+| 3 | 1,419 | `exhausted` | 27本 |
+| 4 | 243 | `stopped`（max_steps） | 4本 |
+
+- 両rankとも同じstep数で、合計は6,255step。epochの終わり（4回）は、どれも正常に越えた。
+- epochの長さは1,413〜1,600stepだった。どこかのslotの動画が尽きた時点でepochが終わる。そのため、1 epochで全動画を読み終えるわけではない。
+- 埋めたフレームは、45,087 / 6,405,120フレーム（**約0.70％**）。
+
+### 時間
+
+| 項目 | 値 |
+|---|---|
+| 1stepの計算（`step_time_sec`、step 2〜6,255の平均） | 8.85秒 |
+| データ待ち（遅い方のrank） | step 2〜2,000：平均3.16秒、中央値3.29秒<br>step 2,002〜6,255：平均2.91秒、中央値2.86秒 |
+| 再開したrunの本体 | 52,316秒（約14.5時間、resumeの読み直し約25分を含む） |
+| やり直したrun（step 0〜2,114） | 2026-11-05 02:08〜09:19（約7.2時間） |
+
+### 主張しないこと（spec §8）
+
+表現の品質、時間情報の獲得、公式MoCoと同じ性能になったこと、stride 16が最適であること。
+
+## Cometへの記録（2026-11-10、ユーザーの指示）
+
+学習中のrunはCometを使わない（runのディレクトリが記録の正本）。ユーザーの指示で、学習の後から、2つのrunの記録をつないでCometに送った。
+- 実験：`haruto2919/2026-09-ishikawa-sequential-video-lora`、名前 `seq-loader-clip-lora-g2__moco__6255step`
+  - URL：https://www.comet.com/haruto2919/2026-09-ishikawa-sequential-video-lora/d7089226ac604f169c491873800299c3
+  - tag：moco、lora、clip、sequential-loader、stride-16、seed-0、g2
+- 送ったもの：
+  - **stepごとの値（step 1〜6,255）**：step 1〜2,000は最初のrun（`2026-11-05_02-08-19-443327`）、step 2,001〜6,255は再開したrun（`2026-11-08_17-26-03-055153`）から取った。最初のrunのstep 2,001〜2,114は送っていない。
+  - stepごとの値は、loss、正例・平均negative・最も似たnegativeのcos、lr、`trainable_grad_norm`、`query_feature_std`、`step_time_sec`、データ待ち（遅い方のrank）、埋めたフレーム数。epochも付けた。
+  - **固定probe（rank 0）**：cls・q・z_qの統計と、step 0とのcos p50。step 0〜2,000は最初のrun、3,000〜6,255は再開したrunから取った。
+  - **設定**：`config_identity`、研究コード・loaderのcommit、2つのrunのディレクトリ、再開に使ったcheckpointとそのsha256、epochごとのstep数。
+  - **ファイル**：両runの `resolved_config.yaml`・`rank0_report.json`・`loader_epochs`、再開したrunの `run_report.json`・`diagnostic_summary.json`。checkpointは送っていない。
+- 送るのに使ったスクリプト：scratchpadの `seqtrain/comet_upload_g2.py`（runのディレクトリを読むだけ。研究コードは変えていない）。
+- 確認：CometのAPIで読み直した。stepごとの10個の値は、どれもstep 1〜6,255がそろっていた。lossは手元の記録と全stepで一致した。probeは全13 stepがあり、ファイルは10個あった。

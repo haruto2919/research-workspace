@@ -110,3 +110,24 @@ CUDA_VISIBLE_DEVICES=0,1 python -m scripts.vit_moco.moco_vit_ddp_smoke --config-
 
 - データ待ちは約0.9秒/step減った。ただし、CPUだけで測ったときの見込み（約0.45秒）までは下がらなかった。
 - 長い待ち（約3秒）と短い待ち（約0.6秒）が交互に出る。CPUだけで測ったときは、loaderは1stepを約3.5秒で作れていた。学習と同時に動かすと、loaderの作る速さが落ちているか、一部のworkerが遅れている（たとえば解像度の高い動画を受け持ったworker）と考えられる。**原因は確認していない**。
+
+## 追記（2026-11-05）：G1の3回目（spec §10b、forkserverの後）
+
+loaderのworkerをforkserverで起動するようにした（spec §10b）。その後、ユーザーの許可を得て、同じコマンドでG1を再び実行した。
+
+- 研究コード `9285a47`（clean）、loader `ce4dcbc`（clean）。tmux `vit-moco-a1`。
+- 時刻：02:00:27開始 → 02:07:29終了（run本体は413秒）。exit 0。
+- 出力：`log/moco_vit_seq_activitynet_clip/lora/activitynet_sequential_clips/lr_0.0003/2026-11-05_02-00-34-914687/`
+  - sha256（先頭）：`run_report.json` `914ba67aef98`、`metrics.jsonl` `adb544004c34`、`diagnostic_summary.json` `e34277efcebf`
+
+| 項目 | 結果 |
+|---|---|
+| 工学的な確認 | **PASS**。10/10step完走、failuresなし、`smoke_completed` と `vram_feasible` がtrue、全rankが同じ状態<br>headroomはGPU 0が19,434 MiB、GPU 1が7,312 MiB |
+| data記録 | `streams.multiprocessing_context: forkserver`、loader `ce4dcbc` |
+| 入力 | 各stepの `input_sha256` は、2回目（`f16a485`／`b114c17`）と**全stepでbitwise一致** |
+| loss | 2回目との差は最大で約2e-6（step 2・6・7・9・10で最後の桁が違う） |
+| 1stepの計算（step 2〜10の平均） | 8.68秒 |
+| データ待ち（遅い方のrank、step 2〜10） | 平均2.84秒、中央値2.93秒（2回目は平均2.30秒） |
+| epoch | 両rankとも、epoch 0の10stepで `stopped` |
+
+- **訂正**：2回目の追記で、lossは「1回目と全stepで同じ」と書いた。比べ直すと、1回目と2回目もstep 6・7・8で最後の桁（約5e-7〜2e-6）が違っていた。入力は同じなので、GPUの計算の非決定性による差と考えられる。原因は確認していない。

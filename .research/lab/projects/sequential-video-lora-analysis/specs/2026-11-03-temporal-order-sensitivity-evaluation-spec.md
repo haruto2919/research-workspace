@@ -143,3 +143,17 @@ source_brainstorm: ../../../../secretary/notes/brainstorm/2026-11-03-temporal-or
 - 2026-11-03：brainstormのE1〜E6とP1〜P10（すべて推薦案）をもとに、draftを作成した。
 - 2026-11-03：MoCoの正例・負例（正例は同じclipの2拡張、負例はqueueの65,536 key、同じ動画のclipも負例から外さない）を確認したあと、ユーザーが承認した（approved）。
 - 2026-11-04：`feature-vit-moco@fe58fc3` の上に、未commitで実装した（I1〜I4）。CPUテストT1〜T6はPASS。全テストは36 failed / 972 passedで、失敗IDの集合は変更前と同じ。probe特徴の再計算は、小さなViTのrunの記録とbitwise一致した。specからのずれはない。R0・R1は未実施。
+- 2026-11-10（追記、ユーザー承認）：sequential-loaderで学習したrun（G2、`data.source=activitynet_sequential_clips`）を、評価するモデルとして受け付ける。
+  - 今の `reference_check` は、probe画像を4フレームの静止clipに広げる処理を `data.source == "activitynet_clips"` のときだけ行っていた。そのため、G2では形が合わずに止まっていた。
+  - 修正後は、学習時のprobe（`query_collapse_diagnostic`）と同じく `CLIP_SOURCES` で判定する。
+  - 評価の意味（評価に使うclip、条件、集計）は変えない。
+  - §12の「sequential-loaderを使った評価」（評価データをsequential-loaderで読むこと）は、引き続き対象外。
+  - 評価に使うclipは、R1と同じ0.25秒間隔とする。
+  - 評価するモデルは、R1の5つ（A、B-LoRA、B-FT、C-LoRA、C-FT）とG2-LoRA（step 6,255）。
+- 2026-11-10：上の追記を実装し、研究コードを `feature-vit-moco@559073f` としてcommitした（pushはしていない）。
+  - 変更は `temporal_order_eval.py` の1行（とimport 1行）と、CPUテスト1件（`test_the_temporal_order_evaluation_rechecks_a_sequential_run`）。
+  - 新しいテストは、修正前は形のエラーで失敗し、修正後はprobe特徴が小さなsequential runの記録とbitwise一致した。
+  - 全テストは、GPUを見えなくした環境（`CUDA_VISIBLE_DEVICES=""`）で、変更前が197 failed / 825 passed / 18 errors、変更後が197 failed / 826 passed / 18 errors だった。失敗とエラーのIDの集合は同じ。
+  - 失敗は旧フレームワークのテスト（image models、model factory、checkpoint、video models、video folder）と、`test_moco_5epoch_pair.py` の1件だけ。
+  - 11/04の記録（36 failed）との違いは、実行環境の違い（GPUが見えるかどうかなど）によると推測している（未確認）。
+  - G2を含む評価の実行（GPU）は、まだ行っていない。
