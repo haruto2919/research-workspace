@@ -286,3 +286,11 @@ step 2,000から再開したrunは、step 6,255まで完走した（exit 0、終
   - **ファイル**：両runの `resolved_config.yaml`・`rank0_report.json`・`loader_epochs`、再開したrunの `run_report.json`・`diagnostic_summary.json`。checkpointは送っていない。
 - 送るのに使ったスクリプト：scratchpadの `seqtrain/comet_upload_g2.py`（runのディレクトリを読むだけ。研究コードは変えていない）。
 - 確認：CometのAPIで読み直した。stepごとの10個の値は、どれもstep 1〜6,255がそろっていた。lossは手元の記録と全stepで一致した。probeは全13 stepがあり、ファイルは10個あった。
+
+## checkpointを1つのフォルダにまとめた（2026-11-13、ユーザーの指示）
+
+checkpointが2つのrunに分かれていたので、1つのフォルダから全stepを参照できるようにした。
+- フォルダ：`log/moco_vit_seq_activitynet_clip/lora/activitynet_sequential_clips/lr_0.0003/combined_seq_clip_lora_step1000-6255/`
+- 中身：step 1,000・2,000（やり直したrun `2026-11-05_02-08-19-443327`）と、step 3,000・4,000・5,000・6,000・6,255（再開したrun `2026-11-08_17-26-03-055153`）の `checkpoint_stepXXXXXX.pt` と `.rank{0,1}.pt` への**相対シンボリックリンク**。由来を書いた `README.txt` も置いた。
+- 元のrunのファイルは移動も変更もしていない。上の記録のパスはそのまま使える。
+- 確認：リンク切れはなし。7個のcheckpointをすべてCPUで読み込めた。`global_step` はファイル名と一致し、どのcheckpointにもquery側のLoRA tensorが48個ずつ入っていた。
